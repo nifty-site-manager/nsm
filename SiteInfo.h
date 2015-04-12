@@ -29,12 +29,22 @@ struct SiteInfo
         PageInfo inPage;
         while(ifs >> inPage)
         {
+            //checks that content and template files aren't the same
+            if(inPage.contentLocation == inPage.templateLocation)
+            {
+                std::cout << "error: failed to open .siteinfo/pages.list" << std::endl;
+                std::cout << "reason: page " << inPage.pageLocation << " has same content and template location " << inPage.templateLocation << std::endl;
+
+                return 1;
+            }
+
             //makes sure there's no duplicate entries in pages.list
             if(pages.count(inPage) > 0)
             {
                 PageInfo cInfo = *(pages.find(inPage));
 
-                std::cout << "error: duplicate entry for " << inPage.pageLocation << std::endl;
+                std::cout << "error: failed to open .siteinfo/pages.list" << std::endl;
+                std::cout << "reason: duplicate entry for " << inPage.pageLocation << std::endl;
                 std::cout << std::endl;
                 std::cout << "----- first entry -----" << std::endl;
                 std::cout << "       page title: " << cInfo.pageTitle << std::endl;
@@ -96,6 +106,7 @@ struct SiteInfo
 
     bool tracked()
     {
+        std::cout << std::endl;
         std::cout << "------ tracked pages ------" << std::endl;
         for(auto page=pages.begin(); page!=pages.end(); page++)
         {
@@ -113,6 +124,7 @@ struct SiteInfo
 
     bool tracked_locs()
     {
+        std::cout << std::endl;
         std::cout << "--------- tracked page locations ---------" << std::endl;
         for(auto page=pages.begin(); page!=pages.end(); page++)
             std::cout << page->pageLocation << std::endl;
@@ -123,10 +135,18 @@ struct SiteInfo
 
     bool track(const PageInfo &newPage)
     {
+        if(newPage.contentLocation == newPage.templateLocation)
+        {
+            std::cout << std::endl;
+            std::cout << "error: content and template locations cannot be the same, page not tracked" << std::endl;
+            return 1;
+        }
+
         if(pages.count(newPage) > 0)
         {
             PageInfo cInfo = *(pages.find(newPage));
 
+            std::cout << std::endl;
             std::cout << "error: nsm is already tracking " << newPage.pageLocation << std::endl;
             std::cout << "----- current page details -----" << std::endl;
             std::cout << "       page title: " << cInfo.pageTitle << std::endl;
@@ -137,28 +157,33 @@ struct SiteInfo
 
             return 1;
         }
-        else
+
+        //warns user if content and/or template locs don't exist
+        if(!std::ifstream(STR(newPage.contentLocation)))
         {
-            //inserts new page into set of pages
-            pages.insert(newPage);
-
-            //saves new set of pages to pages.list
-            std::ofstream ofs(".siteinfo/pages.list");
-            for(auto page=pages.begin(); page!=pages.end(); page++)
-                ofs << *page << std::endl << std::endl;
-            ofs.close();
-
-            //warns user if content and/or template locs don't exist
-            if(!std::ifstream(STR(newPage.contentLocation)))
-                std::cout << "warning: content loc " << newPage.contentLocation << " does not exist" << std::endl;
-            if(!std::ifstream(STR(newPage.templateLocation)))
-                std::cout << "warning: template loc " << newPage.templateLocation << " does not exist" << std::endl;
-
-            //informs user that page addition was successful
-            std::cout << "successfully tracking " << newPage.pageLocation << std::endl;
-
-            return 0;
+            std::cout << std::endl;
+            std::cout << "warning: content loc " << newPage.contentLocation << " does not exist" << std::endl;
         }
+        if(!std::ifstream(STR(newPage.templateLocation)))
+        {
+            std::cout << std::endl;
+            std::cout << "warning: template loc " << newPage.templateLocation << " does not exist" << std::endl;
+        }
+
+        //inserts new page into set of pages
+        pages.insert(newPage);
+
+        //saves new set of pages to pages.list
+        std::ofstream ofs(".siteinfo/pages.list");
+        for(auto page=pages.begin(); page!=pages.end(); page++)
+            ofs << *page << std::endl << std::endl;
+        ofs.close();
+
+        //informs user that page addition was successful
+        std::cout << std::endl;
+        std::cout << "successfully tracking " << newPage.pageLocation << std::endl;
+
+        return 0;
     };
 
     bool untrack(const Location &pageLocToUntrack)
@@ -166,6 +191,7 @@ struct SiteInfo
         //checks that page is being tracked
         if(!tracking(pageLocToUntrack))
         {
+            std::cout << std::endl;
             std::cout << "error: nsm is not tracking " << pageLocToUntrack << std::endl;
             return 1;
         }
@@ -188,6 +214,7 @@ struct SiteInfo
             ofs.close();
 
             //informs user that page was successfully untracked
+            std::cout << std::endl;
             std::cout << "successfully untracked " << pageLocToUntrack << std::endl;
         }
     };
@@ -234,6 +261,7 @@ struct SiteInfo
     {
         if(pages.size() == 0)
         {
+            std::cout << std::endl;
             std::cout << "nsm is not tracking any pages, nothing to build" << std::endl;
             return 0;
         }
@@ -268,6 +296,7 @@ struct SiteInfo
         std::set<Location> builtPages,
             problemPages;
 
+        std::cout << std::endl;
         for(auto page=pages.begin(); page != pages.end(); page++)
         {
             //checks whether content and template files exist
@@ -291,8 +320,8 @@ struct SiteInfo
             if(!std::ifstream(STR(pageInfoLoc)))
             {
                 std::cout << page->pageLocation << ": yet to be built" << std::endl;
-               updatedPages.insert(*page);
-               continue;
+                updatedPages.insert(*page);
+                continue;
             }
             else
             {
@@ -326,11 +355,13 @@ struct SiteInfo
                 {
                     if(!std::ifstream(STR(dep)))
                     {
+                        std::cout << page->pageLocation << ": dep loc " << dep << " removed since last build" << std::endl;
                         updatedPages.insert(*page);
                         break;
                     }
                     else if(modified_after(dep, pageInfoLoc))
                     {
+                        std::cout << page->pageLocation << ": dep loc " << dep << " modified since last build" << std::endl;
                         updatedPages.insert(*page);
                         break;
                     }
@@ -366,7 +397,7 @@ struct SiteInfo
 
         if(builtPages.size() == 0 && problemPages.size() == 0)
         {
-            std::cout << std::endl;
+            //std::cout << std::endl;
             std::cout << "all pages are already up to date" << std::endl;
         }
     }

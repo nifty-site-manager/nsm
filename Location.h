@@ -47,6 +47,7 @@ struct Location
     friend std::string getComparable(const Location &loc);
     friend bool operator<(const Location &loc1, const Location &loc2);
     friend bool operator!=(const Location &loc1, const Location &loc2);
+    friend bool operator==(const Location &loc1, const Location &loc2);
 
     friend bool modified_after(const Location &loc1, const Location &loc2);
 
@@ -91,10 +92,10 @@ std::string getComparable(const Location &loc)
         return loc.str.substr(2, loc.str.length()-2);
 };
 
-/*bool operator==(const Location &loc1, const Location &loc2)
+bool operator==(const Location &loc1, const Location &loc2)
 {
     return (getComparable(loc1) == getComparable(loc2));
-}*/
+}
 
 bool operator!=(const Location &loc1, const Location &loc2)
 {
