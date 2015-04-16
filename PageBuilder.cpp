@@ -26,6 +26,7 @@ int PageBuilder::build(const PageInfo &PageToBuild)
     indentAmount = "";
     contentAdded = 0;
     processedPage.clear();
+    processedPage.str(std::string());
     pageDeps.clear();
     contentAdded = 0;
 
