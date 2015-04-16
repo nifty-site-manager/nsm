@@ -260,13 +260,13 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //ensures insert file exists
                     if(!std::ifstream(inputPath))
                     {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": file insertion failed as " << inputPath << " does not exist" << std::endl;
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": inputting file " << inputPath << " failed as path does not exist" << std::endl;
                         return 1;
                     }
                     //ensures insert file isn't an anti dep of read path
                     if(antiDepsOfReadPath.count(inputPath))
                     {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": insertion of " << inputPath << " would result in an insertion loop" << std::endl;
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": inputting file " << inputPath << " would result in an input loop" << std::endl;
                         return 1;
                     }
 

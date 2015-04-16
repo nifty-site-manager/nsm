@@ -284,7 +284,9 @@ bool SiteInfo::build_updated()
 {
     PageBuilder pageBuilder;
     std::set<PageInfo> updatedPages;
-    std::set<Path> builtPages,
+    std::set<Path> modifiedFiles,
+        removedFiles,
+        builtPages,
         problemPages;
 
     std::cout << std::endl;
@@ -347,12 +349,14 @@ bool SiteInfo::build_updated()
                 if(!std::ifstream(dep.str))
                 {
                     std::cout << page->pagePath << ": dep path " << dep << " removed since last build" << std::endl;
+                    removedFiles.insert(dep);
                     updatedPages.insert(*page);
                     break;
                 }
                 else if(dep.modified_after(pageInfoPath))
                 {
                     std::cout << page->pagePath << ": dep path " << dep << " modified since last build" << std::endl;
+                    modifiedFiles.insert(dep);
                     updatedPages.insert(*page);
                     break;
                 }
@@ -360,12 +364,49 @@ bool SiteInfo::build_updated()
         }
     }
 
-    for(auto page=updatedPages.begin(); page != updatedPages.end(); page++)
+    if(removedFiles.size() > 0)
     {
-        if(pageBuilder.build(*page) > 0)
-            problemPages.insert(page->pagePath);
+        std::cout << std::endl;
+        std::cout << "---- removed content files ----" << std::endl;
+        for(auto rFile=removedFiles.begin(); rFile != removedFiles.end(); rFile++)
+            std::cout << *rFile << std::endl;
+        std::cout << "-------------------------------" << std::endl;
+    }
+
+    if(modifiedFiles.size() > 0)
+    {
+        std::cout << std::endl;
+        std::cout << "------- updated content files ------" << std::endl;
+        for(auto uFile=modifiedFiles.begin(); uFile != modifiedFiles.end(); uFile++)
+            std::cout << *uFile << std::endl;
+        std::cout << "------------------------------------" << std::endl;
+    }
+
+    if(updatedPages.size() > 0)
+    {
+        std::cout << std::endl;
+        std::cout << "----- pages that need building -----" << std::endl;
+        for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
+            std::cout << uPage->pagePath << std::endl;
+        std::cout << "------------------------------------" << std::endl;
+    }
+
+    if(problemPages.size() > 0)
+    {
+        std::cout << std::endl;
+        std::cout << "----- pages with missing content or template file -----" << std::endl;
+        for(auto pPage=problemPages.begin(); pPage != problemPages.end(); pPage++)
+            std::cout << *pPage << std::endl;
+        std::cout << "-------------------------------------------------------" << std::endl;
+    }
+    problemPages.clear();
+
+    for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
+    {
+        if(pageBuilder.build(*uPage) > 0)
+            problemPages.insert(uPage->pagePath);
         else
-            builtPages.insert(page->pagePath);
+            builtPages.insert(uPage->pagePath);
     }
 
     if(builtPages.size() > 0)
@@ -380,13 +421,13 @@ bool SiteInfo::build_updated()
     if(problemPages.size() > 0)
     {
         std::cout << std::endl;
-        std::cout << "----- updated pages which failed to build -----" << std::endl;
-        for(auto uPage=problemPages.begin(); uPage != problemPages.end(); uPage++)
-            std::cout << *uPage << std::endl;
-        std::cout << "-----------------------------------------------" << std::endl;
+        std::cout << "----- pages that failed to build -----" << std::endl;
+        for(auto pPage=problemPages.begin(); pPage != problemPages.end(); pPage++)
+            std::cout << *pPage << std::endl;
+        std::cout << "--------------------------------------" << std::endl;
     }
 
-    if(builtPages.size() == 0 && problemPages.size() == 0)
+    if(updatedPages.size() == 0)
     {
         //std::cout << std::endl;
         std::cout << "all pages are already up to date" << std::endl;
