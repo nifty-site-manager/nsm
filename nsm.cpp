@@ -1,6 +1,3 @@
-#include <cstdio>
-#include <iostream>
-
 #include "SiteInfo.h"
 
 void unrecognisedCommand(const std::string from, const std::string cmd)
@@ -33,14 +30,14 @@ int main(int argc, char* argv[])
     if(cmd == "help")
     {
         std::cout << "-------------- available commands --------------" << std::endl;
+        std::cout << "nsm build          | input: pagePath1 .. pagePathk" << std::endl;
         std::cout << "nsm build-updated  | builds updated pages" << std::endl;
         std::cout << "nsm build-all      | builds all tracked pages " << std::endl;
-        std::cout << "nsm build-pages    | input: page-loc-1 .. page-loc-k" << std::endl;
         std::cout << "nsm init           | initialise managing a site" << std::endl;
-        std::cout << "nsm track          | input: title page-loc content-loc template-loc" << std::endl;
+        std::cout << "nsm track          | input: title page-path content-path template-path" << std::endl;
         std::cout << "nsm tracked        | lists tracked pages" << std::endl;
-        std::cout << "nsm tracked-locs   | lists tracked page locations" << std::endl;
-        std::cout << "nsm untrack        | input: page-loc" << std::endl;
+        std::cout << "nsm tracked-paths  | lists tracked page paths" << std::endl;
+        std::cout << "nsm untrack        | input: page-path" << std::endl;
         std::cout << "nsm status         | lists updated and problem pages" << std::endl;
         std::cout << "------------------------------------------------" << std::endl;
 
@@ -94,13 +91,13 @@ int main(int argc, char* argv[])
 
         return site.tracked();
     }
-    else if(cmd == "tracked-locs")
+    else if(cmd == "tracked-paths")
     {
         //ensures correct number of parameters given
         if(noParams > 1)
             return parError(noParams, argv, 1);
 
-        return site.tracked_locs();
+        return site.tracked_paths();
     }
     else if(cmd == "track")
     {
@@ -116,7 +113,7 @@ int main(int argc, char* argv[])
         if(noParams != 2)
             return parError(noParams, argv, 1);
 
-        return site.untrack(Location(argv[2]));
+        return site.untrack(Path(argv[2]));
     }
     else if(cmd == "build-updated")
     {
@@ -126,16 +123,16 @@ int main(int argc, char* argv[])
 
         return site.build_updated();
     }
-    else if(cmd == "build-pages")
+    else if(cmd == "build")
     {
         //ensures correct number of parameters given
         if(noParams <= 1)
             return parError(noParams, argv, -1);
 
-        std::vector<Location> pageLocsToBuild;
+        std::vector<Path> pagePathsToBuild;
         for(int p=2; p<argc; p++)
-            pageLocsToBuild.push_back(Location(argv[p]));
-        return site.build_pages(pageLocsToBuild);
+            pagePathsToBuild.push_back(Path(argv[p]));
+        return site.build(pagePathsToBuild);
     }
     else if(cmd == "build-all")
     {

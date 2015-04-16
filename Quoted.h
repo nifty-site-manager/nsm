@@ -8,43 +8,9 @@
 
 //reading a string which may be surrounded by quotes with spaces, and strips surrounding quotes
 //note mutates white space into single spaces
-void read_quoted(std::istream &ifs, std::string &s)
-{
-    //reads first string
-    ifs >> s;
-
-    std::string s2;
-    if(s[0] == '"')
-    {
-        while(s[s.length()-1] != '"')
-        {
-            ifs >> s2;
-            s += " " + s2;
-        }
-
-        s.replace(0, 1, "");
-        s.replace(s.length()-1, 1, "");
-    }
-    else if(s[0] == '\'')
-    {
-        while(s[s.length()-1] != '\'')
-        {
-            ifs >> s2;
-            s+=" " + s2;
-        }
-
-        s.replace(0, 1, "");
-        s.replace(s.length()-1, 1, "");
-    }
-}
+void read_quoted(std::istream &ifs, std::string &s);
 
 //outputting a string with quotes surrounded if it contains space(s)
-std::string quote(const std::string &unquoted)
-{
-    if(unquoted.find(' ') == std::string::npos)
-        return unquoted;
-    else
-        return "\"" + unquoted + "\"";
-}
+std::string quote(const std::string &unquoted);
 
 #endif //QUOTED_H_
