@@ -5,7 +5,7 @@ void unrecognisedCommand(const std::string from, const std::string cmd)
     std::cout << "error: " << from << " does not recognise the command '" << cmd << "'" << std::endl;
 }
 
-bool parError(int noParams, char* argv[], int expectedNo)
+bool parError(int noParams, char* argv[], const std::string &expectedNo)
 {
         std::cout << "error: " << noParams << " is more than the " << expectedNo << " parameters expected" << std::endl;
         std::cout << "parameters given:";
@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
     {
         //ensures correct number of parameters given
         if(noParams > 1)
-            return parError(noParams, argv, 1);
+            return parError(noParams, argv, "1");
 
         //ensures nsm isn't already managing a site from directory
         if(std::ifstream(".siteinfo/pages.list"))
@@ -79,7 +79,7 @@ int main(int argc, char* argv[])
     {
         //ensures correct number of parameters given
         if(noParams != 1)
-            return parError(noParams, argv, 1);
+            return parError(noParams, argv, "1");
 
         return site.status();
     }
@@ -87,7 +87,7 @@ int main(int argc, char* argv[])
     {
         //ensures correct number of parameters given
         if(noParams > 1)
-            return parError(noParams, argv, 1);
+            return parError(noParams, argv, "1");
 
         return site.tracked();
     }
@@ -95,7 +95,7 @@ int main(int argc, char* argv[])
     {
         //ensures correct number of parameters given
         if(noParams > 1)
-            return parError(noParams, argv, 1);
+            return parError(noParams, argv, "1");
 
         return site.tracked_paths();
     }
@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
     {
         //ensures correct number of parameters given
         if(noParams != 5)
-            return parError(noParams, argv, 5);
+            return parError(noParams, argv, "5");
 
         return site.track(PageInfo(argv[2], argv[3], argv[4], argv[5]));
     }
@@ -111,7 +111,7 @@ int main(int argc, char* argv[])
     {
         //ensures correct number of parameters given
         if(noParams != 2)
-            return parError(noParams, argv, 1);
+            return parError(noParams, argv, "2");
 
         return site.untrack(Path(argv[2]));
     }
@@ -119,7 +119,7 @@ int main(int argc, char* argv[])
     {
         //ensures correct number of parameters given
         if(noParams > 1)
-            return parError(noParams, argv, 1);
+            return parError(noParams, argv, "1");
 
         return site.build_updated();
     }
@@ -127,7 +127,7 @@ int main(int argc, char* argv[])
     {
         //ensures correct number of parameters given
         if(noParams <= 1)
-            return parError(noParams, argv, -1);
+            return parError(noParams, argv, ">1");
 
         std::vector<Path> pagePathsToBuild;
         for(int p=2; p<argc; p++)
@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
     {
         //ensures correct number of parameters given
         if(noParams != 1)
-            return parError(noParams, argv, 1);
+            return parError(noParams, argv, "1");
 
         return site.build_all();
     }
