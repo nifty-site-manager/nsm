@@ -38,7 +38,7 @@ Quoted.o: Quoted.cpp Quoted.h
 	$(CC) $(CXXFLAGS) -c -o $@ $<
 
 install:
-	chmod +x nsm
+	chmod 755 nsm
 	sudo mv nsm /usr/local/bin
 
 clean:
