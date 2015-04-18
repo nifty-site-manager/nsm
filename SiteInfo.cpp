@@ -1,7 +1,7 @@
 #include "SiteInfo.h"
 
 
-bool SiteInfo::open()
+int SiteInfo::open()
 {
     pages.clear();
 
@@ -56,7 +56,7 @@ bool SiteInfo::open()
     return 0;
 };
 
-bool SiteInfo::save()
+int SiteInfo::save()
 {
     std::ofstream ofs(".siteinfo/pages.list");
 
@@ -72,6 +72,71 @@ bool SiteInfo::save()
     return 0;
 };
 
+
+PageInfo SiteInfo::get_info(const Path &pagePath)
+{
+    PageInfo page;
+    page.pagePath = pagePath;
+    return *pages.find(page);
+};
+
+int SiteInfo::info(const std::vector<Path> &pathsForInfo)
+{
+    std::cout << std::endl;
+    std::cout << "------ information on specified pages ------" << std::endl;
+    for(auto cPath=pathsForInfo.begin(); cPath!=pathsForInfo.end(); cPath++)
+    {
+        if(cPath != pathsForInfo.begin())
+            std::cout << std::endl;
+
+        PageInfo cPageInfo;
+        cPageInfo.pagePath = *cPath;
+        if(pages.count(cPageInfo))
+        {
+            cPageInfo = *(pages.find(cPageInfo));
+            std::cout << "   page title: " << cPageInfo.pageTitle << std::endl;
+            std::cout << "    page path: " << cPageInfo.pagePath << std::endl;
+            std::cout << " content path: " << cPageInfo.contentPath << std::endl;
+            std::cout << "template path: " << cPageInfo.templatePath << std::endl;
+        }
+        else
+            std::cout << "nsm is not tracking " << *cPath << std::endl;
+    }
+    std::cout << "--------------------------------------------" << std::endl;
+
+    return 0;
+};
+
+int SiteInfo::info_all()
+{
+    std::cout << std::endl;
+    std::cout << "--------- all tracked pages ---------" << std::endl;
+    for(auto page=pages.begin(); page!=pages.end(); page++)
+    {
+        if(page != pages.begin())
+            std::cout << std::endl;
+        std::cout << "   page title: " << page->pageTitle << std::endl;
+        std::cout << "    page path: " << page->pagePath << std::endl;
+        std::cout << " content path: " << page->contentPath << std::endl;
+        std::cout << "template path: " << page->templatePath << std::endl;
+    }
+    std::cout << "------------------------------------" << std::endl;
+
+    return 0;
+};
+
+int SiteInfo::info_paths()
+{
+    std::cout << std::endl;
+    std::cout << "--------- all tracked page paths ---------" << std::endl;
+    for(auto page=pages.begin(); page!=pages.end(); page++)
+        std::cout << page->pagePath << std::endl;
+    std::cout << "------------------------------------------" << std::endl;
+
+    return 0;
+};
+
+
 bool SiteInfo::tracking(const PageInfo &page)
 {
     return pages.count(page);
@@ -84,43 +149,7 @@ bool SiteInfo::tracking(const Path &pagePath)
     return pages.count(page);
 };
 
-PageInfo SiteInfo::get_tracked(const Path &pagePath)
-{
-    PageInfo page;
-    page.pagePath = pagePath;
-    return *pages.find(page);
-};
-
-bool SiteInfo::tracked()
-{
-    std::cout << std::endl;
-    std::cout << "------ tracked pages ------" << std::endl;
-    for(auto page=pages.begin(); page!=pages.end(); page++)
-    {
-        if(page != pages.begin())
-            std::cout << std::endl;
-        std::cout << "   page title: " << page->pageTitle << std::endl;
-        std::cout << "    page path: " << page->pagePath << std::endl;
-        std::cout << " content path: " << page->contentPath << std::endl;
-        std::cout << "template path: " << page->templatePath << std::endl;
-    }
-    std::cout << "-----------------------------" << std::endl;
-
-    return 0;
-};
-
-bool SiteInfo::tracked_paths()
-{
-    std::cout << std::endl;
-    std::cout << "--------- tracked page paths ---------" << std::endl;
-    for(auto page=pages.begin(); page!=pages.end(); page++)
-        std::cout << page->pagePath << std::endl;
-    std::cout << "--------------------------------------" << std::endl;
-
-    return 0;
-};
-
-bool SiteInfo::track(const PageInfo &newPage)
+int SiteInfo::track(const PageInfo &newPage)
 {
     if(newPage.contentPath == newPage.templatePath)
     {
@@ -146,12 +175,12 @@ bool SiteInfo::track(const PageInfo &newPage)
     }
 
     //warns user if content and/or template paths don't exist
-    if(!std::ifstream(newPage.contentPath.str))
+    if(!std::ifstream(newPage.contentPath.str()))
     {
         std::cout << std::endl;
         std::cout << "warning: content path " << newPage.contentPath << " does not exist" << std::endl;
     }
-    if(!std::ifstream(newPage.templatePath.str))
+    if(!std::ifstream(newPage.templatePath.str()))
     {
         std::cout << std::endl;
         std::cout << "warning: template path " << newPage.templatePath << " does not exist" << std::endl;
@@ -173,7 +202,7 @@ bool SiteInfo::track(const PageInfo &newPage)
     return 0;
 };
 
-bool SiteInfo::untrack(const Path &pagePathToUntrack)
+int SiteInfo::untrack(const Path &pagePathToUntrack)
 {
     //checks that page is being tracked
     if(!tracking(pagePathToUntrack))
@@ -187,18 +216,23 @@ bool SiteInfo::untrack(const Path &pagePathToUntrack)
         PageInfo pageToErase;
         pageToErase.pagePath = pagePathToUntrack;
 
-        //removes page info file
-        std::string systemCall = "rm -f " + pagePathToUntrack.getInfoPath().str;
-        system(systemCall.c_str());
+        //removes page info file and containing dir if now empty
+        std::cout << "should remove " << pagePathToUntrack.getInfoPath().str() << std::endl;
+        chmod(pagePathToUntrack.getInfoPath().str().c_str(), 0666);
+        pagePathToUntrack.getInfoPath().removePath();
+        rmdir(pagePathToUntrack.getInfoPath().dir.c_str());
+
+        //removes page file and containing dir if now empty
+        std::cout << "should remove " << pagePathToUntrack.str() << std::endl;
+        chmod(pagePathToUntrack.str().c_str(), 0666);
+        pagePathToUntrack.removePath();
+        rmdir(pagePathToUntrack.dir.c_str());
 
         //removes page from pages set
         pages.erase(pageToErase);
 
         //saves new set of pages to pages.list
-        std::ofstream ofs(".siteinfo/pages.list");
-        for(auto page=pages.begin(); page!=pages.end(); page++)
-            ofs << *page << std::endl << std::endl;
-        ofs.close();
+        save();
 
         //informs user that page was successfully untracked
         std::cout << std::endl;
@@ -206,16 +240,130 @@ bool SiteInfo::untrack(const Path &pagePathToUntrack)
     }
 };
 
+
+int SiteInfo::new_title(const Path &pagePath, const Title &newTitle)
+{
+    PageInfo pageInfo;
+    pageInfo.pagePath = pagePath;
+    if(pages.count(pageInfo))
+    {
+        pageInfo = *(pages.find(pageInfo));
+        pages.erase(pageInfo);
+        pageInfo.pageTitle = newTitle;
+        pages.insert(pageInfo);
+        save();
+
+        //informs user that page title was successfully changed
+        std::cout << std::endl;
+        std::cout << "successfully changed page title to " << newTitle << std::endl;
+    }
+    else
+    {
+        std::cout << "nsm is not tracking " << pagePath << std::endl;
+    }
+};
+
+int SiteInfo::new_page_path(const Path &oldPagePath, const Path &newPagePath)
+{
+    PageInfo pageInfo;
+    pageInfo.pagePath = oldPagePath;
+    if(pages.count(pageInfo))
+    {
+        //removes old page info file and containing dir if now empty
+        chmod(oldPagePath.getInfoPath().str().c_str(), 0666);
+        oldPagePath.getInfoPath().removePath();
+        rmdir(oldPagePath.getInfoPath().dir.c_str());
+
+        //removes old page file and containing dir if now empty
+        chmod(oldPagePath.str().c_str(), 0666);
+        oldPagePath.removePath();
+        rmdir(oldPagePath.dir.c_str());
+
+        pageInfo = *(pages.find(pageInfo));
+        pages.erase(pageInfo);
+        pageInfo.pagePath = newPagePath;
+        pages.insert(pageInfo);
+        save();
+
+        //informs user that page path was successfully changed
+        std::cout << std::endl;
+        std::cout << "successfully changed page path to " << newPagePath.str() << std::endl;
+    }
+    else
+    {
+        std::cout << "nsm is not tracking " << oldPagePath << std::endl;
+    }
+};
+
+int SiteInfo::new_content_path(const Path &pagePath, const Path &newContentPath)
+{
+    PageInfo pageInfo;
+    pageInfo.pagePath = pagePath;
+    if(pages.count(pageInfo))
+    {
+        pageInfo = *(pages.find(pageInfo));
+        pages.erase(pageInfo);
+        pageInfo.contentPath = newContentPath;
+        pages.insert(pageInfo);
+        save();
+
+        //warns user if new content path doesn't exist
+        if(!std::ifstream(newContentPath.str()))
+        {
+            std::cout << std::endl;
+            std::cout << "warning: new content path " << newContentPath.str() << " does not exist" << std::endl;
+        }
+
+        //informs user that page title was successfully changed
+        std::cout << std::endl;
+        std::cout << "successfully changed content path to " << newContentPath.str() << std::endl;
+    }
+    else
+    {
+        std::cout << "nsm is not tracking " << pagePath << std::endl;
+    }
+};
+
+int SiteInfo::new_template_path(const Path &pagePath, const Path &newTemplatePath)
+{
+    PageInfo pageInfo;
+    pageInfo.pagePath = pagePath;
+    if(pages.count(pageInfo))
+    {
+        pageInfo = *(pages.find(pageInfo));
+        pages.erase(pageInfo);
+        pageInfo.templatePath = newTemplatePath;
+        pages.insert(pageInfo);
+        save();
+
+        //warns user if new template path doesn't exist
+        if(!std::ifstream(newTemplatePath.str()))
+        {
+            std::cout << std::endl;
+            std::cout << "warning: new template path " << newTemplatePath.str() << " does not exist" << std::endl;
+        }
+
+        //informs user that page title was successfully changed
+        std::cout << std::endl;
+        std::cout << "successfully changed template path to " << newTemplatePath.str() << std::endl;
+    }
+    else
+    {
+        std::cout << "nsm is not tracking " << pagePath << std::endl;
+    }
+};
+
+
 int SiteInfo::build(std::vector<Path> pagePathsToBuild)
 {
-    PageBuilder pageBuilder;
+    PageBuilder pageBuilder(pages);
     std::set<Path> untrackedPages, failedPages;
 
     for(auto pagePath=pagePathsToBuild.begin(); pagePath != pagePathsToBuild.end(); pagePath++)
     {
         if(tracking(*pagePath))
         {
-            if(pageBuilder.build(get_tracked(*pagePath)) > 0)
+            if(pageBuilder.build(get_info(*pagePath)) > 0)
                 failedPages.insert(*pagePath);
         }
         else
@@ -247,7 +395,7 @@ int SiteInfo::build(std::vector<Path> pagePathsToBuild)
 
 int SiteInfo::build_all()
 {
-    PageBuilder pageBuilder;
+    PageBuilder pageBuilder(pages);
 
     if(pages.size() == 0)
     {
@@ -280,9 +428,9 @@ int SiteInfo::build_all()
     return 0;
 };
 
-bool SiteInfo::build_updated()
+int SiteInfo::build_updated()
 {
-    PageBuilder pageBuilder;
+    PageBuilder pageBuilder(pages);
     std::set<PageInfo> updatedPages;
     std::set<Path> modifiedFiles,
         removedFiles,
@@ -293,13 +441,13 @@ bool SiteInfo::build_updated()
     for(auto page=pages.begin(); page != pages.end(); page++)
     {
         //checks whether content and template files exist
-        if(!std::ifstream(page->contentPath.str))
+        if(!std::ifstream(page->contentPath.str()))
         {
             std::cout << page->pagePath << ": content file " << page->contentPath << " does not exist" << std::endl;
             problemPages.insert(page->pagePath);
             continue;
         }
-        if(!std::ifstream(page->templatePath.str))
+        if(!std::ifstream(page->templatePath.str()))
         {
             std::cout << page->pagePath << ": template file " << page->templatePath << " does not exist" << std::endl;
             problemPages.insert(page->pagePath);
@@ -310,7 +458,7 @@ bool SiteInfo::build_updated()
         Path pageInfoPath = page->pagePath.getInfoPath();
 
         //checks whether info path exists
-        if(!std::ifstream(pageInfoPath.str))
+        if(!std::ifstream(pageInfoPath.str()))
         {
             std::cout << page->pagePath << ": yet to be built" << std::endl;
             updatedPages.insert(*page);
@@ -318,7 +466,7 @@ bool SiteInfo::build_updated()
         }
         else
         {
-            std::ifstream infoStream(pageInfoPath.str);
+            std::ifstream infoStream(pageInfoPath.str());
             PageInfo prevPageInfo;
             infoStream >> prevPageInfo;
 
@@ -344,9 +492,9 @@ bool SiteInfo::build_updated()
             }
 
             Path dep;
-            while(infoStream >> dep)
+            while(dep.read_file_path_from(infoStream))
             {
-                if(!std::ifstream(dep.str))
+                if(!std::ifstream(dep.str()))
                 {
                     std::cout << page->pagePath << ": dep path " << dep << " removed since last build" << std::endl;
                     removedFiles.insert(dep);
@@ -434,7 +582,8 @@ bool SiteInfo::build_updated()
     }
 };
 
-bool SiteInfo::status()
+
+int SiteInfo::status()
 {
     std::set<Path> updatedFiles, removedFiles;
     std::set<PageInfo> updatedPages, problemPages;
@@ -444,13 +593,13 @@ bool SiteInfo::status()
         bool needsUpdating = 0;
 
         //checks whether content and template files exist
-        if(!std::ifstream(page->contentPath.str))
+        if(!std::ifstream(page->contentPath.str()))
         {
             needsUpdating = 1; //shouldn't need this but doesn't cost much
             problemPages.insert(*page);
             //note user will be informed about this as a dep not existing
         }
-        if(!std::ifstream(page->templatePath.str))
+        if(!std::ifstream(page->templatePath.str()))
         {
             needsUpdating = 1; //shouldn't need this but doesn't cost much
             problemPages.insert(*page);
@@ -461,14 +610,14 @@ bool SiteInfo::status()
         Path pageInfoPath = page->pagePath.getInfoPath();
 
         //checks whether info path exists
-        if(!std::ifstream(pageInfoPath.str))
+        if(!std::ifstream(pageInfoPath.str()))
         {
             std::cout << page->pagePath << ": yet to be built" << std::endl;
             needsUpdating = 1;
         }
         else
         {
-            std::ifstream infoStream(pageInfoPath.str);
+            std::ifstream infoStream(pageInfoPath.str());
             PageInfo prevPageInfo;
             infoStream >> prevPageInfo;
 
@@ -491,9 +640,9 @@ bool SiteInfo::status()
             }
 
             Path dep;
-            while(infoStream >> dep)
+            while(dep.read_file_path_from(infoStream))
             {
-                if(!std::ifstream(dep.str))
+                if(!std::ifstream(dep.str()))
                 {
                     removedFiles.insert(dep);
                     needsUpdating = 1;

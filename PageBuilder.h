@@ -9,6 +9,7 @@
 
 struct PageBuilder
 {
+    std::set<PageInfo> pages;
     PageInfo pageToBuild;
     DateTimeInfo dateTimeInfo;
     int codeBlockDepth,
@@ -17,6 +18,11 @@ struct PageBuilder
     bool contentAdded;
     std::stringstream processedPage;
     std::set<Path> pageDeps;
+
+    PageBuilder(const std::set<PageInfo> &Pages)
+    {
+        pages = Pages;
+    }
 
     int build(const PageInfo &pageInfo);
     int read_and_process(const Path &readPath, std::set<Path> antiDepsOfReadPath);

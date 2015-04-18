@@ -7,12 +7,12 @@ int PageBuilder::build(const PageInfo &PageToBuild)
     std::cout << std::endl;
 
     //ensures content and template files exist
-    if(!std::ifstream(pageToBuild.contentPath.str))
+    if(!std::ifstream(pageToBuild.contentPath.str()))
     {
         std::cout << "error: cannot build " << pageToBuild.pagePath << " as content file " << pageToBuild.contentPath << " does not exist" << std::endl;
         return 1;
     }
-    if(!std::ifstream(pageToBuild.templatePath.str))
+    if(!std::ifstream(pageToBuild.templatePath.str()))
     {
         std::cout << "error: cannot build " << pageToBuild.pagePath << " as template file " << pageToBuild.templatePath << " does not exist." << std::endl;
         return 1;
@@ -21,7 +21,6 @@ int PageBuilder::build(const PageInfo &PageToBuild)
     std::cout << "building page " << pageToBuild.pagePath << std::endl;
 
     //makes sure variables are at default values
-    //DateTimeInfo dateTimeInfo;
     codeBlockDepth = htmlCommentDepth = 0;
     indentAmount = "";
     contentAdded = 0;
@@ -48,37 +47,38 @@ int PageBuilder::build(const PageInfo &PageToBuild)
         return 1;
     }
 
-    std::string systemCall;
+    //makes sure page file exists
+    pageToBuild.pagePath.ensurePathExists();
 
     //makes sure we can write to page file
-    systemCall = "if [ -f " + pageToBuild.pagePath.str + " ]; then chmod +w " + pageToBuild.pagePath.str + "; fi";
-    system(systemCall.c_str());
+    chmod(pageToBuild.pagePath.str().c_str(), 0644);
 
-    std::ofstream pageStream(pageToBuild.pagePath.str);
+    //writes processed page to page file
+    std::ofstream pageStream(pageToBuild.pagePath.str());
     pageStream << processedPage.str();
     pageStream.close();
 
-    //makes sure user can't edit page file
-    systemCall = "if [ -f " + pageToBuild.pagePath.str + " ]; then chmod -w " + pageToBuild.pagePath.str + "; fi";
-    system(systemCall.c_str());
+    //makes sure user can't accidentally write to page file
+    chmod(pageToBuild.pagePath.str().c_str(), 0444);
 
     //gets path for storing page information
     Path pageInfoPath = pageToBuild.pagePath.getInfoPath();
 
+    //makes sure page info file exists
+    pageInfoPath.ensurePathExists();
+
     //makes sure we can write to info file_
-    systemCall = "if [ -f " + pageInfoPath.str + " ]; then chmod +w " + pageInfoPath.str + "; fi";
-    system(systemCall.c_str());
+    chmod(pageInfoPath.str().c_str(), 0644);
 
     //writes dependencies to page info file
-    std::ofstream infoStream(pageInfoPath.str);
-    infoStream << this->pageToBuild << std::endl;
+    std::ofstream infoStream(pageInfoPath.str());
+    infoStream << this->pageToBuild << std::endl << std::endl;
     for(auto pageDep=pageDeps.begin(); pageDep != pageDeps.end(); pageDep++)
         infoStream << *pageDep << std::endl;
     infoStream.close();
 
-    //makes sure user can't edit info file
-    systemCall = "if [ -f " + pageInfoPath.str + " ]; then chmod -w " + pageInfoPath.str + "; fi";
-    system(systemCall.c_str());
+    //makes sure user can't accidentally write to info file
+    chmod(pageInfoPath.str().c_str(), 0444);
 
     std::cout << "page build successful" << std::endl;
 
@@ -91,7 +91,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
     //adds read path to anti dependencies of read path
     antiDepsOfReadPath.insert(readPath);
 
-    std::ifstream ifs(readPath.str);
+    std::ifstream ifs(readPath.str());
     std::string baseIndentAmount = indentAmount;
     int baseCodeBlockDepth = codeBlockDepth;
 
@@ -244,22 +244,25 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 else if(inLine.substr(linePos, 13) == "@inputcontent")
                 {
                     contentAdded = 1;
-                    std::string replaceText = "@input(" + pageToBuild.contentPath.str + ")";
+                    std::string replaceText = "@input(" + pageToBuild.contentPath.str() + ")";
                     inLine.replace(linePos, 13, replaceText);
                 }
                 else if(inLine.substr(linePos, 7) == "@input(")
                 {
-                    int posOffset=std::string("@input(").length();
-                    std::string inputPath="";
+                    linePos+=std::string("@input(").length();
+                    std::string inputPathStr="";
 
-                    for(; inLine[linePos+posOffset] != ')'; posOffset++)
-                        if(inLine[linePos+posOffset] != '"' && inLine[linePos+posOffset] != '\'')
-                            inputPath += inLine[linePos+posOffset];
+                    for(; inLine[linePos] != ')'; linePos++)
+                        if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                            inputPathStr += inLine[linePos];
+                    linePos++;
+
+                    Path inputPath;
+                    inputPath.set_file_path_from(inputPathStr);
                     pageDeps.insert(inputPath);
-                    posOffset++;
 
                     //ensures insert file exists
-                    if(!std::ifstream(inputPath))
+                    if(!std::ifstream(inputPathStr))
                     {
                         std::cout << "error: " << readPath << ": line " << lineNo << ": inputting file " << inputPath << " failed as path does not exist" << std::endl;
                         return 1;
@@ -275,7 +278,33 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     if(read_and_process(inputPath, antiDepsOfReadPath) > 0)
                         return 1;
                     //indent amount updated inside read_and_process
-                    linePos += posOffset;
+                }
+                else if(inLine.substr(linePos, 8) == "@pathto(")
+                {
+                    linePos+=std::string("@pathto(").length();
+                    std::string targetPathStr="";
+
+                    for(; inLine[linePos] != ')'; linePos++)
+                        if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                            targetPathStr += inLine[linePos];
+                    linePos++;
+
+                    //warns user if target file isn't being tracked by nsm
+                    PageInfo targetPageInfo;
+                    targetPageInfo.pagePath.set_file_path_from(targetPathStr);
+                    if(!pages.count(targetPageInfo))
+                    {
+                        std::cout << "warning: " << readPath << ": line " << lineNo << ": nsm not tracking target path " << targetPathStr << std::endl;
+                    }
+
+                    Path targetPath;
+                    targetPath.set_file_path_from(targetPathStr);
+
+                    Path pathToTarget(pathBetween(pageToBuild.pagePath.dir, targetPath.dir), targetPath.file);
+
+                    //adds path to target
+                    processedPage << pathToTarget;
+                    indentAmount += pathToTarget.str().length();
                 }
                 else if(inLine.substr(linePos, 10) == "@pagetitle")
                 {
@@ -303,35 +332,85 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 }
                 else if(inLine.substr(linePos, 15) == "@includefavicon") //checks for favicon include
                 {
-                    int posOffset=std::string("@includefavicon(").length();
+                    linePos+=std::string("@includefavicon(").length();
+                    std::string faviconPathStr="";
+
+                    for(; inLine[linePos] != ')'; linePos++)
+                        if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                            faviconPathStr += inLine[linePos];
+                    linePos++;
+
+                    //warns user if favicon file doesn't exist
+                    if(!std::ifstream(faviconPathStr.c_str()))
+                    {
+                        std::cout << "warning: " << readPath << ": line " << lineNo << ": favicon file " << faviconPathStr << "does not exist" << std::endl;
+                    }
+
+                    Path faviconPath;
+                    faviconPath.set_file_path_from(faviconPathStr);
+
+                    Path pathToFavicon(pathBetween(pageToBuild.pagePath.dir, faviconPath.dir), faviconPath.file);
+
                     std::string faviconInclude="<link rel='icon' type='image/png' href='";
-
-                    for(; inLine[linePos+posOffset] != ')'; posOffset++)
-                        if(inLine[linePos+posOffset] != '"' && inLine[linePos+posOffset] != '\'')
-                            faviconInclude += inLine[linePos+posOffset];
-                    posOffset++;
-
+                    faviconInclude += pathToFavicon.str();
                     faviconInclude+="'>";
 
                     processedPage << faviconInclude;
                     indentAmount += faviconInclude.length();
-                    linePos += posOffset;
                 }
                 else if(inLine.substr(linePos, 16) == "@includecssfile(") //checks for css includes
                 {
-                    int posOffset=std::string("@includecssfile(").length();
+                    linePos+=std::string("@includecssfile(").length();
+                    std::string cssPathStr="";
+
+                    for(; inLine[linePos] != ')'; linePos++)
+                        if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                            cssPathStr += inLine[linePos];
+                    linePos++;
+
+                    //warns user if css file doesn't exist
+                    if(!std::ifstream(cssPathStr.c_str()))
+                    {
+                        std::cout << "warning: " << readPath << ": line " << lineNo << ": css file " << cssPathStr << "does not exist" << std::endl;
+                    }
+
+                    Path cssPath;
+                    cssPath.set_file_path_from(cssPathStr);
+
+                    Path pathToCSSFile(pathBetween(pageToBuild.pagePath.dir, cssPath.dir), cssPath.file);
+
                     std::string cssInclude="<link rel='stylesheet' type='text/css' href='";
-
-                    for(; inLine[linePos+posOffset] != ')'; posOffset++)
-                        if(inLine[linePos+posOffset] != '"' && inLine[linePos+posOffset] != '\'')
-                            cssInclude += inLine[linePos+posOffset];
-                    posOffset++;
-
+                    cssInclude += pathToCSSFile.str();
                     cssInclude+="'>";
 
                     processedPage << cssInclude;
                     indentAmount += cssInclude.length();
-                    linePos += posOffset;
+                }
+                else if(inLine.substr(linePos, 15) == "@includejsfile(") //checks for js includes
+                {
+                    linePos+=std::string("@includejsfile(").length();
+                    std::string jsPathStr="";
+
+                    for(; inLine[linePos] != ')'; linePos++)
+                        if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                            jsPathStr += inLine[linePos];
+                    linePos++;
+
+                    //warns user if js file doesn't exist
+                    if(!std::ifstream(jsPathStr.c_str()))
+                        std::cout << "warning: " << readPath << ": line " << lineNo << ": js file " << jsPathStr << "does not exist" << std::endl;
+
+                    Path jsPath;
+                    jsPath.set_file_path_from(jsPathStr);
+
+                    Path pathToJSFile(pathBetween(pageToBuild.pagePath.dir, jsPath.dir), jsPath.file);
+
+                    std::string jsInclude="<script type='text/javascript' src='";
+                    jsInclude += pathToJSFile.str();
+                    jsInclude+="'></script>";
+
+                    processedPage << jsInclude;
+                    indentAmount += jsInclude.length();
                 }
                 else
                 {

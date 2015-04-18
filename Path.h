@@ -1,43 +1,42 @@
 #ifndef PATH_H_
 #define PATH_H_
 
+#include <vector>
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <fcntl.h>
 
-#include "Quoted.h"
+#include "Directory.h"
+#include "Filename.h"
 
 struct Path
 {
-    std::string str;
+    Directory dir;
+    Filename file;
+    std::string type;
 
     Path();
-    Path(const std::string Str);
+    Path(const Directory &Dir, const Filename &File);
 
-    Path& operator=(const std::string Str);
+    void set_file_path_from(const std::string &s);
+    std::istream& read_file_path_from(std::istream &is);
 
-    //note assumes paths don't have quotes
-    //removes ./ from the front if it's there
-    std::string getComparable() const;
+    std::string str() const;
+    std::string comparableStr() const;
 
     //returns whether first file was modified after second file
     bool modified_after(const Path &path2) const;
 
-    Path getFilename() const;
-    //currently will not work on say ./dir/filewithoutextension
-    Path stripExtension() const;
-    Path getInfoPath() const;
+    bool removePath() const;
+    bool ensurePathExists() const;
 
+    Path getInfoPath() const;
 };
 
 //outputs path (quoted if it contains spaces)
 std::ostream& operator<<(std::ostream &os, const Path &path);
-//reads a (possibly quoted) path from input stream
-std::istream& operator>>(std::istream &is, Path &path);
-
-//concatenation fns
-Path operator+(const std::string &s, const Path &path);
-Path operator+(const Path &path, const std::string &s);
 
 //equality relation
 bool operator==(const Path &path1, const Path &path2);

@@ -30,7 +30,7 @@ void read_quoted(std::istream &ifs, std::string &s)
         s.replace(0, 1, "");
         s.replace(s.length()-1, 1, "");
     }
-}
+};
 
 //outputting a string with quotes surrounded if it contains space(s)
 std::string quote(const std::string &unquoted)
@@ -39,5 +39,5 @@ std::string quote(const std::string &unquoted)
         return unquoted;
     else
         return "\"" + unquoted + "\"";
-}
+};
 

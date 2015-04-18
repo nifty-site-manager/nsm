@@ -1,41 +1,61 @@
 #include "Path.h"
 
-struct Path;
-Path operator+(const std::string &s, const Path &path);
-Path operator+(const Path &path, const std::string &s);
-
 Path::Path()
 {
+    type = "none";
+};
 
-}
-
-Path::Path(const std::string Str)
+Path::Path(const Directory &Dir, const Filename &File)
 {
-    str = Str;
-}
+    dir = Dir;
+    file = File;
+    type = "file";
+};
 
-Path& Path::operator=(const std::string Str)
+std::string Path::str() const
 {
-    str = Str;
-    return *this;
-}
+    return dir + file;
+};
 
-//note assumes paths don't have quotes
 //removes ./ from the front if it's there
-std::string Path::getComparable() const
+std::string Path::comparableStr() const
 {
-    if(str.substr(0, 2) != "./")
-        return str;
+    return comparable(dir) + file;
+};
+
+//outputs path (quoted if it contains spaces)
+std::ostream& operator<<(std::ostream &os, const Path &path)
+{
+    os << quote(path.str());
+
+    return os;
+};
+
+void Path::set_file_path_from(const std::string &s)
+{
+    int pos = s.find_last_of('/');
+    if(pos == std::string::npos)
+        *this = Path("", s);
     else
-        return str.substr(2, str.length()-2);
+        *this = Path(s.substr(0, (pos+1)),
+                     s.substr(pos+1, s.size()-(pos+1)) );
+};
+
+std::istream& Path::read_file_path_from(std::istream &is)
+{
+    std::string s;
+    read_quoted(is, s);
+    set_file_path_from(s);
+
+    return is;
 };
 
 //returns whether first file was modified after second file
 bool Path::modified_after(const Path &path2) const
 {
     struct stat sb1, sb2;
-    stat(str.c_str(), &sb1);
-    stat(path2.str.c_str(), &sb2);
+    stat(str().c_str(), &sb1);
+    stat(path2.str().c_str(), &sb2);
 
     if(difftime(sb1.st_mtime, sb2.st_mtime) > 0)
         return 1;
@@ -43,78 +63,52 @@ bool Path::modified_after(const Path &path2) const
         return 0;
 };
 
-Path Path::getFilename() const
-{
-    int pos = str.find_last_of('/');
-    if(pos == std::string::npos)
-        return *this;
-    else
-    {
-        pos++;
-        return Path(str.substr(pos, str.length()-pos));
-    }
-};
-
-//currently will not work on say ./dir/filewithoutextension
-Path Path::stripExtension() const
-{
-    int pos = str.find_last_of('.');
-    if(pos == std::string::npos)
-        return *this;
-    else
-        return Path(str.substr(0, pos));
-};
-
 Path Path::getInfoPath() const
 {
-    return ".siteinfo/" + this->getFilename().stripExtension() + ".info";
+    return Path(".siteinfo/" + dir,  strippedExtension(file) + ".info");
 };
 
-
-
-//outputs path (quoted if it contains spaces)
-std::ostream& operator<<(std::ostream &os, const Path &path)
+bool Path::removePath() const
 {
-    os << quote(path.str);
-
-    return os;
+    std::remove(str().c_str());
 };
 
-//reads a (possibly quoted) path from input stream
-std::istream& operator>>(std::istream &is, Path &path)
+bool Path::ensurePathExists() const
 {
-    read_quoted(is, path.str);
+    std::deque<Directory> dDeque = dirDeque(dir);
+    std::string cDir="";
 
-    return is;
+    for(auto d=0; d<dDeque.size(); d++)
+    {
+        cDir += dDeque[d];
+        //std::cout << "making sure " << cDir << " exists " << std::endl;
+        mkdir(cDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    }
+
+    if(file.length())
+    {
+        //std::cout << "making sure " << str() << " exists " << std::endl;
+        creat(str().c_str(), O_CREAT);
+    }
+
+    return 0;
 };
-
-//concat fns
-Path operator+(const std::string &s, const Path &path)
-{
-    return Path(s + path.str);
-};
-
-Path operator+(const Path &path, const std::string &s)
-{
-    return Path(path.str + s);
-};
-
 
 //equality relation
 bool operator==(const Path &path1, const Path &path2)
 {
-    return (path1.getComparable() == path2.getComparable());
+    return (path1.comparableStr() == path2.comparableStr());
 }
 
 //inequality relation
 bool operator!=(const Path &path1, const Path &path2)
 {
-    return (path1.getComparable() != path2.getComparable());
+    return (path1.comparableStr() != path2.comparableStr());
 }
 
 //less than relation
 bool operator<(const Path &path1, const Path &path2)
 {
-    return (path1.getComparable() < path2.getComparable());
+    return (path1.comparableStr() < path2.comparableStr());
 };
 

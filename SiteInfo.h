@@ -9,25 +9,29 @@ struct SiteInfo
 {
     std::set<PageInfo> pages;
 
-    bool open();
-    bool save();
+    int open();
+    int save();
+
+    PageInfo get_info(const Path &pagePath);
+    int info(const std::vector<Path> &pathsForInfo);
+    int info_all();
+    int info_paths();
 
     bool tracking(const PageInfo &page);
     bool tracking(const Path &pagePath);
+    int track(const PageInfo &newPage);
+    int untrack(const Path &pagePathToUntrack);
 
-    PageInfo get_tracked(const Path &pagePath);
-
-    bool tracked();
-    bool tracked_paths();
-
-    bool track(const PageInfo &newPage);
-    bool untrack(const Path &pagePathToUntrack);
+    int new_title(const Path &pagePath, const Title &newTitle);
+    int new_page_path(const Path &oldpagePath, const Path &newPagePath);
+    int new_content_path(const Path &pagePath, const Path &newContentPath);
+    int new_template_path(const Path &pagePath, const Path &newTemplatePath);
 
     int build(std::vector<Path> pagePathsToBuild);
     int build_all();
-    bool build_updated();
+    int build_updated();
 
-    bool status();
+    int status();
 };
 
 #endif //SITE_INFO_H_
