@@ -50,7 +50,7 @@ std::string pathBetween(const Directory &sourceDir, const Directory &targetDir)
     std::deque<std::string> sourceDeque = dirDeque(sourceDir),
         targetDeque = dirDeque(targetDir);
 
-    while(sourceDeque[0] == targetDeque[0])
+    while(sourceDeque.size() > 0 && targetDeque.size() > 0 && sourceDeque[0] == targetDeque[0])
     {
         sourceDeque.pop_front();
         targetDeque.pop_front();

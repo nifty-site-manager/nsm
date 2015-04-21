@@ -330,9 +330,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     indentAmount+=dateTimeInfo.cTimezone.length();
                     linePos+=std::string("@timezone").length();
                 }
-                else if(inLine.substr(linePos, 15) == "@includefavicon") //checks for favicon include
+                else if(inLine.substr(linePos, 15) == "@faviconinclude") //checks for favicon include
                 {
-                    linePos+=std::string("@includefavicon(").length();
+                    linePos+=std::string("@faviconinclude(").length();
                     std::string faviconPathStr="";
 
                     for(; inLine[linePos] != ')'; linePos++)
@@ -343,7 +343,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //warns user if favicon file doesn't exist
                     if(!std::ifstream(faviconPathStr.c_str()))
                     {
-                        std::cout << "warning: " << readPath << ": line " << lineNo << ": favicon file " << faviconPathStr << "does not exist" << std::endl;
+                        std::cout << "warning: " << readPath << ": line " << lineNo << ": favicon file " << faviconPathStr << " does not exist" << std::endl;
                     }
 
                     Path faviconPath;
@@ -358,9 +358,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     processedPage << faviconInclude;
                     indentAmount += faviconInclude.length();
                 }
-                else if(inLine.substr(linePos, 16) == "@includecssfile(") //checks for css includes
+                else if(inLine.substr(linePos, 12) == "@cssinclude(") //checks for css includes
                 {
-                    linePos+=std::string("@includecssfile(").length();
+                    linePos+=std::string("@cssinclude(").length();
                     std::string cssPathStr="";
 
                     for(; inLine[linePos] != ')'; linePos++)
@@ -386,9 +386,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     processedPage << cssInclude;
                     indentAmount += cssInclude.length();
                 }
-                else if(inLine.substr(linePos, 15) == "@includejsfile(") //checks for js includes
+                else if(inLine.substr(linePos, 11) == "@jsinclude(") //checks for js includes
                 {
-                    linePos+=std::string("@includejsfile(").length();
+                    linePos+=std::string("@jsinclude(").length();
                     std::string jsPathStr="";
 
                     for(; inLine[linePos] != ')'; linePos++)

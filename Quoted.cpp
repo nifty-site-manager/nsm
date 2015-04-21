@@ -37,7 +37,9 @@ std::string quote(const std::string &unquoted)
 {
     if(unquoted.find(' ') == std::string::npos)
         return unquoted;
-    else
+    else if(unquoted.find('"') == std::string::npos)
         return "\"" + unquoted + "\"";
+    else
+        return "'" + unquoted + "'";
 };
 

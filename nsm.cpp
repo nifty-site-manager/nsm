@@ -60,7 +60,7 @@ int main(int argc, char* argv[])
         //ensures nsm isn't already managing a site from directory
         if(std::ifstream(".siteinfo/pages.list"))
         {
-            std::cout << "error: nsm is already managing a site from this directory" << std::endl;
+            std::cout << "error: nsm is already managing a site in " << get_current_dir_name() << "/" << std::endl;
             return 1;
         }
 
@@ -70,6 +70,8 @@ int main(int argc, char* argv[])
         pagesListPath.ensurePathExists();
         //adds read and write permissions to pages list file
         chmod(pagesListPath.str().c_str(), 0666);
+
+        std::cout << "nsm: initialised empty site in " << get_current_dir_name() << "/.siteinfo/" << std::endl;
 
         return 0;
     }

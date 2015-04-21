@@ -585,6 +585,13 @@ int SiteInfo::build_updated()
 
 int SiteInfo::status()
 {
+    if(pages.size() == 0)
+    {
+        std::cout << std::endl;
+        std::cout << "nsm does not have any pages tracked" << std::endl;
+        return 0;
+    }
+
     std::set<Path> updatedFiles, removedFiles;
     std::set<PageInfo> updatedPages, problemPages;
 
