@@ -6,6 +6,11 @@ Title& Title::operator=(const std::string Str)
     return *this;
 };
 
+bool Title::read_quoted_from(std::istream &is)
+{
+    return read_quoted(is, str);
+};
+
 //outputs title (quoted if it contains spaces)
 std::ostream& operator<<(std::ostream &os, const Title &tit)
 {

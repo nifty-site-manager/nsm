@@ -1,5 +1,10 @@
 #include "PageBuilder.h"
 
+PageBuilder::PageBuilder(const std::set<PageInfo> &Pages)
+{
+    pages = Pages;
+}
+
 int PageBuilder::build(const PageInfo &PageToBuild)
 {
     pageToBuild = PageToBuild;
@@ -70,8 +75,9 @@ int PageBuilder::build(const PageInfo &PageToBuild)
     //makes sure we can write to info file_
     chmod(pageInfoPath.str().c_str(), 0644);
 
-    //writes dependencies to page info file
+    //writes page info file
     std::ofstream infoStream(pageInfoPath.str());
+    infoStream << currentTime() << " " << currentDate() << std::endl;
     infoStream << this->pageToBuild << std::endl << std::endl;
     for(auto pageDep=pageDeps.begin(); pageDep != pageDeps.end(); pageDep++)
         infoStream << *pageDep << std::endl;
@@ -282,33 +288,34 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 else if(inLine.substr(linePos, 8) == "@pathto(")
                 {
                     linePos+=std::string("@pathto(").length();
-                    std::string targetPathStr="";
+                    Name targetPageName="";
 
                     for(; inLine[linePos] != ')'; linePos++)
                         if(inLine[linePos] != '"' && inLine[linePos] != '\'')
-                            targetPathStr += inLine[linePos];
+                            targetPageName += inLine[linePos];
                     linePos++;
 
-                    //warns user if target file isn't being tracked by nsm
+                    //warns user if target targetPageName isn't being tracked by nsm
                     PageInfo targetPageInfo;
-                    targetPageInfo.pagePath.set_file_path_from(targetPathStr);
+                    targetPageInfo.pageName = targetPageName;
                     if(!pages.count(targetPageInfo))
                     {
-                        std::cout << "warning: " << readPath << ": line " << lineNo << ": nsm not tracking target path " << targetPathStr << std::endl;
+                        std::cout << "warning: " << readPath << ": line " << lineNo << ": nsm not tracking page name " << targetPageName << std::endl;
                     }
 
-                    Path targetPath;
-                    targetPath.set_file_path_from(targetPathStr);
+
+                    Path targetPath = pages.find(targetPageInfo)->pagePath;
+                    //targetPath.set_file_path_from(targetPathStr);
 
                     Path pathToTarget(pathBetween(pageToBuild.pagePath.dir, targetPath.dir), targetPath.file);
 
                     //adds path to target
-                    processedPage << pathToTarget;
+                    processedPage << pathToTarget.str();
                     indentAmount += pathToTarget.str().length();
                 }
                 else if(inLine.substr(linePos, 10) == "@pagetitle")
                 {
-                    processedPage << pageToBuild.pageTitle;
+                    processedPage << pageToBuild.pageTitle.str;
                     indentAmount+=pageToBuild.pageTitle.str.length();
                     linePos+=std::string("@pagetitle").length();
                 }

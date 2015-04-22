@@ -19,10 +19,7 @@ struct PageBuilder
     std::stringstream processedPage;
     std::set<Path> pageDeps;
 
-    PageBuilder(const std::set<PageInfo> &Pages)
-    {
-        pages = Pages;
-    }
+    PageBuilder(const std::set<PageInfo> &Pages);
 
     int build(const PageInfo &pageInfo);
     int read_and_process(const Path &readPath, std::set<Path> antiDepsOfReadPath);

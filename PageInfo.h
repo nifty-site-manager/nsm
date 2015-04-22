@@ -4,23 +4,17 @@
 #include "Path.h"
 #include "Title.h"
 
+typedef std::string Name;
+
 struct PageInfo
 {
     Title pageTitle;
+    Name pageName;
     Path pagePath,
         contentPath,
         templatePath;
-
-    PageInfo();
-
-    PageInfo(const std::string PageTitle,
-        const std::string PagePath,
-        const std::string ContentPath,
-        const std::string TemplatePath);
 };
 
-//input fn
-std::istream& operator>>(std::istream &is, PageInfo &page);
 //output fn
 std::ostream& operator<<(std::ostream &os, const PageInfo &page);
 

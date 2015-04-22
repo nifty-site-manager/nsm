@@ -28,25 +28,27 @@ int main(int argc, char* argv[])
 
     std::string cmd = argv[1];
 
-    if(cmd == "help")
+    if(cmd == "commands")
     {
-        std::cout << "-------------- available commands --------------" << std::endl;
-        std::cout << "nsm init              | initialise managing a site" << std::endl;
-        std::cout << "nsm info              | input: page-path-1 .. page-path-k" << std::endl;
-        std::cout << "nsm info-all          | lists tracked pages" << std::endl;
-        std::cout << "nsm info-paths        | lists tracked page paths" << std::endl;
-        std::cout << "nsm track             | input: title page-path content-path template-path" << std::endl;
-        std::cout << "nsm untrack           | input: page-path" << std::endl;
-        std::cout << "nsm new-title         | input: page-path new-title" << std::endl;
-        std::cout << "nsm new-page-path     | input: old-page-path new-page-path" << std::endl;
-        std::cout << "nsm new-content-path  | input: page-path new-content-path" << std::endl;
-        std::cout << "nsm new-template-path | input: page-path new-template-path" << std::endl;
-        std::cout << "nsm build             | input: page-path-1 .. page-path-k" << std::endl;
-        std::cout << "nsm build-updated     | builds updated pages" << std::endl;
-        std::cout << "nsm build-all         | builds all tracked pages " << std::endl;
-        std::cout << "nsm status            | lists updated and problem pages" << std::endl;
-        std::cout << "nsm help              | lists all nsm commands" << std::endl;
-        std::cout << "------------------------------------------------" << std::endl;
+        std::cout << "------------------- available commands -------------------" << std::endl;
+        std::cout << "nsm commands      | lists all nsm commands" << std::endl;
+        std::cout << "nsm config        | lists config settings" << std::endl;
+        std::cout << "nsm init          | initialise managing a site" << std::endl;
+        std::cout << "nsm status        | lists updated and problem pages" << std::endl;
+        std::cout << "nsm info          | input: page-name-1 .. page-name-k" << std::endl;
+        std::cout << "nsm info-all      | lists tracked pages" << std::endl;
+        std::cout << "nsm info-names    | lists tracked page names" << std::endl;
+        std::cout << "nsm track         | input: page-name (page-title) (template-path)" << std::endl;
+        std::cout << "nsm untrack       | input: page-name" << std::endl;
+        std::cout << "nsm rm            | input: page-name" << std::endl;
+        std::cout << "nsm mv            | input: old-name new-name" << std::endl;
+        std::cout << "nsm cp            | input: tracked-name new-name" << std::endl;
+        std::cout << "nsm build         | input: page-name-1 .. page-name-k" << std::endl;
+        std::cout << "nsm build-updated | builds updated pages" << std::endl;
+        std::cout << "nsm build-all     | builds all tracked pages " << std::endl;
+        std::cout << "nsm new-title     | input: page-name new-title" << std::endl;
+        std::cout << "nsm new-template  | input: page-name template-path" << std::endl;
+        std::cout << "----------------------------------------------------------" << std::endl;
 
         return 0;
     }
@@ -71,6 +73,14 @@ int main(int argc, char* argv[])
         //adds read and write permissions to pages list file
         chmod(pagesListPath.str().c_str(), 0666);
 
+        std::ofstream ofs(".siteinfo/nsm.config");
+        ofs << "contentDir content/" << std::endl;
+        ofs << "contentExt .content" << std::endl;
+        ofs << "siteDir site/" << std::endl;
+        ofs << "pageExt .html" << std::endl;
+        ofs << "defaultTemplate template/page.template" << std::endl;
+        ofs.close();
+
         std::cout << "nsm: initialised empty site in " << get_current_dir_name() << "/.siteinfo/" << std::endl;
 
         return 0;
@@ -82,7 +92,7 @@ int main(int argc, char* argv[])
         pwd = get_current_dir_name(),
         oPwd;
 
-    while(!std::ifstream(".siteinfo/pages.list"))
+    while(!std::ifstream(".siteinfo/pages.list") && !std::ifstream(".siteinfo/nsm.config"))
     {
         //sets old pwd
         oPwd = pwd;
@@ -101,11 +111,34 @@ int main(int argc, char* argv[])
         }
     }
 
+    //ensures both pages.list and nsm.config exist
+    if(!std::ifstream(".siteinfo/pages.list"))
+    {
+        std::cout << "error: " << get_current_dir_name() << "/.siteinfo/pages.list is missing" << std::endl;
+        return 1;
+    }
+
+    if(!std::ifstream(".siteinfo/nsm.config"))
+    {
+        std::cout << "error: " << get_current_dir_name() << "/.siteinfo/nsm.config is missing" << std::endl;
+        return 1;
+    }
+
     //opens up site information
     SiteInfo site;
     if(site.open() > 0)
         return 1;
 
+    if(cmd == "config")
+    {
+        std::cout << "contentDir: " << site.contentDir << std::endl;
+        std::cout << "contentExt: " << site.contentExt << std::endl;
+        std::cout << "siteDir: " << site.siteDir << std::endl;
+        std::cout << "pageExt: " << site.pageExt << std::endl;
+        std::cout << "defaultTemplate: " << site.defaultTemplate << std::endl;
+
+        return 0;
+    }
     if(cmd == "status")
     {
         //ensures correct number of parameters given
@@ -120,14 +153,11 @@ int main(int argc, char* argv[])
         if(noParams <= 1)
             return parError(noParams, argv, ">1");
 
-        std::vector<Path> pathsForInfo;
-        Path infoPath;
+        std::vector<Name> pageNames;
+        Name pageName;
         for(int p=2; p<argc; p++)
-        {
-            infoPath.set_file_path_from(argv[p]);
-            pathsForInfo.push_back(infoPath);
-        }
-        return site.info(pathsForInfo);
+            pageNames.push_back(argv[p]);
+        return site.info(pageNames);
     }
     else if(cmd == "info-all")
     {
@@ -137,21 +167,34 @@ int main(int argc, char* argv[])
 
         return site.info_all();
     }
-    else if(cmd == "info-paths")
+    else if(cmd == "info-names")
     {
         //ensures correct number of parameters given
         if(noParams > 1)
             return parError(noParams, argv, "1");
 
-        return site.info_paths();
+        return site.info_names();
     }
     else if(cmd == "track")
     {
         //ensures correct number of parameters given
-        if(noParams != 5)
-            return parError(noParams, argv, "5");
+        if(noParams < 2 || noParams > 4)
+            return parError(noParams, argv, "2-4");
 
-        return site.track(PageInfo(argv[2], argv[3], argv[4], argv[5]));
+        Name newPageName = argv[2];
+        Title newPageTitle;
+        if(noParams >= 3)
+            newPageTitle = argv[3];
+        else
+            newPageTitle = argv[2];
+
+        Path newTemplatePath;
+        if(noParams == 4)
+            newTemplatePath.set_file_path_from(argv[4]);
+        else
+            newTemplatePath = site.defaultTemplate;
+
+        return site.track(newPageName, newPageTitle, newTemplatePath);
     }
     else if(cmd == "untrack")
     {
@@ -159,9 +202,41 @@ int main(int argc, char* argv[])
         if(noParams != 2)
             return parError(noParams, argv, "2");
 
-        Path untrackPath;
-        untrackPath.set_file_path_from(argv[2]);
-        return site.untrack(untrackPath);
+        Name pageNameToUntrack = argv[2];
+
+        return site.untrack(pageNameToUntrack);
+    }
+    else if(cmd == "rm")
+    {
+        //ensures correct number of parameters given
+        if(noParams != 2)
+            return parError(noParams, argv, "2");
+
+        Name pageNameToRemove = argv[2];
+
+        return site.rm(pageNameToRemove);
+    }
+    else if(cmd == "mv")
+    {
+        //ensures correct number of parameters given
+        if(noParams != 3)
+            return parError(noParams, argv, "3");
+
+        Name oldPageName = argv[2],
+             newPageName = argv[3];
+
+        return site.mv(oldPageName, newPageName);
+    }
+    else if(cmd == "cp")
+    {
+        //ensures correct number of parameters given
+        if(noParams != 3)
+            return parError(noParams, argv, "3");
+
+        Name trackedPageName = argv[2],
+             newPageName = argv[3];
+
+        return site.cp(trackedPageName, newPageName);
     }
     else if(cmd == "new-title")
     {
@@ -169,51 +244,23 @@ int main(int argc, char* argv[])
         if(noParams != 3)
             return parError(noParams, argv, "3");
 
-        Path pagePath;
-        pagePath.set_file_path_from(argv[2]);
+        Name pageName = argv[2];
         Title newTitle;
         newTitle.str = argv[3];
 
-        return site.new_title(pagePath, newTitle);
+        return site.new_title(pageName, newTitle);
     }
-    else if(cmd == "new-page-path")
+    else if(cmd == "new-template")
     {
         //ensures correct number of parameters given
         if(noParams != 3)
             return parError(noParams, argv, "3");
 
-        Path oldPagePath;
-        oldPagePath.set_file_path_from(argv[2]);
-        Path newPagePath;
-        newPagePath.set_file_path_from(argv[3]);
-
-        return site.new_page_path(oldPagePath, newPagePath);
-    }
-    else if(cmd == "new-content-path")
-    {
-        //ensures correct number of parameters given
-        if(noParams != 3)
-            return parError(noParams, argv, "3");
-
-        Path pagePath;
-        pagePath.set_file_path_from(argv[2]);
-        Path newContentPath;
-        newContentPath.set_file_path_from(argv[3]);
-
-        return site.new_content_path(pagePath, newContentPath);
-    }
-    else if(cmd == "new-template-path")
-    {
-        //ensures correct number of parameters given
-        if(noParams != 3)
-            return parError(noParams, argv, "3");
-
-        Path pagePath;
-        pagePath.set_file_path_from(argv[2]);
+        Name pageName = argv[2];
         Path newTemplatePath;
         newTemplatePath.set_file_path_from(argv[3]);
 
-        return site.new_template_path(pagePath, newTemplatePath);
+        return site.new_template(pageName, newTemplatePath);
     }
     else if(cmd == "build-updated")
     {
@@ -229,14 +276,12 @@ int main(int argc, char* argv[])
         if(noParams <= 1)
             return parError(noParams, argv, ">1");
 
-        std::vector<Path> pagePathsToBuild;
-        Path buildPath;
+        std::vector<Name> pageNamesToBuild;
         for(int p=2; p<argc; p++)
         {
-            buildPath.set_file_path_from(argv[p]);
-            pagePathsToBuild.push_back(buildPath);
+            pageNamesToBuild.push_back(argv[p]);
         }
-        return site.build(pagePathsToBuild);
+        return site.build(pageNamesToBuild);
     }
     else if(cmd == "build-all")
     {

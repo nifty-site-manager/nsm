@@ -7,6 +7,8 @@ struct Title
 {
     std::string str;
 
+    bool read_quoted_from(std::istream &is);
+
     Title& operator=(const std::string Str);
 };
 
