@@ -5,7 +5,7 @@ DateTimeInfo::DateTimeInfo()
     cDate = currentDate();
     cTime = currentTime();
     cTimezone = currentTimezone();
-};
+}
 
 
 //returns current date
@@ -20,7 +20,7 @@ std::string currentDate()
     strftime(buf, sizeof(buf), "%A %B %d %Y", &tstruct);
 
     return buf;
-};
+}
 
 //returns current time
 std::string currentTime()
@@ -33,7 +33,7 @@ std::string currentTime()
     strftime(buf, sizeof(buf), "%X", &tstruct);
 
     return buf;
-};
+}
 
 //returns current time zone
 std::string currentTimezone()
@@ -46,4 +46,4 @@ std::string currentTimezone()
     strftime(buf, sizeof(buf), "%Z", &tstruct);
 
     return buf;
-};
+}

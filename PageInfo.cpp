@@ -4,7 +4,7 @@
 bool operator<(const PageInfo &page1, const PageInfo &page2)
 {
     return (page1.pageName < page2.pageName);
-};
+}
 
 std::ostream& operator<<(std::ostream &os, const PageInfo &page)
 {
@@ -13,4 +13,4 @@ std::ostream& operator<<(std::ostream &os, const PageInfo &page)
     os << page.templatePath;
 
     return os;
-};
+}

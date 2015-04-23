@@ -1,6 +1,15 @@
 #include "SiteInfo.h"
 #include <unistd.h>
 
+std::string get_pwd()
+{
+    char pwd_char[100];
+    getcwd(pwd_char, 100);
+    std::string pwd = pwd_char;
+
+    return pwd;
+}
+
 void unrecognisedCommand(const std::string from, const std::string cmd)
 {
     std::cout << "error: " << from << " does not recognise the command '" << cmd << "'" << std::endl;
@@ -62,7 +71,7 @@ int main(int argc, char* argv[])
         //ensures nsm isn't already managing a site from directory
         if(std::ifstream(".siteinfo/pages.list"))
         {
-            std::cout << "error: nsm is already managing a site in " << get_current_dir_name() << "/" << std::endl;
+            std::cout << "error: nsm is already managing a site in " << get_pwd() << "/" << std::endl;
             return 1;
         }
 
@@ -81,7 +90,7 @@ int main(int argc, char* argv[])
         ofs << "defaultTemplate template/page.template" << std::endl;
         ofs.close();
 
-        std::cout << "nsm: initialised empty site in " << get_current_dir_name() << "/.siteinfo/" << std::endl;
+        std::cout << "nsm: initialised empty site in " << get_pwd() << "/.siteinfo/" << std::endl;
 
         return 0;
     }
@@ -89,24 +98,25 @@ int main(int argc, char* argv[])
     //ensures nsm is managing a site from this directory or one of the parent directories
     std::string parentDir = "../",
         rootDir = "/",
-        pwd = get_current_dir_name(),
-        oPwd;
+        owd = get_pwd(),
+        pwd = get_pwd(),
+        prevPwd;
 
     while(!std::ifstream(".siteinfo/pages.list") && !std::ifstream(".siteinfo/nsm.config"))
     {
         //sets old pwd
-        oPwd = pwd;
+        prevPwd = pwd;
 
         //changes to parent directory
         chdir(parentDir.c_str());
 
         //gets new pwd
-        pwd = get_current_dir_name();
+        pwd = get_pwd();
 
         //checks we haven't made it to root directory or stuck at same dir
-        if(pwd == rootDir || pwd == oPwd)
+        if(pwd == rootDir || pwd == prevPwd)
         {
-            std::cout << "nsm is not managing a site from this directory (or any accessible parent directories)" << std::endl;
+            std::cout << "nsm is not managing a site from " << owd << " (or any accessible parent directories)" << std::endl;
             return 1;
         }
     }
@@ -114,13 +124,13 @@ int main(int argc, char* argv[])
     //ensures both pages.list and nsm.config exist
     if(!std::ifstream(".siteinfo/pages.list"))
     {
-        std::cout << "error: " << get_current_dir_name() << "/.siteinfo/pages.list is missing" << std::endl;
+        std::cout << "error: " << get_pwd() << "/.siteinfo/pages.list is missing" << std::endl;
         return 1;
     }
 
     if(!std::ifstream(".siteinfo/nsm.config"))
     {
-        std::cout << "error: " << get_current_dir_name() << "/.siteinfo/nsm.config is missing" << std::endl;
+        std::cout << "error: " << get_pwd() << "/.siteinfo/nsm.config is missing" << std::endl;
         return 1;
     }
 

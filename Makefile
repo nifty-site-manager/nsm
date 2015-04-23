@@ -2,7 +2,7 @@
 objects=nsm.o DateTimeInfo.o Directory.o Filename.o PageBuilder.o PageInfo.o Path.o Quoted.o SiteInfo.o Title.o
 cppfiles=nsm.cpp DateTimeInfo.cpp Directory.cpp Filename.cpp PageBuilder.cpp PageInfo.cpp Path.cpp Quoted.cpp SiteInfo.cpp Title.cpp
 CC=g++
-CXXFLAGS=-std=c++11
+CXXFLAGS=-std=c++11 -Wall -Wextra -pedantic
 
 nsm: $(objects)
 	$(CC) $(CXXFLAGS) $(cppfiles) -o nsm

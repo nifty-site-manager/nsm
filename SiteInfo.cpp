@@ -87,7 +87,7 @@ int SiteInfo::open()
     }
 
     return 0;
-};
+}
 
 int SiteInfo::save()
 {
@@ -102,7 +102,7 @@ int SiteInfo::save()
     }
 
     return 0;
-};
+}
 
 PageInfo SiteInfo::make_info(const Name &pageName)
 {
@@ -120,7 +120,7 @@ PageInfo SiteInfo::make_info(const Name &pageName)
     pageInfo.templatePath = defaultTemplate;
 
     return pageInfo;
-};
+}
 
 PageInfo SiteInfo::make_info(const Name &pageName, const Title &pageTitle)
 {
@@ -138,7 +138,7 @@ PageInfo SiteInfo::make_info(const Name &pageName, const Title &pageTitle)
     pageInfo.templatePath = defaultTemplate;
 
     return pageInfo;
-};
+}
 
 PageInfo SiteInfo::make_info(const Name &pageName, const Title &pageTitle, const Path &templatePath)
 {
@@ -156,14 +156,14 @@ PageInfo SiteInfo::make_info(const Name &pageName, const Title &pageTitle, const
     pageInfo.templatePath = templatePath;
 
     return pageInfo;
-};
+}
 
 PageInfo SiteInfo::get_info(const Name &pageName)
 {
     PageInfo page;
     page.pageName = pageName;
     return *pages.find(page);
-};
+}
 
 int SiteInfo::info(const std::vector<Name> &pageNames)
 {
@@ -190,7 +190,7 @@ int SiteInfo::info(const std::vector<Name> &pageNames)
     std::cout << "--------------------------------------------" << std::endl;
 
     return 0;
-};
+}
 
 int SiteInfo::info_all()
 {
@@ -208,7 +208,7 @@ int SiteInfo::info_all()
     std::cout << "------------------------------------" << std::endl;
 
     return 0;
-};
+}
 
 int SiteInfo::info_names()
 {
@@ -219,19 +219,19 @@ int SiteInfo::info_names()
     std::cout << "------------------------------------------" << std::endl;
 
     return 0;
-};
+}
 
 bool SiteInfo::tracking(const PageInfo &page)
 {
     return pages.count(page);
-};
+}
 
 bool SiteInfo::tracking(const Name &pageName)
 {
     PageInfo page;
     page.pageName = pageName;
     return pages.count(page);
-};
+}
 
 int SiteInfo::track(const Name &name, const Title &title, const Path &templatePath)
 {
@@ -288,7 +288,7 @@ int SiteInfo::track(const Name &name, const Title &title, const Path &templatePa
     std::cout << "successfully tracking " << newPage.pageName << std::endl;
 
     return 0;
-};
+}
 
 int SiteInfo::untrack(const Name &pageNameToUntrack)
 {
@@ -299,33 +299,33 @@ int SiteInfo::untrack(const Name &pageNameToUntrack)
         std::cout << "error: nsm is not tracking " << pageNameToUntrack << std::endl;
         return 1;
     }
-    else
-    {
-        PageInfo pageToErase = get_info(pageNameToUntrack);
 
-        //removes page info file and containing dir if now empty
-        chmod(pageToErase.pagePath.getInfoPath().str().c_str(), 0666);
-        pageToErase.pagePath.getInfoPath().removePath();
-        std::cout << "removed " << pageToErase.pagePath.getInfoPath().str() << std::endl;
-        rmdir(pageToErase.pagePath.getInfoPath().dir.c_str());
+    PageInfo pageToErase = get_info(pageNameToUntrack);
 
-        //removes page file and containing dir if now empty
-        chmod(pageToErase.pagePath.str().c_str(), 0666);
-        pageToErase.pagePath.removePath();
-        std::cout << "removed " << pageToErase.pagePath.str() << std::endl;
-        rmdir(pageToErase.pagePath.dir.c_str());
+    //removes page info file and containing dir if now empty
+    chmod(pageToErase.pagePath.getInfoPath().str().c_str(), 0666);
+    pageToErase.pagePath.getInfoPath().removePath();
+    std::cout << "removed " << pageToErase.pagePath.getInfoPath().str() << std::endl;
+    rmdir(pageToErase.pagePath.getInfoPath().dir.c_str());
 
-        //removes page from pages set
-        pages.erase(pageToErase);
+    //removes page file and containing dir if now empty
+    chmod(pageToErase.pagePath.str().c_str(), 0666);
+    pageToErase.pagePath.removePath();
+    std::cout << "removed " << pageToErase.pagePath.str() << std::endl;
+    rmdir(pageToErase.pagePath.dir.c_str());
 
-        //saves new set of pages to pages.list
-        save();
+    //removes page from pages set
+    pages.erase(pageToErase);
 
-        //informs user that page was successfully untracked
-        std::cout << std::endl;
-        std::cout << "successfully untracked " << pageNameToUntrack << std::endl;
-    }
-};
+    //saves new set of pages to pages.list
+    save();
+
+    //informs user that page was successfully untracked
+    std::cout << std::endl;
+    std::cout << "successfully untracked " << pageNameToUntrack << std::endl;
+
+    return 0;
+}
 
 int SiteInfo::rm(const Name &pageNameToRemove)
 {
@@ -336,39 +336,39 @@ int SiteInfo::rm(const Name &pageNameToRemove)
         std::cout << "error: nsm is not tracking " << pageNameToRemove << std::endl;
         return 1;
     }
-    else
-    {
-        PageInfo pageToErase = get_info(pageNameToRemove);
 
-        //removes page info file and containing dir if now empty
-        chmod(pageToErase.pagePath.getInfoPath().str().c_str(), 0666);
-        pageToErase.pagePath.getInfoPath().removePath();
-        std::cout << "removed " << pageToErase.pagePath.getInfoPath().str() << std::endl;
-        rmdir(pageToErase.pagePath.getInfoPath().dir.c_str());
+    PageInfo pageToErase = get_info(pageNameToRemove);
 
-        //removes page file and containing dir if now empty
-        chmod(pageToErase.pagePath.str().c_str(), 0666);
-        pageToErase.pagePath.removePath();
-        std::cout << "removed " << pageToErase.pagePath.str() << std::endl;
-        rmdir(pageToErase.pagePath.dir.c_str());
+    //removes page info file and containing dir if now empty
+    chmod(pageToErase.pagePath.getInfoPath().str().c_str(), 0666);
+    pageToErase.pagePath.getInfoPath().removePath();
+    std::cout << "removed " << pageToErase.pagePath.getInfoPath().str() << std::endl;
+    rmdir(pageToErase.pagePath.getInfoPath().dir.c_str());
 
-        //removes content file and containing dir if now empty
-        chmod(pageToErase.contentPath.str().c_str(), 0666);
-        pageToErase.contentPath.removePath();
-        std::cout << "removed " << pageToErase.contentPath.str() << std::endl;
-        rmdir(pageToErase.contentPath.dir.c_str());
+    //removes page file and containing dir if now empty
+    chmod(pageToErase.pagePath.str().c_str(), 0666);
+    pageToErase.pagePath.removePath();
+    std::cout << "removed " << pageToErase.pagePath.str() << std::endl;
+    rmdir(pageToErase.pagePath.dir.c_str());
 
-        //removes page from pages set
-        pages.erase(pageToErase);
+    //removes content file and containing dir if now empty
+    chmod(pageToErase.contentPath.str().c_str(), 0666);
+    pageToErase.contentPath.removePath();
+    std::cout << "removed " << pageToErase.contentPath.str() << std::endl;
+    rmdir(pageToErase.contentPath.dir.c_str());
 
-        //saves new set of pages to pages.list
-        save();
+    //removes page from pages set
+    pages.erase(pageToErase);
 
-        //informs user that page was successfully removed
-        std::cout << std::endl;
-        std::cout << "successfully removed " << pageNameToRemove << std::endl;
-    }
-};
+    //saves new set of pages to pages.list
+    save();
+
+    //informs user that page was successfully removed
+    std::cout << std::endl;
+    std::cout << "successfully removed " << pageNameToRemove << std::endl;
+
+    return 0;
+}
 
 int SiteInfo::mv(const Name &oldPageName, const Name &newPageName)
 {
@@ -437,7 +437,9 @@ int SiteInfo::mv(const Name &oldPageName, const Name &newPageName)
     //informs user that page was successfully moved
     std::cout << std::endl;
     std::cout << "successfully moved " << oldPageName << " to " << newPageName << std::endl;
-};
+
+    return 0;
+}
 
 int SiteInfo::cp(const Name &trackedPageName, const Name &newPageName)
 {
@@ -486,7 +488,9 @@ int SiteInfo::cp(const Name &trackedPageName, const Name &newPageName)
     //informs user that page was successfully moved
     std::cout << std::endl;
     std::cout << "successfully copied " << trackedPageName << " to " << newPageName << std::endl;
-};
+
+    return 0;
+}
 
 int SiteInfo::new_title(const Name &pageName, const Title &newTitle)
 {
@@ -506,11 +510,12 @@ int SiteInfo::new_title(const Name &pageName, const Title &newTitle)
     }
     else
     {
-        std::cout << "nsm is not tracking " << pageName << std::endl;
+        std::cout << "error: nsm is not tracking " << pageName << std::endl;
+        return 1;
     }
 
     return 0;
-};
+}
 
 int SiteInfo::new_template(const Name &pageName, const Path &newTemplatePath)
 {
@@ -537,9 +542,12 @@ int SiteInfo::new_template(const Name &pageName, const Path &newTemplatePath)
     }
     else
     {
-        std::cout << "nsm is not tracking " << pageName << std::endl;
+        std::cout << "error: nsm is not tracking " << pageName << std::endl;
+        return 1;
     }
-};
+
+    return 0;
+}
 
 
 int SiteInfo::build(std::vector<Name> pageNamesToBuild)
@@ -579,7 +587,9 @@ int SiteInfo::build(std::vector<Name> pageNamesToBuild)
         std::cout << std::endl;
         std::cout << "all pages built successfully" << std::endl;
     }
-};
+
+    return 0;
+}
 
 int SiteInfo::build_all()
 {
@@ -614,7 +624,7 @@ int SiteInfo::build_all()
     }
 
     return 0;
-};
+}
 
 int SiteInfo::build_updated()
 {
@@ -778,7 +788,9 @@ int SiteInfo::build_updated()
         //std::cout << std::endl;
         std::cout << "all pages are already up to date" << std::endl;
     }
-};
+
+    return 0;
+}
 
 
 int SiteInfo::status()
@@ -915,4 +927,6 @@ int SiteInfo::status()
         std::cout << std::endl;
         std::cout << "all pages are already up to date" << std::endl;
     }
-};
+
+    return 0;
+}

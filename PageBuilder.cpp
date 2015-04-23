@@ -89,7 +89,7 @@ int PageBuilder::build(const PageInfo &PageToBuild)
     std::cout << "page build successful" << std::endl;
 
     return 0;
-};
+}
 
 //reads file whilst writing processed version to ofs
 int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsOfReadPath)

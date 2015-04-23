@@ -7,21 +7,21 @@ Directory comparable(const Directory &directory)
         return directory;
     else
         return directory.substr(2, directory.length()-2);
-};
+}
 
 //returns the leading directory if present
 Directory leadingDir(const Directory &directory)
 {
-    int pos = directory.find_first_of('/');
+    size_t pos = directory.find_first_of('/');
     if(pos == std::string::npos)
         return "";
     else
         return directory.substr(0, pos+1);
-};
+}
 
 Directory stripLeadingDir(const Directory &directory)
 {
-    int pos = directory.find_first_of('/');
+    size_t pos = directory.find_first_of('/');
     if(pos == std::string::npos)
         return "";
     else
@@ -29,7 +29,7 @@ Directory stripLeadingDir(const Directory &directory)
         pos++;
         return directory.substr(pos, directory.length()-pos);
     }
-};
+}
 
 std::deque<Directory> dirDeque(const Directory &directory)
 {
@@ -43,7 +43,7 @@ std::deque<Directory> dirDeque(const Directory &directory)
     }
 
     return dDeque;
-};
+}
 
 std::string pathBetween(const Directory &sourceDir, const Directory &targetDir)
 {
@@ -58,10 +58,10 @@ std::string pathBetween(const Directory &sourceDir, const Directory &targetDir)
 
     std::string sourceToTarget = "";
 
-    for(auto s=0; s<sourceDeque.size(); s++)
+    for(size_t s=0; s<sourceDeque.size(); s++)
         sourceToTarget += "../";
-    for(auto t=0; t<targetDeque.size(); t++)
+    for(size_t t=0; t<targetDeque.size(); t++)
         sourceToTarget += targetDeque[t];
 
     return sourceToTarget;
-};
+}
