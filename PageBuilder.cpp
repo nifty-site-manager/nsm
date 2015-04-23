@@ -295,17 +295,22 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                             targetPageName += inLine[linePos];
                     linePos++;
 
+                    std::cout << targetPageName << std::endl;
+
                     //warns user if target targetPageName isn't being tracked by nsm
                     PageInfo targetPageInfo;
                     targetPageInfo.pageName = targetPageName;
                     if(!pages.count(targetPageInfo))
                     {
-                        std::cout << "warning: " << readPath << ": line " << lineNo << ": nsm not tracking page name " << targetPageName << std::endl;
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": @pathto(" << targetPageName << ") failed, nsm not tracking " << targetPageName << std::endl;
+                        return 1;
                     }
 
 
                     Path targetPath = pages.find(targetPageInfo)->pagePath;
                     //targetPath.set_file_path_from(targetPathStr);
+
+                    std::cout << "finding path between " << pageToBuild.pagePath.dir << " to " << targetPath.dir << std::endl;
 
                     Path pathToTarget(pathBetween(pageToBuild.pagePath.dir, targetPath.dir), targetPath.file);
 
