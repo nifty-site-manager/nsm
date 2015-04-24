@@ -3,8 +3,8 @@
 
 std::string get_pwd()
 {
-    char pwd_char[100];
-    getcwd(pwd_char, 100);
+    char pwd_char[512];
+    getcwd(pwd_char, 512);
     std::string pwd = pwd_char;
 
     return pwd;
