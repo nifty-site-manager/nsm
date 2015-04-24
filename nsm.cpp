@@ -3,10 +3,9 @@
 
 std::string get_pwd()
 {
-    char pwd_char[512];
-    getcwd(pwd_char, 512);
+    char * pwd_char = getcwd(NULL, 0);
     std::string pwd = pwd_char;
-
+    free(pwd_char);
     return pwd;
 }
 
