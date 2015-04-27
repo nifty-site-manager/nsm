@@ -200,6 +200,7 @@ int SiteInfo::info_all()
     {
         if(page != pages.begin())
             std::cout << std::endl;
+        std::cout << "    page name: " << page->pageName << std::endl;
         std::cout << "   page title: " << page->pageTitle << std::endl;
         std::cout << "    page path: " << page->pagePath << std::endl;
         std::cout << " content path: " << page->contentPath << std::endl;
@@ -389,10 +390,10 @@ int SiteInfo::mv(const Name &oldPageName, const Name &newPageName)
 
     PageInfo newPageInfo;
     newPageInfo.pageName = newPageName;
-    newPageInfo.contentPath = Path(contentDir, newPageName + contentExt);
-    newPageInfo.pagePath = Path(siteDir, newPageName + pageExt);
-    if(oldPageInfo.pageName == oldPageInfo.pageTitle.str)
-        newPageInfo.pageTitle = newPageName;
+    newPageInfo.contentPath.set_file_path_from(contentDir + newPageName + contentExt);
+    newPageInfo.pagePath.set_file_path_from(siteDir + newPageName + pageExt);
+    if(get_title(oldPageInfo.pageName) == oldPageInfo.pageTitle.str)
+        newPageInfo.pageTitle = get_title(newPageName);
     else
         newPageInfo.pageTitle = oldPageInfo.pageTitle;
     newPageInfo.templatePath = oldPageInfo.templatePath;
@@ -460,10 +461,10 @@ int SiteInfo::cp(const Name &trackedPageName, const Name &newPageName)
 
     PageInfo newPageInfo;
     newPageInfo.pageName = newPageName;
-    newPageInfo.contentPath = Path(contentDir, newPageName + contentExt);
-    newPageInfo.pagePath = Path(siteDir, newPageName + pageExt);
-    if(trackedPageInfo.pageName == trackedPageInfo.pageTitle.str)
-        newPageInfo.pageTitle = newPageName;
+    newPageInfo.contentPath.set_file_path_from(contentDir + newPageName + contentExt);
+    newPageInfo.pagePath.set_file_path_from(siteDir + newPageName + pageExt);
+    if(get_title(trackedPageInfo.pageName) == trackedPageInfo.pageTitle.str)
+        newPageInfo.pageTitle = get_title(newPageName);
     else
         newPageInfo.pageTitle = trackedPageInfo.pageTitle;
     newPageInfo.templatePath = trackedPageInfo.templatePath;

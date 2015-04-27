@@ -195,7 +195,7 @@ int main(int argc, char* argv[])
         if(noParams >= 3)
             newPageTitle = argv[3];
         else
-            newPageTitle = argv[2];
+            newPageTitle = get_title(newPageName);
 
         Path newTemplatePath;
         if(noParams == 4)

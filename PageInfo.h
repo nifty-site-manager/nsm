@@ -6,6 +6,8 @@
 
 typedef std::string Name;
 
+std::string get_title(const Name &name);
+
 struct PageInfo
 {
     Title pageTitle;
