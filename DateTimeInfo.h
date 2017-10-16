@@ -23,6 +23,9 @@ struct DateTimeInfo
 	//returns current date
 	std::string currentDate();
 
+	//returns current UTC date
+	std::string currentUTCDate();
+
 	//returns current time
 	std::string currentTime();
 

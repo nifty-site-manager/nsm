@@ -338,6 +338,12 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     indentAmount+=dateTimeInfo.cDate.length();
                     linePos+=std::string("@currentdate").length();
                 }
+                else if(inLine.substr(linePos, 15) == "@currentUTCdate")
+                {
+                    processedPage << dateTimeInfo.currentUTCDate();
+                    indentAmount+=dateTimeInfo.currentUTCDate().length();
+                    linePos+=std::string("@currentUTCdate").length();
+                }
                 else if(inLine.substr(linePos, 9) == "@timezone")
                 {
                     processedPage << dateTimeInfo.cTimezone;
