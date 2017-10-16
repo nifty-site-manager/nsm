@@ -77,7 +77,7 @@ int PageBuilder::build(const PageInfo &PageToBuild)
 
     //writes page info file
     std::ofstream infoStream(pageInfoPath.str());
-    infoStream << currentTime() << " " << currentDate() << std::endl;
+    infoStream << dateTimeInfo.currentTime() << " " << dateTimeInfo.currentDate() << std::endl;
     infoStream << this->pageToBuild << std::endl << std::endl;
     for(auto pageDep=pageDeps.begin(); pageDep != pageDeps.end(); pageDep++)
         infoStream << *pageDep << std::endl;
@@ -325,6 +325,12 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     processedPage << dateTimeInfo.cTime;
                     indentAmount+=dateTimeInfo.cTime.length();
                     linePos+=std::string("@currenttime").length();
+                }
+                else if(inLine.substr(linePos, 15) == "@currentUTCtime")
+                {
+                    processedPage << dateTimeInfo.currentUTCTime();
+                    indentAmount+=dateTimeInfo.currentUTCTime().length();
+                    linePos+=std::string("@currentUTCtime").length();
                 }
                 else if(inLine.substr(linePos, 12) == "@currentdate")
                 {

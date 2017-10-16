@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <iostream>
 #include <string>
+#include <sstream>
 
 //information about date and time
 /*
@@ -18,15 +19,18 @@ struct DateTimeInfo
         cTimezone;
 
     DateTimeInfo();
+
+	//returns current date
+	std::string currentDate();
+
+	//returns current time
+	std::string currentTime();
+
+	//returns current UTC time
+	std::string currentUTCTime();
+
+	//returns current time zone
+	std::string currentTimezone();
 };
-
-//returns current date
-std::string currentDate();
-
-//returns current time
-std::string currentTime();
-
-//returns current time zone
-std::string currentTimezone();
 
 #endif //DATE_TIME_INFO_H_
