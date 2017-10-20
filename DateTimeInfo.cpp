@@ -7,7 +7,6 @@ DateTimeInfo::DateTimeInfo()
     cTimezone = currentTimezone();
 }
 
-
 //returns current date
 std::string DateTimeInfo::currentDate()
 {
@@ -22,7 +21,7 @@ std::string DateTimeInfo::currentDate()
     return buf;
 }
 
-//returns current date
+//returns current UTC date
 std::string DateTimeInfo::currentUTCDate()
 {
     time_t now = time(0);
@@ -57,7 +56,10 @@ std::string DateTimeInfo::currentUTCTime()
 
     tstruct = *gmtime(&now);
     std::stringstream ss;
-    ss << (tstruct.tm_hour+10)%24 << ":" << tstruct.tm_min;
+    if(tstruct.tm_min < 10)
+        ss << tstruct.tm_hour << ":0" << tstruct.tm_min;
+    else
+        ss << tstruct.tm_hour << ":" << tstruct.tm_min;
     return ss.str();
 }
 
