@@ -160,11 +160,11 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                         linePos++;
                         indentAmount += std::string(5, ' ');
                         break;
-                    case '&':
+                    /*case '&':
                         processedPage << "&amp;";
                         linePos++;
                         indentAmount += std::string(5, ' ');
-                        break;
+                        break;*/
                     case '*':
                         processedPage << "&ast;";
                         linePos++;
