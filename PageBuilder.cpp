@@ -425,7 +425,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                     Path pathToJSFile(pathBetween(pageToBuild.pagePath.dir, jsPath.dir), jsPath.file);
 
-                    std::string jsInclude="<script type='text/javascript' src='";
+                    //the type attribute is unnecessary for JavaScript resources.
+                    //std::string jsInclude="<script type='text/javascript' src='";
+                    std::string jsInclude="<script src='";
                     jsInclude += pathToJSFile.str();
                     jsInclude+="'></script>";
 
