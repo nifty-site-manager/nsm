@@ -580,7 +580,7 @@ int SiteInfo::build(std::vector<Name> pageNamesToBuild)
         std::cout << std::endl;
         std::cout << "---- nsm not tracking following pages ----" << std::endl;
         for(auto uName=untrackedPages.begin(); uName != untrackedPages.end(); uName++)
-            std::cout << *uName << std::endl;
+            std::cout << " " << *uName << std::endl;
         std::cout << "------------------------------------------" << std::endl;
     }
     if(failedPages.size() == 0 && untrackedPages.size() == 0)
@@ -614,8 +614,7 @@ int SiteInfo::build_all()
         std::cout << std::endl;
         std::cout << "---- following pages failed to build ----" << std::endl;
         for(auto fPath=failedPages.begin(); fPath != failedPages.end(); fPath++)
-            std::cout << " " << *fPath;
-        std::cout << std::endl;
+            std::cout << " " << *fPath << std::endl;
         std::cout << "-----------------------------------------" << std::endl;
     }
     else
@@ -727,7 +726,7 @@ int SiteInfo::build_updated()
         std::cout << std::endl;
         std::cout << "---- removed content files ----" << std::endl;
         for(auto rFile=removedFiles.begin(); rFile != removedFiles.end(); rFile++)
-            std::cout << *rFile << std::endl;
+            std::cout << " " << *rFile << std::endl;
         std::cout << "-------------------------------" << std::endl;
     }
 
@@ -736,7 +735,7 @@ int SiteInfo::build_updated()
         std::cout << std::endl;
         std::cout << "------- updated content files ------" << std::endl;
         for(auto uFile=modifiedFiles.begin(); uFile != modifiedFiles.end(); uFile++)
-            std::cout << *uFile << std::endl;
+            std::cout << " " << *uFile << std::endl;
         std::cout << "------------------------------------" << std::endl;
     }
 
@@ -745,7 +744,7 @@ int SiteInfo::build_updated()
         std::cout << std::endl;
         std::cout << "----- pages that need building -----" << std::endl;
         for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
-            std::cout << uPage->pagePath << std::endl;
+            std::cout << " " << uPage->pagePath << std::endl;
         std::cout << "------------------------------------" << std::endl;
     }
 
@@ -754,7 +753,7 @@ int SiteInfo::build_updated()
         std::cout << std::endl;
         std::cout << "----- pages with missing content or template file -----" << std::endl;
         for(auto pPage=problemPages.begin(); pPage != problemPages.end(); pPage++)
-            std::cout << *pPage << std::endl;
+            std::cout << " " << *pPage << std::endl;
         std::cout << "-------------------------------------------------------" << std::endl;
     }
 
@@ -771,7 +770,7 @@ int SiteInfo::build_updated()
         std::cout << std::endl;
         std::cout << "----- pages successfully built -----" << std::endl;
         for(auto bPage=builtPages.begin(); bPage != builtPages.end(); bPage++)
-            std::cout << *bPage << std::endl;
+            std::cout << " " << *bPage << std::endl;
         std::cout << "------------------------------------" << std::endl;
     }
 
@@ -780,7 +779,7 @@ int SiteInfo::build_updated()
         std::cout << std::endl;
         std::cout << "----- pages that failed to build -----" << std::endl;
         for(auto pPage=failedPages.begin(); pPage != failedPages.end(); pPage++)
-            std::cout << *pPage << std::endl;
+            std::cout << " " << *pPage << std::endl;
         std::cout << "--------------------------------------" << std::endl;
     }
 

@@ -295,7 +295,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                             targetPageName += inLine[linePos];
                     linePos++;
 
-                    //warns user if target targetPageName isn't being tracked by nsm
+                    //throws error if target targetPageName isn't being tracked by nsm
                     PageInfo targetPageInfo;
                     targetPageInfo.pageName = targetPageName;
                     if(!pages.count(targetPageInfo))
@@ -324,7 +324,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                             targetPageName += inLine[linePos];
                     linePos++;
 
-                    //warns user if target targetPageName isn't being tracked by nsm
+                    //throws error if target targetPageName isn't being tracked by nsm
                     PageInfo targetPageInfo;
                     targetPageInfo.pageName = targetPageName;
                     if(!pages.count(targetPageInfo))
@@ -346,21 +346,21 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 else if(inLine.substr(linePos, 12) == "@pathtofile(")
                 {
                     linePos+=std::string("@pathtofile(").length();
-                    Name targetFile="";
+                    Name targetFilePath="";
 
                     for(; inLine[linePos] != ')'; linePos++)
                         if(inLine[linePos] != '"' && inLine[linePos] != '\'')
-                            targetFile += inLine[linePos];
+                            targetFilePath += inLine[linePos];
                     linePos++;
 
-                    //throws error if targetFile doesn't exist
-                    if(!std::ifstream(targetFile.c_str()))
+                    //throws error if targetFilePath doesn't exist
+                    if(!std::ifstream(targetFilePath.c_str()))
                     {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": file " << targetFile << "does not exist" << std::endl;
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": file " << targetFilePath << " does not exist" << std::endl;
                         return 1;
                     }
                     Path targetPath;
-                    targetPath.set_file_path_from(targetFile);
+                    targetPath.set_file_path_from(targetFilePath);
 
                     Path pathToTarget(pathBetween(pageToBuild.pagePath.dir, targetPath.dir), targetPath.file);
 
