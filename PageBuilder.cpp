@@ -45,7 +45,7 @@ int PageBuilder::build(const PageInfo &PageToBuild)
     if(read_and_process(pageToBuild.templatePath, antiDepsOfReadPath) > 0)
         return 1;
 
-    //ensures @inputcontent was found inside template tree
+    //ensures @inputcontent was found inside template dag
     if(!contentAdded)
     {
         std::cout << "error: @inputcontent not found within template file " << pageToBuild.templatePath << " or any of its dependencies, content from " << pageToBuild.contentPath << " has not been inserted" << std::endl;

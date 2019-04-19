@@ -38,26 +38,28 @@ int main(int argc, char* argv[])
 
     if(cmd == "commands")
     {
-        std::cout << "------------------- available commands -------------------" << std::endl;
-        std::cout << "nsm commands      | lists all nsm commands" << std::endl;
-        std::cout << "nsm config        | lists config settings" << std::endl;
-        std::cout << "nsm init          | input: (site-name)" << std::endl;
-        std::cout << "nsm init-cb       | input: (site-name)" << std::endl;
-        std::cout << "nsm status        | lists updated and problem pages" << std::endl;
-        std::cout << "nsm info          | input: page-name-1 .. page-name-k" << std::endl;
-        std::cout << "nsm info-all      | lists tracked pages" << std::endl;
-        std::cout << "nsm info-names    | lists tracked page names" << std::endl;
-        std::cout << "nsm track         | input: page-name (page-title) (template-path)" << std::endl;
-        std::cout << "nsm untrack       | input: page-name" << std::endl;
-        std::cout << "nsm rm            | input: page-name" << std::endl;
-        std::cout << "nsm mv            | input: old-name new-name" << std::endl;
-        std::cout << "nsm cp            | input: tracked-name new-name" << std::endl;
-        std::cout << "nsm build         | input: page-name-1 .. page-name-k" << std::endl;
-        std::cout << "nsm build-updated | builds updated pages" << std::endl;
-        std::cout << "nsm build-all     | builds all tracked pages " << std::endl;
-        std::cout << "nsm new-title     | input: page-name new-title" << std::endl;
-        std::cout << "nsm new-template  | input: page-name template-path" << std::endl;
-        std::cout << "----------------------------------------------------------" << std::endl;
+        std::cout << " --------- available commands --------------------------------------" << std::endl;
+        std::cout << "| nsm commands      | lists all nsm commands                        |" << std::endl;
+        std::cout << "| nsm config        | lists config settings                         |" << std::endl;
+        std::cout << "| nsm init          | input: initialise managing a site             |" << std::endl;
+        std::cout << "| nsm init-null     | input: (site-name)                            |" << std::endl;
+        std::cout << "| nsm init-dev      | input: (site-name)                            |" << std::endl;
+        std::cout << "| nsm init-simple   | input: (site-name)                            |" << std::endl;
+        std::cout << "| nsm status        | lists updated and problem pages               |" << std::endl;
+        std::cout << "| nsm info          | input: page-name-1 .. page-name-k             |" << std::endl;
+        std::cout << "| nsm info-all      | lists tracked pages                           |" << std::endl;
+        std::cout << "| nsm info-names    | lists tracked page names                      |" << std::endl;
+        std::cout << "| nsm track         | input: page-name (page-title) (template-path) |" << std::endl;
+        std::cout << "| nsm untrack       | input: page-name                              |" << std::endl;
+        std::cout << "| nsm rm            | input: page-name                              |" << std::endl;
+        std::cout << "| nsm mv            | input: old-name new-name                      |" << std::endl;
+        std::cout << "| nsm cp            | input: tracked-name new-name                  |" << std::endl;
+        std::cout << "| nsm build         | input: page-name-1 .. page-name-k             |" << std::endl;
+        std::cout << "| nsm build-updated | builds updated pages                          |" << std::endl;
+        std::cout << "| nsm build-all     | builds all tracked pages                      |" << std::endl;
+        std::cout << "| nsm new-title     | input: page-name new-title                    |" << std::endl;
+        std::cout << "| nsm new-template  | input: page-name template-path                |" << std::endl;
+        std::cout << " -------------------------------------------------------------------" << std::endl;
 
         return 0;
     }
@@ -65,8 +67,8 @@ int main(int argc, char* argv[])
     if(cmd == "init")
     {
         //ensures correct number of parameters given
-        if(noParams > 2)
-            return parError(noParams, argv, "1-2");
+        if(noParams > 1)
+            return parError(noParams, argv, "1");
 
         //ensures nsm isn't already managing a site from directory
         if(std::ifstream(".siteinfo/pages.list"))
