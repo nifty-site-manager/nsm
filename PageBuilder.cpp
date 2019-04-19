@@ -314,6 +314,60 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     processedPage << pathToTarget.str();
                     indentAmount += pathToTarget.str().length();
                 }
+                else if(inLine.substr(linePos, 12) == "@pathtopage(")
+                {
+                    linePos+=std::string("@pathtopage(").length();
+                    Name targetPageName="";
+
+                    for(; inLine[linePos] != ')'; linePos++)
+                        if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                            targetPageName += inLine[linePos];
+                    linePos++;
+
+                    //warns user if target targetPageName isn't being tracked by nsm
+                    PageInfo targetPageInfo;
+                    targetPageInfo.pageName = targetPageName;
+                    if(!pages.count(targetPageInfo))
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": @pathtopage(" << targetPageName << ") failed, nsm not tracking " << targetPageName << std::endl;
+                        return 1;
+                    }
+
+
+                    Path targetPath = pages.find(targetPageInfo)->pagePath;
+                    //targetPath.set_file_path_from(targetPathStr);
+
+                    Path pathToTarget(pathBetween(pageToBuild.pagePath.dir, targetPath.dir), targetPath.file);
+
+                    //adds path to target
+                    processedPage << pathToTarget.str();
+                    indentAmount += pathToTarget.str().length();
+                }
+                else if(inLine.substr(linePos, 12) == "@pathtofile(")
+                {
+                    linePos+=std::string("@pathtofile(").length();
+                    Name targetFile="";
+
+                    for(; inLine[linePos] != ')'; linePos++)
+                        if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                            targetFile += inLine[linePos];
+                    linePos++;
+
+                    //throws error if targetFile doesn't exist
+                    if(!std::ifstream(targetFile.c_str()))
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": file " << targetFile << "does not exist" << std::endl;
+                        return 1;
+                    }
+                    Path targetPath;
+                    targetPath.set_file_path_from(targetFile);
+
+                    Path pathToTarget(pathBetween(pageToBuild.pagePath.dir, targetPath.dir), targetPath.file);
+
+                    //adds path to target
+                    processedPage << pathToTarget.str();
+                    indentAmount += pathToTarget.str().length();
+                }
                 else if(inLine.substr(linePos, 10) == "@pagetitle")
                 {
                     processedPage << pageToBuild.pageTitle.str;
