@@ -398,6 +398,18 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     indentAmount+=dateTimeInfo.currentUTCDate().length();
                     linePos+=std::string("@currentUTCdate").length();
                 }
+                else if(inLine.substr(linePos, 12) == "@currentYYYY")
+                {
+                    processedPage << dateTimeInfo.currentYY();
+                    indentAmount+=dateTimeInfo.cDate.length();
+                    linePos+=std::string("@currentYYYY").length();
+                }
+                else if(inLine.substr(linePos, 10) == "@currentYY")
+                {
+                    processedPage << dateTimeInfo.currentYY();
+                    indentAmount+=dateTimeInfo.cDate.length();
+                    linePos+=std::string("@currentYY").length();
+                }
                 else if(inLine.substr(linePos, 9) == "@timezone")
                 {
                     processedPage << dateTimeInfo.cTimezone;

@@ -35,6 +35,26 @@ std::string DateTimeInfo::currentUTCDate()
     return buf;
 }
 
+//returns current date
+std::string DateTimeInfo::currentYYYY()
+{
+    time_t now = time(0);
+    struct tm tstruct;
+    char buf[80];
+
+    tstruct = *localtime(&now);
+    //weekday month day year
+    strftime(buf, sizeof(buf), "%Y", &tstruct);
+
+    return buf;
+}
+
+//returns current date
+std::string DateTimeInfo::currentYY()
+{
+    return currentYYYY().substr(2, 2);
+}
+
 //returns current time
 std::string DateTimeInfo::currentTime()
 {
