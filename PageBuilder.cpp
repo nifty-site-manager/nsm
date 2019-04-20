@@ -371,50 +371,50 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 else if(inLine.substr(linePos, 10) == "@pagetitle")
                 {
                     processedPage << pageToBuild.pageTitle.str;
-                    indentAmount+=pageToBuild.pageTitle.str.length();
-                    linePos+=std::string("@pagetitle").length();
+                    indentAmount += pageToBuild.pageTitle.str.length();
+                    linePos += std::string("@pagetitle").length();
                 }
                 else if(inLine.substr(linePos, 12) == "@currenttime")
                 {
                     processedPage << dateTimeInfo.cTime;
-                    indentAmount+=dateTimeInfo.cTime.length();
-                    linePos+=std::string("@currenttime").length();
+                    indentAmount += dateTimeInfo.cTime.length();
+                    linePos += std::string("@currenttime").length();
                 }
                 else if(inLine.substr(linePos, 15) == "@currentUTCtime")
                 {
                     processedPage << dateTimeInfo.currentUTCTime();
-                    indentAmount+=dateTimeInfo.currentUTCTime().length();
-                    linePos+=std::string("@currentUTCtime").length();
+                    indentAmount += dateTimeInfo.currentUTCTime().length();
+                    linePos += std::string("@currentUTCtime").length();
                 }
                 else if(inLine.substr(linePos, 12) == "@currentdate")
                 {
                     processedPage << dateTimeInfo.cDate;
-                    indentAmount+=dateTimeInfo.cDate.length();
-                    linePos+=std::string("@currentdate").length();
+                    indentAmount += dateTimeInfo.cDate.length();
+                    linePos += std::string("@currentdate").length();
                 }
                 else if(inLine.substr(linePos, 15) == "@currentUTCdate")
                 {
                     processedPage << dateTimeInfo.currentUTCDate();
-                    indentAmount+=dateTimeInfo.currentUTCDate().length();
-                    linePos+=std::string("@currentUTCdate").length();
+                    indentAmount += dateTimeInfo.currentUTCDate().length();
+                    linePos += std::string("@currentUTCdate").length();
                 }
                 else if(inLine.substr(linePos, 12) == "@currentYYYY")
                 {
                     processedPage << dateTimeInfo.currentYY();
-                    indentAmount+=dateTimeInfo.cDate.length();
-                    linePos+=std::string("@currentYYYY").length();
+                    indentAmount += dateTimeInfo.cDate.length();
+                    linePos += std::string("@currentYYYY").length();
                 }
                 else if(inLine.substr(linePos, 10) == "@currentYY")
                 {
                     processedPage << dateTimeInfo.currentYY();
-                    indentAmount+=dateTimeInfo.cDate.length();
-                    linePos+=std::string("@currentYY").length();
+                    indentAmount += dateTimeInfo.cDate.length();
+                    linePos += std::string("@currentYY").length();
                 }
                 else if(inLine.substr(linePos, 9) == "@timezone")
                 {
                     processedPage << dateTimeInfo.cTimezone;
-                    indentAmount+=dateTimeInfo.cTimezone.length();
-                    linePos+=std::string("@timezone").length();
+                    indentAmount += dateTimeInfo.cTimezone.length();
+                    linePos += std::string("@timezone").length();
                 }
                 else if(inLine.substr(linePos, 15) == "@faviconinclude") //checks for favicon include
                 {
@@ -439,7 +439,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                     std::string faviconInclude="<link rel='icon' type='image/png' href='";
                     faviconInclude += pathToFavicon.str();
-                    faviconInclude+="'>";
+                    faviconInclude += "'>";
 
                     processedPage << faviconInclude;
                     indentAmount += faviconInclude.length();
@@ -465,12 +465,47 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                     Path pathToCSSFile(pathBetween(pageToBuild.pagePath.dir, cssPath.dir), cssPath.file);
 
-                    std::string cssInclude="<link rel='stylesheet' type='text/css' href='";
+                    std::string cssInclude = "<link rel='stylesheet' type='text/css' href='";
                     cssInclude += pathToCSSFile.str();
-                    cssInclude+="'>";
+                    cssInclude += "'>";
 
                     processedPage << cssInclude;
                     indentAmount += cssInclude.length();
+                }
+                else if(inLine.substr(linePos, 12) == "@imginclude(") //checks for img includes
+                {
+                    std::string wstr = "";
+                    linePos+=std::string("@imginclude(").length();
+                    std::string imgPathStr="";
+
+                    for(; inLine[linePos] != ')' && inLine[linePos] != ','; linePos++)
+                        if(inLine[linePos] != '"' && inLine[linePos] != '\''  && inLine[linePos] != ',')
+                            imgPathStr += inLine[linePos];
+                    if(inLine[linePos] == ',')
+                        linePos++;
+                        for(; inLine[linePos] != ')' ; linePos++)
+                            if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                                wstr += inLine[linePos];
+                    linePos++;
+
+                    //warns user if img file doesn't exist
+                    if(!std::ifstream(imgPathStr.c_str()))
+                    {
+                        std::cout << "warning: " << readPath << ": line " << lineNo << ": img file " << imgPathStr << "does not exist" << std::endl;
+                    }
+
+                    Path imgPath;
+                    imgPath.set_file_path_from(imgPathStr);
+
+                    Path pathToIMGFile(pathBetween(pageToBuild.pagePath.dir, imgPath.dir), imgPath.file);
+
+                    std::string imgInclude = "<img src=\"" + pathToIMGFile.str() + "\"";
+                    if(wstr != "")
+                        imgInclude += " width=\"" + wstr + "\"";
+                    imgInclude += ">";
+
+                    processedPage << imgInclude;
+                    indentAmount += imgInclude.length();
                 }
                 else if(inLine.substr(linePos, 11) == "@jsinclude(") //checks for js includes
                 {
