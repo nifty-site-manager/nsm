@@ -10,8 +10,8 @@ This is the original and official/primary (github) repository for nifty-site-man
 
 
 Website:
-[[https://nifty-site-manager.com](official)] [[https://nifty-site-manager.bitbucket.io](bitbucket)] [[https://nifty-site-manager.github.io](github)] [[https://nifty-site-manager.gitlab.io](gitlab)]
+\[[official](https://nifty-site-manager.com)\] \[[bitbucket](https://nifty-site-manager.bitbucket.io)\] \[[github](https://nifty-site-manager.github.io)\] \[[gitlab](https://nifty-site-manager.gitlab.io)\]
 
 Repositories:
-[[https://bitbucket.com/nifty-site-manager/nsm](bitbucket)] [[https://github.com/nifty-site-manager/nsm](github)] [[https://gitlab.com/nifty-site-manager/nsm](gitlab)]
+\[[bitbucket](https://bitbucket.com/nifty-site-manager/nsm)\] \[[github](https://github.com/nifty-site-manager/nsm)\] \[[gitlab](https://gitlab.com/nifty-site-manager/nsm)\]
 
