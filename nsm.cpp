@@ -1,3 +1,10 @@
+/*
+    The majority of nsm was planned and coded in a chicken shed over ~1-2 months during the final year of my PhD (2015).
+
+    Copyright (c) 2015-present
+    https://n-ham.com
+*/
+
 #include "SiteInfo.h"
 #include <unistd.h>
 

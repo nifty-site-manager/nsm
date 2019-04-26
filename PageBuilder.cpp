@@ -258,10 +258,51 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@input(").length();
                     std::string inputPathStr="";
 
-                    for(; inLine[linePos] != ')'; linePos++)
-                        if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        linePos++;
+
+                    //throws error if new line is between the open bracket and path
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    //reads the input path
+                    if(inLine[linePos] == '\'')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '\''; linePos++)
                             inputPathStr += inLine[linePos];
-                    linePos++;
+                        ++linePos;
+                    }
+                    else if(inLine[linePos] == '"')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '"'; linePos++)
+                            inputPathStr += inLine[linePos];
+                        ++linePos;
+                    }
+                    else
+                    {
+                        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; linePos++)
+                            if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                                inputPathStr += inLine[linePos];
+                    }
+
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        ++linePos;
+
+                    //throws error if new line is between the path and close bracket
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    ++linePos;
 
                     Path inputPath;
                     inputPath.set_file_path_from(inputPathStr);
@@ -290,10 +331,51 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@pathto(").length();
                     Name targetPageName="";
 
-                    for(; inLine[linePos] != ')'; linePos++)
-                        if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        linePos++;
+
+                    //throws error if new line is between the open bracket and path
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    //reads the input path
+                    if(inLine[linePos] == '\'')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '\''; linePos++)
                             targetPageName += inLine[linePos];
-                    linePos++;
+                        ++linePos;
+                    }
+                    else if(inLine[linePos] == '"')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '"'; linePos++)
+                            targetPageName += inLine[linePos];
+                        ++linePos;
+                    }
+                    else
+                    {
+                        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; linePos++)
+                            if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                                targetPageName += inLine[linePos];
+                    }
+
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        ++linePos;
+
+                    //throws error if new line is between the path and close bracket
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    ++linePos;
 
                     //throws error if target targetPageName isn't being tracked by nsm
                     PageInfo targetPageInfo;
@@ -319,10 +401,51 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@pathtopage(").length();
                     Name targetPageName="";
 
-                    for(; inLine[linePos] != ')'; linePos++)
-                        if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        linePos++;
+
+                    //throws error if new line is between the open bracket and path
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    //reads the input path
+                    if(inLine[linePos] == '\'')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '\''; linePos++)
                             targetPageName += inLine[linePos];
-                    linePos++;
+                        ++linePos;
+                    }
+                    else if(inLine[linePos] == '"')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '"'; linePos++)
+                            targetPageName += inLine[linePos];
+                        ++linePos;
+                    }
+                    else
+                    {
+                        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; linePos++)
+                            if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                                targetPageName += inLine[linePos];
+                    }
+
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        ++linePos;
+
+                    //throws error if new line is between the path and close bracket
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    ++linePos;
 
                     //throws error if target targetPageName isn't being tracked by nsm
                     PageInfo targetPageInfo;
@@ -348,10 +471,51 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@pathtofile(").length();
                     Name targetFilePath="";
 
-                    for(; inLine[linePos] != ')'; linePos++)
-                        if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        linePos++;
+
+                    //throws error if new line is between the open bracket and path
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    //reads the input path
+                    if(inLine[linePos] == '\'')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '\''; linePos++)
                             targetFilePath += inLine[linePos];
-                    linePos++;
+                        ++linePos;
+                    }
+                    else if(inLine[linePos] == '"')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '"'; linePos++)
+                            targetFilePath += inLine[linePos];
+                        ++linePos;
+                    }
+                    else
+                    {
+                        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; linePos++)
+                            if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                                targetFilePath += inLine[linePos];
+                    }
+
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        ++linePos;
+
+                    //throws error if new line is between the path and close bracket
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    ++linePos;
 
                     //throws error if targetFilePath doesn't exist
                     if(!std::ifstream(targetFilePath.c_str()))
@@ -416,15 +580,56 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     indentAmount += dateTimeInfo.cTimezone.length();
                     linePos += std::string("@timezone").length();
                 }
-                else if(inLine.substr(linePos, 15) == "@faviconinclude") //checks for favicon include
+                else if(inLine.substr(linePos, 16) == "@faviconinclude(") //checks for favicon include
                 {
                     linePos+=std::string("@faviconinclude(").length();
                     std::string faviconPathStr="";
 
-                    for(; inLine[linePos] != ')'; linePos++)
-                        if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        linePos++;
+
+                    //throws error if new line is between the open bracket and path
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    //reads the input path
+                    if(inLine[linePos] == '\'')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '\''; linePos++)
                             faviconPathStr += inLine[linePos];
-                    linePos++;
+                        ++linePos;
+                    }
+                    else if(inLine[linePos] == '"')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '"'; linePos++)
+                            faviconPathStr += inLine[linePos];
+                        ++linePos;
+                    }
+                    else
+                    {
+                        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; linePos++)
+                            if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                                faviconPathStr += inLine[linePos];
+                    }
+
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        ++linePos;
+
+                    //throws error if new line is between the path and close bracket
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    ++linePos;
 
                     //warns user if favicon file doesn't exist
                     if(!std::ifstream(faviconPathStr.c_str()))
@@ -449,10 +654,51 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@cssinclude(").length();
                     std::string cssPathStr="";
 
-                    for(; inLine[linePos] != ')'; linePos++)
-                        if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        linePos++;
+
+                    //throws error if new line is between the open bracket and path
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    //reads the input path
+                    if(inLine[linePos] == '\'')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '\''; linePos++)
                             cssPathStr += inLine[linePos];
-                    linePos++;
+                        ++linePos;
+                    }
+                    else if(inLine[linePos] == '"')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '"'; linePos++)
+                            cssPathStr += inLine[linePos];
+                        ++linePos;
+                    }
+                    else
+                    {
+                        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; linePos++)
+                            if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                                cssPathStr += inLine[linePos];
+                    }
+
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        ++linePos;
+
+                    //throws error if new line is between the path and close bracket
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    ++linePos;
 
                     //warns user if css file doesn't exist
                     if(!std::ifstream(cssPathStr.c_str()))
@@ -478,15 +724,100 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@imginclude(").length();
                     std::string imgPathStr="";
 
-                    for(; inLine[linePos] != ')' && inLine[linePos] != ','; linePos++)
-                        if(inLine[linePos] != '"' && inLine[linePos] != '\''  && inLine[linePos] != ',')
-                            imgPathStr += inLine[linePos];
-                    if(inLine[linePos] == ',')
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
                         linePos++;
-                        for(; inLine[linePos] != ')' ; linePos++)
+
+                    //throws error if new line is between the open bracket and path
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    //reads the input path
+                    if(inLine[linePos] == '\'')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '\''; linePos++)
+                            imgPathStr += inLine[linePos];
+                        ++linePos;
+                    }
+                    else if(inLine[linePos] == '"')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '"'; linePos++)
+                            imgPathStr += inLine[linePos];
+                        ++linePos;
+                    }
+                    else
+                    {
+                        for(; inLine[linePos] != ')' && inLine[linePos] != ',' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; linePos++)
                             if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                                imgPathStr += inLine[linePos];
+                    }
+
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        ++linePos;
+
+                    //throws error if new line is between the path and close bracket
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+
+                    if(inLine[linePos] == ',')
+                    {
+                        ++linePos;
+                        //skips over spaces and tabs
+                        while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                            ++linePos;
+
+                        //throws error if new line is between the path and close bracket
+                        if(linePos == inLine.size())
+                        {
+                            std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                            return 1;
+                        }
+
+                        //reads the width string
+                        if(inLine[linePos] == '\'')
+                        {
+                            ++linePos;
+                            for(; inLine[linePos] != '\''; linePos++)
                                 wstr += inLine[linePos];
-                    linePos++;
+                            ++linePos;
+                        }
+                        else if(inLine[linePos] == '"')
+                        {
+                            ++linePos;
+                            for(; inLine[linePos] != '"'; linePos++)
+                                wstr += inLine[linePos];
+                            ++linePos;
+                        }
+                        else
+                        {
+                            for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; linePos++)
+                                if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                                    wstr += inLine[linePos];
+                        }
+                    }
+
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        ++linePos;
+
+                    //throws error if new line is between the path and close bracket
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    ++linePos;
 
                     //warns user if img file doesn't exist
                     if(!std::ifstream(imgPathStr.c_str()))
@@ -512,10 +843,51 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@jsinclude(").length();
                     std::string jsPathStr="";
 
-                    for(; inLine[linePos] != ')'; linePos++)
-                        if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        linePos++;
+
+                    //throws error if new line is between the open bracket and path
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    //reads the input path
+                    if(inLine[linePos] == '\'')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '\''; linePos++)
                             jsPathStr += inLine[linePos];
-                    linePos++;
+                        ++linePos;
+                    }
+                    else if(inLine[linePos] == '"')
+                    {
+                        ++linePos;
+                        for(; inLine[linePos] != '"'; linePos++)
+                            jsPathStr += inLine[linePos];
+                        ++linePos;
+                    }
+                    else
+                    {
+                        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; linePos++)
+                            if(inLine[linePos] != '"' && inLine[linePos] != '\'')
+                                jsPathStr += inLine[linePos];
+                    }
+
+                    //skips over spaces and tabs
+                    while(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+                        ++linePos;
+
+                    //throws error if new line is between the path and close bracket
+                    if(linePos == inLine.size())
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
+                        return 1;
+                    }
+
+                    ++linePos;
 
                     //warns user if js file doesn't exist
                     if(!std::ifstream(jsPathStr.c_str()))
