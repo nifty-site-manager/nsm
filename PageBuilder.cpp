@@ -703,7 +703,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //warns user if css file doesn't exist
                     if(!std::ifstream(cssPathStr.c_str()))
                     {
-                        std::cout << "warning: " << readPath << ": line " << lineNo << ": css file " << cssPathStr << "does not exist" << std::endl;
+                        std::cout << "warning: " << readPath << ": line " << lineNo << ": css file " << cssPathStr << " does not exist" << std::endl;
                     }
 
                     Path cssPath;
@@ -822,7 +822,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //warns user if img file doesn't exist
                     if(!std::ifstream(imgPathStr.c_str()))
                     {
-                        std::cout << "warning: " << readPath << ": line " << lineNo << ": img file " << imgPathStr << "does not exist" << std::endl;
+                        std::cout << "warning: " << readPath << ": line " << lineNo << ": img file " << imgPathStr << " does not exist" << std::endl;
                     }
 
                     Path imgPath;
@@ -891,7 +891,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                     //warns user if js file doesn't exist
                     if(!std::ifstream(jsPathStr.c_str()))
-                        std::cout << "warning: " << readPath << ": line " << lineNo << ": js file " << jsPathStr << "does not exist" << std::endl;
+                        std::cout << "warning: " << readPath << ": line " << lineNo << ": js file " << jsPathStr << " does not exist" << std::endl;
 
                     Path jsPath;
                     jsPath.set_file_path_from(jsPathStr);
