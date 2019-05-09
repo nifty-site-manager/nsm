@@ -1693,12 +1693,6 @@ int main(int argc, char* argv[])
             else
                 newTemplatePath = site.defaultTemplate;
 
-            std::cout << "WTF" << std::endl;
-            std::cout << newPageName << std::endl;
-            std::cout << newPageTitle << std::endl;
-            std::cout << newTemplatePath << std::endl;
-            std::cout << "WTF" << std::endl;
-
             return site.track(newPageName, newPageTitle, newTemplatePath);
         }
         else if(cmd == "untrack")
