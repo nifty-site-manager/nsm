@@ -16,7 +16,7 @@ bool operator<(const PageInfo &page1, const PageInfo &page2)
 
 std::ostream& operator<<(std::ostream &os, const PageInfo &page)
 {
-    os << page.pageName << std::endl;
+    os << quote(page.pageName) << std::endl;
     os << page.pageTitle << std::endl;
     os << page.templatePath;
 

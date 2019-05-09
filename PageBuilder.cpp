@@ -250,7 +250,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 else if(inLine.substr(linePos, 13) == "@inputcontent")
                 {
                     contentAdded = 1;
-                    std::string replaceText = "@input(" + pageToBuild.contentPath.str() + ")";
+                    std::string replaceText = "@input(" + quote(pageToBuild.contentPath.str()) + ")";
                     inLine.replace(linePos, 13, replaceText);
                 }
                 else if(inLine.substr(linePos, 7) == "@input(")

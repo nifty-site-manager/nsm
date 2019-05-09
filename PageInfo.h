@@ -3,6 +3,7 @@
 
 #include "Path.h"
 #include "Title.h"
+#include "Quoted.h"
 
 typedef std::string Name;
 

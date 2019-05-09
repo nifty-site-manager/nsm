@@ -111,7 +111,7 @@ PageInfo SiteInfo::make_info(const Name &pageName)
     pageInfo.pageName = pageName;
 
     Path pageNameAsPath;
-    pageNameAsPath.set_file_path_from(pageName);
+    pageNameAsPath.set_file_path_from(unquote(pageName));
 
     pageInfo.contentPath = Path(contentDir + pageNameAsPath.dir, pageNameAsPath.file + contentExt);
     pageInfo.pagePath = Path(siteDir + pageNameAsPath.dir, pageNameAsPath.file + pageExt);
@@ -129,7 +129,7 @@ PageInfo SiteInfo::make_info(const Name &pageName, const Title &pageTitle)
     pageInfo.pageName = pageName;
 
     Path pageNameAsPath;
-    pageNameAsPath.set_file_path_from(pageName);
+    pageNameAsPath.set_file_path_from(unquote(pageName));
 
     pageInfo.contentPath = Path(contentDir + pageNameAsPath.dir, pageNameAsPath.file + contentExt);
     pageInfo.pagePath = Path(siteDir + pageNameAsPath.dir, pageNameAsPath.file + pageExt);
@@ -147,7 +147,7 @@ PageInfo SiteInfo::make_info(const Name &pageName, const Title &pageTitle, const
     pageInfo.pageName = pageName;
 
     Path pageNameAsPath;
-    pageNameAsPath.set_file_path_from(pageName);
+    pageNameAsPath.set_file_path_from(unquote(pageName));
 
     pageInfo.contentPath = Path(contentDir + pageNameAsPath.dir, pageNameAsPath.file + contentExt);
     pageInfo.pagePath = Path(siteDir + pageNameAsPath.dir, pageNameAsPath.file + pageExt);

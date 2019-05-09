@@ -1680,10 +1680,10 @@ int main(int argc, char* argv[])
             if(noParams < 2 || noParams > 4)
                 return parError(noParams, argv, "2-4");
 
-            Name newPageName = argv[2];
+            Name newPageName = quote(argv[2]);
             Title newPageTitle;
             if(noParams >= 3)
-                newPageTitle = argv[3];
+                newPageTitle = quote(argv[3]);
             else
                 newPageTitle = get_title(newPageName);
 
@@ -1692,6 +1692,12 @@ int main(int argc, char* argv[])
                 newTemplatePath.set_file_path_from(argv[4]);
             else
                 newTemplatePath = site.defaultTemplate;
+
+            std::cout << "WTF" << std::endl;
+            std::cout << newPageName << std::endl;
+            std::cout << newPageTitle << std::endl;
+            std::cout << newTemplatePath << std::endl;
+            std::cout << "WTF" << std::endl;
 
             return site.track(newPageName, newPageTitle, newTemplatePath);
         }
