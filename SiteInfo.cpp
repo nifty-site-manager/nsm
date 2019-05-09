@@ -95,7 +95,7 @@ int SiteInfo::save()
 
     for(auto page=pages.begin(); page != pages.end(); page++)
     {
-        ofs << page->pageName << std::endl;
+        ofs << quote(page->pageName) << std::endl;
         ofs << page->pageTitle << std::endl;
         ofs << page->templatePath << std::endl;
         ofs << std::endl;
