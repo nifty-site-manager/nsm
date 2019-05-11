@@ -15,6 +15,11 @@ Path::Path(const Directory &Dir, const Filename &File)
 std::string Path::str() const
 {
     return dir + file;
+    //return quote(dir + file);
+    /*
+        consider:  <a href=@pathtofile('site/pdfs/Example name.pdf')>pdf</a>
+            vs     <a href="@pathtofile('site/pdfs/Example name.pdf')">pdf</a>
+    */
 }
 
 //removes ./ from the front if it's there
