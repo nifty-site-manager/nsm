@@ -89,7 +89,11 @@ bool Path::ensurePathExists() const
     {
         cDir += dDeque[d];
         //std::cout << "making sure " << cDir << " exists " << std::endl;
-        mkdir(cDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        #ifdef _WIN32
+            _mkdir(cDir.c_str()); //windows specific
+        #else //unix
+            mkdir(cDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH); //unix/linux/osx specific
+        #endif // _WIN32
     }
 
     if(file.length())

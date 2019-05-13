@@ -2,9 +2,11 @@
 #define DATE_TIME_INFO_H_
 
 #include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <time.h>
 
 //information about date and time
 /*

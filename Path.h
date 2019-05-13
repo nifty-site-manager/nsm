@@ -7,6 +7,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <time.h>
+
+#ifdef _WIN32
+    #include <direct.h>
+#endif
 
 #include "Directory.h"
 #include "Filename.h"

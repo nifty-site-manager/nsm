@@ -41,7 +41,7 @@ install:
 	chmod 755 nsm
 	sudo mv nsm /usr/local/bin
 
-auto-highlighting:
+linux-gedit-highlighting:
 	chmod 644 html.lang
 	sudo mv html.lang /usr/share/gtksourceview-3.0/language-specs/html.lang
 
@@ -53,4 +53,7 @@ linux-install:
 
 clean:
 	rm -f $(objects)
+
+clean-all:
+	rm -f $(objects) nsm
 

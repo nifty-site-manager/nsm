@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
 
     if(cmd == "commands")
     {
-        std::cout << " --------- available commands --------------------------------------" << std::endl;
+        std::cout << "+--------- available commands --------------------------------------+" << std::endl;
         std::cout << "| nsm commands      | lists all nsm commands                        |" << std::endl;
         std::cout << "| nsm config        | lists config settings                         |" << std::endl;
         std::cout << "| nsm init          | input: initialise managing a site             |" << std::endl;
@@ -66,7 +66,7 @@ int main(int argc, char* argv[])
         std::cout << "| nsm build-all     | builds all tracked pages                      |" << std::endl;
         std::cout << "| nsm new-title     | input: page-name new-title                    |" << std::endl;
         std::cout << "| nsm new-template  | input: page-name template-path                |" << std::endl;
-        std::cout << " -------------------------------------------------------------------" << std::endl;
+        std::cout << "+-------------------------------------------------------------------+" << std::endl;
 
         return 0;
     }
@@ -77,10 +77,16 @@ int main(int argc, char* argv[])
     {
         //ensures nsm is not managing a site from this directory or one of the ancestor directories
         std::string parentDir = "../",
-            rootDir = "/",
+            rootDir = "C:\\",
             owd = get_pwd(),
             pwd = get_pwd(),
             prevPwd;
+
+        #ifdef _WIN32
+            rootDir = "C:\\";
+        #else  //unix
+            rootDir = "/";
+        #endif // _WIN32
 
         if(std::ifstream(".siteinfo/pages.list") || std::ifstream(".siteinfo/nsm.config"))
         {
@@ -127,6 +133,10 @@ int main(int argc, char* argv[])
             //adds read and write permissions to pages list file
             chmod(pagesListPath.str().c_str(), 0666);
 
+            #ifdef _WIN32
+                system("attrib +h .siteinfo");
+            #endif // _WIN32
+
             std::ofstream ofs(".siteinfo/nsm.config");
             ofs << "contentDir content/" << std::endl;
             ofs << "contentExt .content" << std::endl;
@@ -159,6 +169,10 @@ int main(int argc, char* argv[])
             pagesListPath.ensurePathExists();
             //adds read and write permissions to pages list file
             chmod(pagesListPath.str().c_str(), 0666);
+
+            #ifdef _WIN32
+                system("attrib +h .siteinfo");
+            #endif // _WIN32
 
             std::ofstream ofs(".siteinfo/nsm.config");
             ofs << "contentDir content/" << std::endl;
@@ -537,6 +551,10 @@ int main(int argc, char* argv[])
             pagesListPath.ensurePathExists();
             //adds read and write permissions to pages list file
             chmod(pagesListPath.str().c_str(), 0666);
+
+            #ifdef _WIN32
+                system("attrib +h .siteinfo");
+            #endif // _WIN32
 
             std::ofstream ofs(".siteinfo/nsm.config");
             ofs << "contentDir content/" << std::endl;
@@ -1068,6 +1086,10 @@ int main(int argc, char* argv[])
             pagesListPath.ensurePathExists();
             //adds read and write permissions to pages list file
             chmod(pagesListPath.str().c_str(), 0666);
+
+            #ifdef _WIN32
+                system("attrib +h .siteinfo");
+            #endif // _WIN32
 
             std::ofstream ofs(".siteinfo/nsm.config");
             ofs << "contentDir content/" << std::endl;
