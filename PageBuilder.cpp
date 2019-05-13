@@ -800,14 +800,14 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 }
                 else if(inLine.substr(linePos, 12) == "@currentYYYY")
                 {
-                    processedPage << dateTimeInfo.currentYY();
-                    indentAmount += dateTimeInfo.cDate.length();
+                    processedPage << dateTimeInfo.currentYYYY();
+                    indentAmount += dateTimeInfo.currentYYYY().length();
                     linePos += std::string("@currentYYYY").length();
                 }
                 else if(inLine.substr(linePos, 10) == "@currentYY")
                 {
                     processedPage << dateTimeInfo.currentYY();
-                    indentAmount += dateTimeInfo.cDate.length();
+                    indentAmount += dateTimeInfo.currentYY().length();
                     linePos += std::string("@currentYY").length();
                 }
                 else if(inLine.substr(linePos, 9) == "@timezone")
@@ -815,6 +815,12 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     processedPage << dateTimeInfo.cTimezone;
                     indentAmount += dateTimeInfo.cTimezone.length();
                     linePos += std::string("@timezone").length();
+                }
+                else if(inLine.substr(linePos, 10) == "@currentOS")
+                {
+                    processedPage << dateTimeInfo.currentOS();
+                    indentAmount += dateTimeInfo.currentOS().length();
+                    linePos += std::string("@currentOS").length();
                 }
                 else if(inLine.substr(linePos, 16) == "@faviconinclude(") //checks for favicon include
                 {

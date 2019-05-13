@@ -43,13 +43,13 @@ install:
 
 linux-gedit-highlighting:
 	chmod 644 html.lang
-	sudo mv html.lang /usr/share/gtksourceview-3.0/language-specs/html.lang
+	sudo cp html.lang /usr/share/gtksourceview-3.0/language-specs/html.lang
 
 linux-install:
 	chmod 755 nsm
 	sudo mv nsm /usr/local/bin
 	chmod 644 html.lang
-	sudo mv html.lang /usr/share/gtksourceview-3.0/language-specs/html.lang
+	sudo cp html.lang /usr/share/gtksourceview-3.0/language-specs/html.lang
 
 clean:
 	rm -f $(objects)

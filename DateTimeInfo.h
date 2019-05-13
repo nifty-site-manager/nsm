@@ -42,6 +42,9 @@ struct DateTimeInfo
 
 	//returns current time zone
 	std::string currentTimezone();
+
+	//returns current operating system
+    std::string currentOS();
 };
 
 #endif //DATE_TIME_INFO_H_

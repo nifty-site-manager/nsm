@@ -95,3 +95,17 @@ std::string DateTimeInfo::currentTimezone()
 
     return buf;
 }
+
+//returns current operating system
+std::string DateTimeInfo::currentOS()
+{
+    #ifdef _WIN32
+       return "Windows";
+    #elif __APPLE__
+        return "Macintosh";
+    #elif __linux__
+        return "Linux";
+    #else  //unix
+        return "unix";
+    #endif // _WIN32
+}
