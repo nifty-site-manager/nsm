@@ -1,12 +1,12 @@
 <p align="center">
-    <img src="https://gitlab.com/nifty-site-manager/nsm/raw/master/nsm.png" width='120'/>
+    <img src="https://raw.githubusercontent.com/nifty-site-manager/nsm/master/nsm.png" width='120'/>
 </p>
 
 =====
 
 Copyright (c) 2015-present [Nicholas Ham](https://n-ham.com).
 
-This is a permanent (gitlab) repository for nifty-site-manager, a git-like and LaTeX-like command-line site manager. It should work on linux and osx.
+This is a permanent (gitlab) repository for nifty-site-manager, a cross-platform git-like and LaTeX-like command-line site manager.
 
 
 Website:
