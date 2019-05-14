@@ -100,12 +100,14 @@ std::string DateTimeInfo::currentTimezone()
 std::string DateTimeInfo::currentOS()
 {
     #ifdef _WIN32
-       return "Windows";
+        return "Windows";
+    #elif _WIN64
+        return "Windows"
     #elif __APPLE__
         return "Macintosh";
     #elif __linux__
         return "Linux";
     #else  //unix
-        return "unix";
+        return "Unix";
     #endif // _WIN32
 }
