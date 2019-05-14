@@ -774,6 +774,12 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     indentAmount += pageToBuild.pageTitle.str.length();
                     linePos += std::string("@pagetitle").length();
                 }
+                else if(inLine.substr(linePos, 11) == "@page-title")
+                {
+                    processedPage << pageToBuild.pageTitle.str;
+                    indentAmount += pageToBuild.pageTitle.str.length();
+                    linePos += std::string("@page-title").length();
+                }
                 else if(inLine.substr(linePos, 12) == "@currenttime")
                 {
                     processedPage << dateTimeInfo.cTime;
