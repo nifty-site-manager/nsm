@@ -51,6 +51,14 @@ linux-install:
 	chmod 644 html.lang
 	sudo cp html.lang /usr/share/gtksourceview-3.0/language-specs/html.lang
 
+osx-install:
+	chmod 755 nsm
+	sudo mv nsm /usr/local/bin
+
+windows-install:
+	chmod 755 nsm
+	mv nsm ~/bin
+
 clean:
 	rm -f $(objects)
 
