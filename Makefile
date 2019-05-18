@@ -74,14 +74,3 @@ clean:
 clean-all:
 	rm -f $(objects) nsm
 
-
-windows-install:
-	chmod 755 nsm
-	mv nsm ~/bin
-
-clean:
-	rm -f $(objects)
-
-clean-all:
-	rm -f $(objects) nsm
-
