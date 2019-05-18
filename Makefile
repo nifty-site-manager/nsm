@@ -53,8 +53,7 @@ linux-install:
 
 osx-install:
 	chmod 755 nsm
-	sudo rm -r ~/.nsm
-	sudo mkdir ~/.nsm
+	sudo mkdir -p ~/.nsm
 	sudo mv nsm ~/.nsm
 	sudo cp /etc/paths ./
 	sudo chmod a+w paths
