@@ -645,6 +645,10 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
 {
     pathRead = "";
 
+    //skips over leading whitespace
+    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+        ++linePos;
+
     //throws error if either no closing bracket or a newline
     if(linePos == inLine.size())
     {
@@ -656,13 +660,6 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
     if(inLine[linePos] == ')')
     {
         std::cout << "error: " << readPath << ": line " << lineNo << ": no path provided inside " << callType << " call" << std::endl << std::endl;
-        return 1;
-    }
-
-    //throws error if leading whitespace before path
-    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-    {
-        std::cout << "error: " << readPath << ": line " << lineNo << ": leading whitespace before path inside " << callType << " call" << std::endl << std::endl;
         return 1;
     }
 
@@ -706,14 +703,14 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
             }
             else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
             {
-                for(auto i=linePos+1; i<inLine.size(); i++)
+                for(;linePos < inLine.size(); ++linePos)
                 {
-                    if(inLine[i] == ')')
+                    if(inLine[linePos] == ')')
                     {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside " << callType << " call" << std::endl << std::endl;
-                        return 1;
+                        ++linePos;
+                        return 0;
                     }
-                    else if(inLine[i] != ' ' && inLine[i] != '\t')
+                    else if(inLine[linePos] != ' ' && inLine[linePos] != '\t')
                     {
                         std::cout << "error: " << readPath << ": line " << lineNo << ": unquoted path inside " << callType << " call contains whitespace" << std::endl << std::endl;
                         return 1;
@@ -727,17 +724,14 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
         }
     }
 
+    //skips over hopefully trailing whitespace
+    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+        ++linePos;
+
     //throws error if new line is between the path and close bracket
     if(linePos == inLine.size())
     {
-        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside " << callType << " call" << std::endl << std::endl;
-        return 1;
-    }
-
-    //throws error if trailing whitespace after path
-    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-    {
-        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside " << callType << " call" << std::endl << std::endl;
+        std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside  " << callType << " call" << std::endl << std::endl;
         return 1;
     }
 
@@ -752,5 +746,3 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
 
     return 0;
 }
-
-
