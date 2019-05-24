@@ -23,6 +23,7 @@ struct PageBuilder
 
     int build(const PageInfo &pageInfo);
     int read_and_process(const Path &readPath, std::set<Path> antiDepsOfReadPath);
+    int read_path(std::string &pathRead, size_t &linePos, const std::string &inLine, const Path &readPath, const int &lineNo, const std::string &callType);
 };
 
 #endif //PAGE_BUILDER_H_

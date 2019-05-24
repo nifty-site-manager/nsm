@@ -256,112 +256,10 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 else if(inLine.substr(linePos, 7) == "@input(")
                 {
                     linePos+=std::string("@input(").length();
-                    std::string inputPathStr="";
+                    std::string inputPathStr;
 
-                    //throws error if either no closing bracket or a newline
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
+                    if(read_path(inputPathStr, linePos, inLine, readPath, lineNo, "@input()") > 0)
                         return 1;
-                    }
-
-                    //throws error if no path provided
-                    if(inLine[linePos] == ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": no path provided inside @input() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if leading whitespace before path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": leading whitespace before path inside @input() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //reads the input path
-                    if(inLine[linePos] == '\'')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '\''; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing single quote or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            inputPathStr += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else if(inLine[linePos] == '"')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '"'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing double quote \" or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            inputPathStr += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else
-                    {
-                        for(; inLine[linePos] != ')'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                            {
-                                for(auto i=linePos+1; i<inLine.size(); i++)
-                                {
-                                    if(inLine[i] == ')')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @input() call" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                    else if(inLine[i] != ' ' && inLine[i] != '\t')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": unquoted path inside @input() call contains whitespace" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                }
-
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            inputPathStr += inLine[linePos];
-                        }
-                    }
-
-                    //throws error if new line is between the path and close bracket
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @input() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if trailing whitespace after path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @input() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if the path is invalid
-                    if(inLine[linePos] != ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": invalid path inside @input() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    ++linePos;
 
                     Path inputPath;
                     inputPath.set_file_path_from(inputPathStr);
@@ -388,112 +286,10 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 else if(inLine.substr(linePos, 8) == "@pathto(")
                 {
                     linePos+=std::string("@pathto(").length();
-                    Name targetPageName="";
+                    Name targetPageName;
 
-                    //throws error if either no closing bracket or a newline
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @pathto() call" << std::endl << std::endl;
+                    if(read_path(targetPageName, linePos, inLine, readPath, lineNo, "@pathto()") > 0)
                         return 1;
-                    }
-
-                    //throws error if no path provided
-                    if(inLine[linePos] == ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": no path provided inside @pathto() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if leading whitespace before path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": leading whitespace before path inside @pathto() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //reads the input path
-                    if(inLine[linePos] == '\'')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '\''; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing single quote or newline inside @pathto() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            targetPageName += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else if(inLine[linePos] == '"')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '"'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing double quote \" or newline inside @pathto() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            targetPageName += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else
-                    {
-                        for(; inLine[linePos] != ')'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                            {
-                                for(auto i=linePos+1; i<inLine.size(); i++)
-                                {
-                                    if(inLine[i] == ')')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @input() call" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                    else if(inLine[i] != ' ' && inLine[i] != '\t')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": unquoted path inside @input() call contains whitespace" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                }
-
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            targetPageName += inLine[linePos];
-                        }
-                    }
-
-                    //throws error if new line is between the path and close bracket
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @pathto() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if trailing whitespace after path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @pathto() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if the path is invalid
-                    if(inLine[linePos] != ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": invalid path inside @pathto() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    ++linePos;
 
                     //throws error if target targetPageName isn't being tracked by nsm
                     PageInfo targetPageInfo;
@@ -517,112 +313,10 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 else if(inLine.substr(linePos, 12) == "@pathtopage(")
                 {
                     linePos+=std::string("@pathtopage(").length();
-                    Name targetPageName="";
+                    Name targetPageName;
 
-                    //throws error if either no closing bracket or a newline
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @pathtopage() call" << std::endl << std::endl;
+                    if(read_path(targetPageName, linePos, inLine, readPath, lineNo, "@pathtopage()") > 0)
                         return 1;
-                    }
-
-                    //throws error if no path provided
-                    if(inLine[linePos] == ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": no path provided inside @pathtopage() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if leading whitespace before path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": leading whitespace before path inside @pathtopage() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //reads the input path
-                    if(inLine[linePos] == '\'')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '\''; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing single quote or newline inside @pathtopage() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            targetPageName += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else if(inLine[linePos] == '"')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '"'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing double quote \" or newline inside @pathtopage() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            targetPageName += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else
-                    {
-                        for(; inLine[linePos] != ')'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                            {
-                                for(auto i=linePos+1; i<inLine.size(); i++)
-                                {
-                                    if(inLine[i] == ')')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @input() call" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                    else if(inLine[i] != ' ' && inLine[i] != '\t')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": unquoted path inside @input() call contains whitespace" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                }
-
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            targetPageName += inLine[linePos];
-                        }
-                    }
-
-                    //throws error if new line is between the path and close bracket
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @pathtopage() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if trailing whitespace after path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @pathtopage() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if the path is invalid
-                    if(inLine[linePos] != ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": invalid path inside @pathtopage() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    ++linePos;
 
                     //throws error if target targetPageName isn't being tracked by nsm
                     PageInfo targetPageInfo;
@@ -646,112 +340,10 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 else if(inLine.substr(linePos, 12) == "@pathtofile(")
                 {
                     linePos+=std::string("@pathtofile(").length();
-                    Name targetFilePath="";
+                    Name targetFilePath;
 
-                    //throws error if either no closing bracket or a newline
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @pathtofile() call" << std::endl << std::endl;
+                    if(read_path(targetFilePath, linePos, inLine, readPath, lineNo, "@pathtofile()") > 0)
                         return 1;
-                    }
-
-                    //throws error if no path provided
-                    if(inLine[linePos] == ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": no path provided inside @pathtofile() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if leading whitespace before path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": leading whitespace before path inside @pathtofile() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //reads the input path
-                    if(inLine[linePos] == '\'')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '\''; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing single quote or newline inside @pathtofile() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            targetFilePath += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else if(inLine[linePos] == '"')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '"'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing double quote \" or newline inside @pathtofile() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            targetFilePath += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else
-                    {
-                        for(; inLine[linePos] != ')'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                            {
-                                for(auto i=linePos+1; i<inLine.size(); i++)
-                                {
-                                    if(inLine[i] == ')')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @input() call" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                    else if(inLine[i] != ' ' && inLine[i] != '\t')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": unquoted path inside @input() call contains whitespace" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                }
-
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            targetFilePath += inLine[linePos];
-                        }
-                    }
-
-                    //throws error if new line is between the path and close bracket
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @pathtofile() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if trailing whitespace after path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @pathtofile() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if the path is invalid
-                    if(inLine[linePos] != ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": invalid path inside @pathtofile() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    ++linePos;
 
                     //throws error if targetFilePath doesn't exist
                     if(!std::ifstream(targetFilePath.c_str()))
@@ -780,163 +372,151 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     indentAmount += pageToBuild.pageTitle.str.length();
                     linePos += std::string("@page-title").length();
                 }
-                else if(inLine.substr(linePos, 12) == "@currenttime")
+                else if(inLine.substr(linePos, 14) == "@buildtimezone")
                 {
+                    processedPage << dateTimeInfo.cTimezone;
+                    indentAmount += dateTimeInfo.cTimezone.length();
+                    linePos += std::string("@buildtimezone").length();
+                }
+                else if(inLine.substr(linePos, 13) == "@loadtimezone")
+                {
+                    processedPage << "<script>document.write(new Date().toString().split(\"(\")[1].split(\")\")[0])</script>";
+                    indentAmount += 82;
+                    linePos += std::string("@loadtimezone").length();
+                }
+                else if(inLine.substr(linePos, 9) == "@timezone")
+                { //this is left for backwards compatibility
+                    processedPage << dateTimeInfo.cTimezone;
+                    indentAmount += dateTimeInfo.cTimezone.length();
+                    linePos += std::string("@timezone").length();
+                }
+                else if(inLine.substr(linePos, 10) == "@buildtime")
+                {
+                    processedPage << dateTimeInfo.cTime;
+                    indentAmount += dateTimeInfo.cTime.length();
+                    linePos += std::string("@buildtime").length();
+                }
+                else if(inLine.substr(linePos, 13) == "@buildUTCtime")
+                {
+                    processedPage << dateTimeInfo.currentUTCTime();
+                    indentAmount += dateTimeInfo.currentUTCTime().length();
+                    linePos += std::string("@buildUTCtime").length();
+                }
+                else if(inLine.substr(linePos, 10) == "@builddate")
+                {
+                    processedPage << dateTimeInfo.cDate;
+                    indentAmount += dateTimeInfo.cDate.length();
+                    linePos += std::string("@builddate").length();
+                }
+                else if(inLine.substr(linePos, 13) == "@buildUTCdate")
+                {
+                    processedPage << dateTimeInfo.currentUTCDate();
+                    indentAmount += dateTimeInfo.currentUTCDate().length();
+                    linePos += std::string("@buildUTCdate").length();
+                }
+                else if(inLine.substr(linePos, 12) == "@currenttime")
+                { //this is left for backwards compatibility
                     processedPage << dateTimeInfo.cTime;
                     indentAmount += dateTimeInfo.cTime.length();
                     linePos += std::string("@currenttime").length();
                 }
                 else if(inLine.substr(linePos, 15) == "@currentUTCtime")
-                {
+                { //this is left for backwards compatibility
                     processedPage << dateTimeInfo.currentUTCTime();
                     indentAmount += dateTimeInfo.currentUTCTime().length();
                     linePos += std::string("@currentUTCtime").length();
                 }
                 else if(inLine.substr(linePos, 12) == "@currentdate")
-                {
+                { //this is left for backwards compatibility
                     processedPage << dateTimeInfo.cDate;
                     indentAmount += dateTimeInfo.cDate.length();
                     linePos += std::string("@currentdate").length();
                 }
                 else if(inLine.substr(linePos, 15) == "@currentUTCdate")
-                {
+                { //this is left for backwards compatibility
                     processedPage << dateTimeInfo.currentUTCDate();
                     indentAmount += dateTimeInfo.currentUTCDate().length();
                     linePos += std::string("@currentUTCdate").length();
                 }
-                else if(inLine.substr(linePos, 12) == "@currentYYYY")
+                else if(inLine.substr(linePos, 9) == "@loadtime")
                 {
+                    processedPage << "<script>document.write((new Date().toLocaleString()).split(\",\")[1])</script>";
+                    indentAmount += 76;
+                    linePos += std::string("@loadtime").length();
+                }
+                else if(inLine.substr(linePos, 12) == "@loadUTCtime")
+                {
+                    processedPage << "<script>document.write((new Date().toISOString()).split(\"T\")[1].split(\".\")[0])</script>";
+                    indentAmount += 87;
+                    linePos += std::string("@loadUTCtime").length();
+                }
+                else if(inLine.substr(linePos, 9) == "@loaddate")
+                {
+                    processedPage << "<script>document.write((new Date().toLocaleString()).split(\",\")[0])</script>";
+                    indentAmount += 76;
+                    linePos += std::string("@loaddate").length();
+                }
+                else if(inLine.substr(linePos, 12) == "@loadUTCdate")
+                {
+                    processedPage << "<script>document.write((new Date().toISOString()).split(\"T\")[0])</script>";
+                    indentAmount += 73;
+                    linePos += std::string("@loadUTCdate").length();
+                }
+                else if(inLine.substr(linePos, 10) == "@buildYYYY")
+                {
+                    processedPage << dateTimeInfo.currentYYYY();
+                    indentAmount += dateTimeInfo.currentYYYY().length();
+                    linePos += std::string("@buildYYYY").length();
+                }
+                else if(inLine.substr(linePos, 8) == "@buildYY")
+                {
+                    processedPage << dateTimeInfo.currentYY();
+                    indentAmount += dateTimeInfo.currentYY().length();
+                    linePos += std::string("@buildYY").length();
+                }
+                else if(inLine.substr(linePos, 12) == "@currentYYYY")
+                { //this is left for backwards compatibility
                     processedPage << dateTimeInfo.currentYYYY();
                     indentAmount += dateTimeInfo.currentYYYY().length();
                     linePos += std::string("@currentYYYY").length();
                 }
                 else if(inLine.substr(linePos, 10) == "@currentYY")
-                {
+                { //this is left for backwards compatibility
                     processedPage << dateTimeInfo.currentYY();
                     indentAmount += dateTimeInfo.currentYY().length();
                     linePos += std::string("@currentYY").length();
                 }
-                else if(inLine.substr(linePos, 9) == "@timezone")
+                else if(inLine.substr(linePos, 9) == "@loadYYYY")
                 {
-                    processedPage << dateTimeInfo.cTimezone;
-                    indentAmount += dateTimeInfo.cTimezone.length();
-                    linePos += std::string("@timezone").length();
+                    processedPage << "<script>document.write(new Date().getFullYear())</script>";
+                    indentAmount += 57;
+                    linePos += std::string("@loadYYYY").length();
                 }
-                else if(inLine.substr(linePos, 10) == "@currentOS")
+                else if(inLine.substr(linePos, 7) == "@loadYY")
+                {
+                    processedPage << "<script>document.write(new Date().getFullYear()%100)</script>";
+                    indentAmount += 61;
+                    linePos += std::string("@loadYY").length();
+                }
+                else if(inLine.substr(linePos, 8) == "@buildOS")
                 {
                     processedPage << dateTimeInfo.currentOS();
                     indentAmount += dateTimeInfo.currentOS().length();
-                    linePos += std::string("@currentOS").length();
+                    linePos += std::string("@buildOS").length();
                 }
+                else if(inLine.substr(linePos, 10) == "@currentOS")
+                { //this is left for backwards compatibility
+                    processedPage << dateTimeInfo.currentOS();
+                    indentAmount += dateTimeInfo.currentOS().length();
+                    linePos += std::string("@currentOS").length();
+                } //I'm not sure how to do loadOS sorry!
                 else if(inLine.substr(linePos, 16) == "@faviconinclude(") //checks for favicon include
                 {
                     linePos+=std::string("@faviconinclude(").length();
-                    std::string faviconPathStr="";
+                    std::string faviconPathStr;
 
-                    //throws error if either no closing bracket or a newline
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @faviconinclude() call" << std::endl << std::endl;
+                    if(read_path(faviconPathStr, linePos, inLine, readPath, lineNo, "@faviconinclude()") > 0)
                         return 1;
-                    }
-
-                    //throws error if no path provided
-                    if(inLine[linePos] == ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": no path provided inside @faviconinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if leading whitespace before path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": leading whitespace before path inside @faviconinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //reads the input path
-                    if(inLine[linePos] == '\'')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '\''; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing single quote or newline inside @faviconinclude() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            faviconPathStr += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else if(inLine[linePos] == '"')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '"'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing double quote \" or newline inside @faviconinclude() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            faviconPathStr += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else
-                    {
-                        for(; inLine[linePos] != ')'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                            {
-                                for(auto i=linePos+1; i<inLine.size(); i++)
-                                {
-                                    if(inLine[i] == ')')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @input() call" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                    else if(inLine[i] != ' ' && inLine[i] != '\t')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": unquoted path inside @input() call contains whitespace" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                }
-
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            faviconPathStr += inLine[linePos];
-                        }
-                    }
-
-                    //throws error if new line is between the path and close bracket
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @faviconinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if trailing whitespace after path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @faviconinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if the path is invalid
-                    if(inLine[linePos] != ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": invalid path inside @faviconinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    ++linePos;
 
                     //warns user if favicon file doesn't exist
                     if(!std::ifstream(faviconPathStr.c_str()))
@@ -949,7 +529,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                     Path pathToFavicon(pathBetween(pageToBuild.pagePath.dir, faviconPath.dir), faviconPath.file);
 
-                    std::string faviconInclude="<link rel='icon' type='image/png' href='";
+                    std::string faviconInclude = "<link rel='icon' type='image/png' href='";
                     faviconInclude += pathToFavicon.str();
                     faviconInclude += "'>";
 
@@ -959,112 +539,10 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 else if(inLine.substr(linePos, 12) == "@cssinclude(") //checks for css includes
                 {
                     linePos+=std::string("@cssinclude(").length();
-                    std::string cssPathStr="";
+                    std::string cssPathStr;
 
-                    //throws error if either no closing bracket or a newline
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @cssinclude() call" << std::endl << std::endl;
+                    if(read_path(cssPathStr, linePos, inLine, readPath, lineNo, "@cssinclude()") > 0)
                         return 1;
-                    }
-
-                    //throws error if no path provided
-                    if(inLine[linePos] == ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": no path provided inside @cssinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if leading whitespace before path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": leading whitespace before path inside @cssinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //reads the input path
-                    if(inLine[linePos] == '\'')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '\''; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing single quote or newline inside @cssinclude() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            cssPathStr += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else if(inLine[linePos] == '"')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '"'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing double quote \" or newline inside @cssinclude() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            cssPathStr += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else
-                    {
-                        for(; inLine[linePos] != ')'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                            {
-                                for(auto i=linePos+1; i<inLine.size(); i++)
-                                {
-                                    if(inLine[i] == ')')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @input() call" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                    else if(inLine[i] != ' ' && inLine[i] != '\t')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": unquoted path inside @input() call contains whitespace" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                }
-
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            cssPathStr += inLine[linePos];
-                        }
-                    }
-
-                    //throws error if new line is between the path and close bracket
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @cssinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if trailing whitespace after path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @cssinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if the path is invalid
-                    if(inLine[linePos] != ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": invalid path inside @cssinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    ++linePos;
 
                     //warns user if css file doesn't exist
                     if(!std::ifstream(cssPathStr.c_str()))
@@ -1087,112 +565,10 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 else if(inLine.substr(linePos, 12) == "@imginclude(") //checks for img includes
                 {
                     linePos+=std::string("@imginclude(").length();
-                    std::string imgPathStr="";
+                    std::string imgPathStr;
 
-                     //throws error if either no closing bracket or a newline
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @imginclude() call" << std::endl << std::endl;
+                    if(read_path(imgPathStr, linePos, inLine, readPath, lineNo, "@imginclude()") > 0)
                         return 1;
-                    }
-
-                    //throws error if no path provided
-                    if(inLine[linePos] == ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": no path provided inside @imginclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if leading whitespace before path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": leading whitespace before path inside @imginclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //reads the input path
-                    if(inLine[linePos] == '\'')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '\''; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing single quote or newline inside @imginclude() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            imgPathStr += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else if(inLine[linePos] == '"')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '"'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing double quote \" or newline inside @imginclude() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            imgPathStr += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else
-                    {
-                        for(; inLine[linePos] != ')'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                            {
-                                for(auto i=linePos+1; i<inLine.size(); i++)
-                                {
-                                    if(inLine[i] == ')')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @input() call" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                    else if(inLine[i] != ' ' && inLine[i] != '\t')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": unquoted path inside @input() call contains whitespace" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                }
-
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            imgPathStr += inLine[linePos];
-                        }
-                    }
-
-                    //throws error if new line is between the path and close bracket
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @imginclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if trailing whitespace after path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @imginclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if the path is invalid
-                    if(inLine[linePos] != ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": invalid path inside @imginclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    ++linePos;
 
                     //warns user if img file doesn't exist
                     if(!std::ifstream(imgPathStr.c_str()))
@@ -1213,112 +589,10 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 else if(inLine.substr(linePos, 11) == "@jsinclude(") //checks for js includes
                 {
                     linePos+=std::string("@jsinclude(").length();
-                    std::string jsPathStr="";
+                    std::string jsPathStr;
 
-                    //throws error if either no closing bracket or a newline
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @jsinclude() call" << std::endl << std::endl;
+                    if(read_path(jsPathStr, linePos, inLine, readPath, lineNo, "@jsinclude()") > 0)
                         return 1;
-                    }
-
-                    //throws error if no path provided
-                    if(inLine[linePos] == ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": no path provided inside @jsinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if leading whitespace before path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": leading whitespace before path inside @jsinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //reads the input path
-                    if(inLine[linePos] == '\'')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '\''; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing single quote or newline inside @jsinclude() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            jsPathStr += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else if(inLine[linePos] == '"')
-                    {
-                        ++linePos;
-                        for(; inLine[linePos] != '"'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing double quote \" or newline inside @jsinclude() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            jsPathStr += inLine[linePos];
-                        }
-                        ++linePos;
-                    }
-                    else
-                    {
-                        for(; inLine[linePos] != ')'; ++linePos)
-                        {
-                            if(linePos == inLine.size())
-                            {
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                            {
-                                for(auto i=linePos+1; i<inLine.size(); i++)
-                                {
-                                    if(inLine[i] == ')')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @input() call" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                    else if(inLine[i] != ' ' && inLine[i] != '\t')
-                                    {
-                                        std::cout << "error: " << readPath << ": line " << lineNo << ": unquoted path inside @input() call contains whitespace" << std::endl << std::endl;
-                                        return 1;
-                                    }
-                                }
-
-                                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside @input() call" << std::endl << std::endl;
-                                return 1;
-                            }
-                            jsPathStr += inLine[linePos];
-                        }
-                    }
-
-                    //throws error if new line is between the path and close bracket
-                    if(linePos == inLine.size())
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside @jsinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if trailing whitespace after path
-                    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside @jsinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    //throws error if the path is invalid
-                    if(inLine[linePos] != ')')
-                    {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": invalid path inside @jsinclude() call" << std::endl << std::endl;
-                        return 1;
-                    }
-
-                    ++linePos;
 
                     //warns user if js file doesn't exist
                     if(!std::ifstream(jsPathStr.c_str()))
@@ -1366,3 +640,117 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
     return 0;
 }
+
+int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::string &inLine, const Path &readPath, const int &lineNo, const std::string &callType)
+{
+    pathRead = "";
+
+    //throws error if either no closing bracket or a newline
+    if(linePos == inLine.size())
+    {
+        std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+        return 1;
+    }
+
+    //throws error if no path provided
+    if(inLine[linePos] == ')')
+    {
+        std::cout << "error: " << readPath << ": line " << lineNo << ": no path provided inside " << callType << " call" << std::endl << std::endl;
+        return 1;
+    }
+
+    //throws error if leading whitespace before path
+    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+    {
+        std::cout << "error: " << readPath << ": line " << lineNo << ": leading whitespace before path inside " << callType << " call" << std::endl << std::endl;
+        return 1;
+    }
+
+    //reads the input path
+    if(inLine[linePos] == '\'')
+    {
+        ++linePos;
+        for(; inLine[linePos] != '\''; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing single quote or newline inside " << callType << " call" << std::endl << std::endl;
+                return 1;
+            }
+            pathRead += inLine[linePos];
+        }
+        ++linePos;
+    }
+    else if(inLine[linePos] == '"')
+    {
+        ++linePos;
+        for(; inLine[linePos] != '"'; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing double quote \" or newline inside " << callType << " call" << std::endl << std::endl;
+                return 1;
+            }
+            pathRead += inLine[linePos];
+        }
+        ++linePos;
+    }
+    else
+    {
+        for(; inLine[linePos] != ')'; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+                return 1;
+            }
+            else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+            {
+                for(auto i=linePos+1; i<inLine.size(); i++)
+                {
+                    if(inLine[i] == ')')
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside " << callType << " call" << std::endl << std::endl;
+                        return 1;
+                    }
+                    else if(inLine[i] != ' ' && inLine[i] != '\t')
+                    {
+                        std::cout << "error: " << readPath << ": line " << lineNo << ": unquoted path inside " << callType << " call contains whitespace" << std::endl << std::endl;
+                        return 1;
+                    }
+                }
+
+                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+                return 1;
+            }
+            pathRead += inLine[linePos];
+        }
+    }
+
+    //throws error if new line is between the path and close bracket
+    if(linePos == inLine.size())
+    {
+        std::cout << "error: " << readPath << ": line " << lineNo << ": newline character inside " << callType << " call" << std::endl << std::endl;
+        return 1;
+    }
+
+    //throws error if trailing whitespace after path
+    if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+    {
+        std::cout << "error: " << readPath << ": line " << lineNo << ": trailing whitespace after path inside " << callType << " call" << std::endl << std::endl;
+        return 1;
+    }
+
+    //throws error if the path is invalid
+    if(inLine[linePos] != ')')
+    {
+        std::cout << "error: " << readPath << ": line " << lineNo << ": invalid path inside " << callType << " call" << std::endl << std::endl;
+        return 1;
+    }
+
+    ++linePos;
+
+    return 0;
+}
+
+

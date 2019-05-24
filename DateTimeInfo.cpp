@@ -76,10 +76,16 @@ std::string DateTimeInfo::currentUTCTime()
 
     tstruct = *gmtime(&now);
     std::stringstream ss;
+    if(tstruct.tm_hour < 10)
+        ss << "0";
+    ss << tstruct.tm_hour << ":";
     if(tstruct.tm_min < 10)
-        ss << tstruct.tm_hour << ":0" << tstruct.tm_min;
-    else
-        ss << tstruct.tm_hour << ":" << tstruct.tm_min;
+        ss << "0";
+    ss << tstruct.tm_min << ":";
+    if(tstruct.tm_sec < 10)
+        ss << "0";
+    ss << tstruct.tm_sec;
+
     return ss.str();
 }
 
