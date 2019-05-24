@@ -1,4 +1,4 @@
-<p align="center">
+<p>
     <img src="https://raw.githubusercontent.com/nifty-site-manager/nsm/master/nsm.png" width='120'/>
 </p>
 
