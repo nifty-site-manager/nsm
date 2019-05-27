@@ -26,12 +26,12 @@ void unrecognisedCommand(const std::string from, const std::string cmd)
 
 bool parError(int noParams, char* argv[], const std::string &expectedNo)
 {
-        std::cout << "error: " << noParams << " is more than the " << expectedNo << " parameters expected" << std::endl;
-        std::cout << "parameters given:";
-        for(int p=1; p<=noParams; p++)
-            std::cout << " " << argv[p];
-        std::cout << std::endl;
-        return 1;
+    std::cout << "error: " << noParams << " parameters is not the " << expectedNo << " parameters expected" << std::endl;
+    std::cout << "parameters given:";
+    for(int p=1; p<=noParams; p++)
+        std::cout << " " << argv[p];
+    std::cout << std::endl;
+    return 1;
 }
 
 int main(int argc, char* argv[])
@@ -51,7 +51,8 @@ int main(int argc, char* argv[])
         std::cout << "+--------- available commands --------------------------------------+" << std::endl;
         std::cout << "| nsm commands      | lists all nsm commands                        |" << std::endl;
         std::cout << "| nsm config        | lists config settings                         |" << std::endl;
-        std::cout << "| nsm init          | input: initialise managing a site             |" << std::endl;
+        std::cout << "| nsm clone         | input: clone-url                              |" << std::endl;
+        std::cout << "| nsm init          | initialise managing a site                    |" << std::endl;
         std::cout << "| nsm init-null     | input: (site-name)                            |" << std::endl;
         std::cout << "| nsm init-dev      | input: (site-name)                            |" << std::endl;
         std::cout << "| nsm init-simple   | input: (site-name)                            |" << std::endl;
@@ -67,6 +68,7 @@ int main(int argc, char* argv[])
         std::cout << "| nsm build         | input: page-name-1 .. page-name-k             |" << std::endl;
         std::cout << "| nsm build-updated | builds updated pages                          |" << std::endl;
         std::cout << "| nsm build-all     | builds all tracked pages                      |" << std::endl;
+        std::cout << "| nsm bcp           | input: commit-message                         |" << std::endl;
         std::cout << "| nsm new-title     | input: page-name new-title                    |" << std::endl;
         std::cout << "| nsm new-template  | input: page-name template-path                |" << std::endl;
         std::cout << "+-------------------------------------------------------------------+" << std::endl;
@@ -1607,6 +1609,98 @@ int main(int argc, char* argv[])
             return 0;
         }
     }
+    else if(cmd == "clone")
+    {
+        //ensures correct number of parameters given
+        if(noParams != 2)
+            return parError(noParams, argv, "2");
+
+        std::string cloneCmnd = "git clone " + std::string(argv[2]);
+        std::string dirName = "";
+        std::string parDir = "../";
+
+        if(cloneCmnd.find('/') == std::string::npos)
+        {
+            std::cout << "error: no / found in provided clone url" << std::endl;
+            return 1;
+        }
+        else if(cloneCmnd.find_last_of('/') > cloneCmnd.find_last_of('.'))
+        {
+            std::cout << "error: clone url should contain .git after the last /" << std::endl;
+            return 1;
+        }
+
+        system(cloneCmnd.c_str());
+
+        for(auto i=cloneCmnd.find_last_of('/')+1; i < cloneCmnd.find_last_of('.'); ++i)
+            dirName += cloneCmnd[i];
+
+        chdir(dirName.c_str());
+
+        system("git checkout stage > /dev/null 2>&1");
+
+        system("git branch > txt3145gwg.txt");
+        std::ifstream ifs("txt3145gwg.txt");
+        std::string str, branch = "err";
+        int bCount = 0;
+        bool hasStage = 0;
+        while(ifs >> str)
+        {
+            if(str == "master")
+            {
+                branch = "master";
+                bCount++;
+            }
+            else if(str == "gh-pages")
+            {
+                branch = "gh-pages";
+                bCount++;
+            }
+            else if(str == "stage")
+                hasStage = 1;
+            if(bCount > 1)
+                break;
+        }
+        ifs.close();
+        system("rm -f txt3145gwg.txt");
+
+        /*if(branch == "err")
+        {
+            std::cout << "error: no master or gh-pages branch found" << std::endl;
+            return 0;
+        }
+        else */if(bCount > 1)
+        {
+            std::cout << "error: found both master and gh-pages branches" << std::endl;
+            return 0;
+        }
+
+        if(hasStage)
+        {
+            std::cout << "has stage" << std::endl;
+            chdir(parDir.c_str());
+
+            std::string cpCmnd = "cp -r " + dirName + " abcd143d";
+            system(cpCmnd.c_str());
+
+            chdir(dirName.c_str());
+
+            system("git checkout stage > /dev/null 2>&1");
+
+            system("rm -r site");
+
+            chdir(parDir.c_str());
+            std::string mvCmnd = "mv abcd143d " + dirName + "/site";
+            system(mvCmnd.c_str());
+
+            chdir((dirName + "/site").c_str());
+
+            std::string checkoutCmnd = "git checkout " + branch + " > /dev/null 2>&1";
+            system(checkoutCmnd.c_str());
+        }
+
+        return 0;
+    }
     else
     {
         //ensures nsm is managing a site from this directory or one of the parent directories
@@ -1663,7 +1757,73 @@ int main(int argc, char* argv[])
 
             return 0;
         }
-        if(cmd == "status")
+        else if(cmd == "bcp") //build-updated commit push
+        {
+            //ensures correct number of parameters given
+            if(noParams != 2)
+            {
+                std::cout << "error: correct usage 'bcp \"commit message\"'" << std::endl;
+                return parError(noParams, argv, "2");
+            }
+
+            if(site.build_updated())
+                return 1;
+            //system("nsm build-updated");
+
+            std::string commitCmnd = "git commit -m \"" + std::string(argv[2]) + "\"";
+            std::cout << commitCmnd << std::endl;
+
+            std::string b1, b2;
+            system("git branch > .tf343t23.txt");
+            std::ifstream ifs(".tf343t23.txt");
+            while(ifs >> b1)
+            {
+                if(b1 == "*")
+                {
+                    ifs >> b1;
+                    break;
+                }
+            }
+            ifs.close();
+            system("rm -f .tf343t23.txt");
+
+            std::string siteDir = "./site";
+            chdir(siteDir.c_str());
+
+            system("git branch > .tf343t23.txt");
+            ifs.open(".tf343t23.txt");
+            while(ifs >> b2)
+            {
+                if(b2 == "*")
+                {
+                    ifs >> b2;
+                    break;
+                }
+            }
+            ifs.close();
+            system("rm -f .tf343t23.txt");
+
+            std::string pushCmnd = "git push origin " + b2;
+
+            if(b1 != b2)
+            {
+                system("git add -A .");
+                system(commitCmnd.c_str());
+                system(pushCmnd.c_str());
+            }
+
+            chdir(parentDir.c_str());
+            system("git add -A .");
+            system(commitCmnd.c_str());
+            if(b1 != "")
+                pushCmnd = "git push origin " + b1;
+            else
+                pushCmnd = "git push origin master";
+            system(pushCmnd.c_str());
+
+            return 0;
+        }
+        else if(cmd == "status")
         {
             //ensures correct number of parameters given
             if(noParams != 1)
