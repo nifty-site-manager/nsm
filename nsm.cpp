@@ -127,8 +127,8 @@ int main(int argc, char* argv[])
         if(cmd == "init")
         {
             //ensures correct number of parameters given
-            if(noParams > 1)
-                return parError(noParams, argv, "1");
+            if(noParams > 2)
+                return parError(noParams, argv, "1-2");
 
             //checks that directory is empty
             system("ls -a > .txt23235f2t.txt");
@@ -1715,8 +1715,8 @@ int main(int argc, char* argv[])
         if(cmd == "ginit")
         {
             //ensures correct number of parameters given
-            if(noParams > 1)
-                return parError(noParams, argv, "1");
+            if(noParams > 2)
+                return parError(noParams, argv, "1-2");
 
             //checks that directory is empty
             system("ls -a > .txt23235f2t.txt");
