@@ -82,8 +82,6 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    //need to check if nsm is already managing a site in directory tree
-
     if(cmd.substr(0, 4) == "init")
     {
         //ensures nsm is not managing a site from this directory or one of the ancestor directories
@@ -138,9 +136,9 @@ int main(int argc, char* argv[])
                 str += istr + " ";
             ifs.close();
             system("rm -r .txt23235f2t.txt");
-            if(str != ". .. .git .txt23235f2t.txt ")
+            if(str != ". .. .git .txt23235f2t.txt " && str != ". .. .txt23235f2t.txt ")
             {
-                std::cout << "error: ginit must be run in an empty git repository" << std::endl;
+                std::cout << "error: init must be run in an empty git repository" << std::endl;
                 return 1;
             }
 
@@ -211,9 +209,9 @@ int main(int argc, char* argv[])
                 str += istr + " ";
             ifs.close();
             system("rm -r .txt23235f2t.txt");
-            if(str != ". .. .git .txt23235f2t.txt ")
+            if(str != ". .. .git .txt23235f2t.txt " && str != ". .. .txt23235f2t.txt ")
             {
-                std::cout << "error: ginit must be run in an empty git repository" << std::endl;
+                std::cout << "error: init must be run in an empty git repository" << std::endl;
                 return 1;
             }
 
@@ -600,9 +598,9 @@ int main(int argc, char* argv[])
                 str += istr + " ";
             ifs.close();
             system("rm -r .txt23235f2t.txt");
-            if(str != ". .. .git .txt23235f2t.txt ")
+            if(str != ". .. .git .txt23235f2t.txt " && str != ". .. .txt23235f2t.txt ")
             {
-                std::cout << "error: ginit must be run in an empty git repository" << std::endl;
+                std::cout << "error: init must be run in an empty git repository" << std::endl;
                 return 1;
             }
 
@@ -1142,9 +1140,9 @@ int main(int argc, char* argv[])
                 str += istr + " ";
             ifs.close();
             system("rm -r .txt23235f2t.txt");
-            if(str != ". .. .git .txt23235f2t.txt ")
+            if(str != ". .. .git .txt23235f2t.txt " && str != ". .. .txt23235f2t.txt ")
             {
-                std::cout << "error: ginit must be run in an empty git repository" << std::endl;
+                std::cout << "error: init must be run in an empty git repository" << std::endl;
                 return 1;
             }
 
