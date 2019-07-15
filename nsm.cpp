@@ -1,8 +1,4 @@
 /*
-    The original versions of nsm, including the official website, were planned
-    and coded in a chicken shed, away from wifi (grab ya tin-foil garments),
-    over ~1-2 months during the final year of my PhD (2015).
-
     Copyright (c) 2015-present
     https://n-ham.com
 */
@@ -17,6 +13,47 @@ std::string get_pwd()
     std::string pwd = pwd_char;
     free(pwd_char);
     return pwd;
+}
+
+//get present git branch
+std::string get_pb()
+{
+    std::string branch = "";
+
+    system("git status > .f242tgg43.txt");
+    std::ifstream ifs(".f242tgg43.txt");
+
+    while(ifs >> branch)
+        if(branch == "branch")
+            break;
+    if(branch == "branch")
+        ifs >> branch;
+
+    ifs.close();
+
+    system("rm -r .f242tgg43.txt");
+
+    return branch;
+}
+
+//get set of git branches
+std::set<std::string> get_git_branches()
+{
+    std::set<std::string> branches;
+    std::string branch = "";
+
+    system("git branch > .f242tgg43.txt");
+    std::ifstream ifs(".f242tgg43.txt");
+
+    while(ifs >> branch)
+        if(branch != "*")
+            branches.insert(branch);
+
+    ifs.close();
+
+    system("rm -r .f242tgg43.txt");
+
+    return branches;
 }
 
 void unrecognisedCommand(const std::string from, const std::string cmd)
@@ -1751,10 +1788,7 @@ int main(int argc, char* argv[])
                 system("cp -r $(pwd) ../.dir532324");
                 system("mv ../.dir532324 site");
                 chdir("site");
-                if(remote_url.find("github") != std::string::npos && remote_url.find(".github.io") == std::string::npos)
-                    system("git checkout --orphan gh-pages");
-                else
-                    system("git checkout --orphan master");
+                system("git checkout --orphan master");
                 chdir(owd.c_str());
             }
             else
@@ -1870,10 +1904,7 @@ int main(int argc, char* argv[])
                 system("cp -r $(pwd) ../.dir532324");
                 system("mv ../.dir532324 site");
                 chdir("site");
-                if(remote_url.find("github") != std::string::npos && remote_url.find(".github.io") == std::string::npos)
-                    system("git checkout --orphan gh-pages");
-                else
-                    system("git checkout --orphan master");
+                system("git checkout --orphan master");
                 chdir(owd.c_str());
             }
             else
@@ -2305,10 +2336,7 @@ int main(int argc, char* argv[])
                 system("cp -r $(pwd) ../.dir532324");
                 system("mv ../.dir532324 site");
                 chdir("site");
-                if(remote_url.find("github") != std::string::npos && remote_url.find(".github.io") == std::string::npos)
-                    system("git checkout --orphan gh-pages");
-                else
-                    system("git checkout --orphan master");
+                system("git checkout --orphan master");
                 chdir(owd.c_str());
             }
             else
@@ -2893,10 +2921,7 @@ int main(int argc, char* argv[])
                 system("cp -r $(pwd) ../.dir532324");
                 system("mv ../.dir532324 site");
                 chdir("site");
-                if(remote_url.find("github") != std::string::npos && remote_url.find(".github.io") == std::string::npos)
-                    system("git checkout --orphan gh-pages");
-                else
-                    system("git checkout --orphan master");
+                system("git checkout --orphan master");
                 chdir(owd.c_str());
             }
             else
@@ -3472,35 +3497,35 @@ int main(int argc, char* argv[])
         {
             chdir(dirName.c_str());
 
-            if(std::ifstream(".siteinfo/nsm.config") || std::ifstream("index.html"))
+            std::set<std::string> branches = get_git_branches();
+
+            if(branches.count("stage"))
             {
                 system("git checkout stage > /dev/null 2>&1");
 
-                SiteInfo site;
-                if(site.open() > 0)
-                    return 1;
+                if(std::ifstream(".siteinfo/nsm.config"))
+                {
+                    SiteInfo site;
+                    if(site.open() > 0)
+                        return 1;
 
-                chdir(parDir.c_str());
+                    chdir(parDir.c_str());
 
-                std::string cpCmnd = "cp -r " + dirName + " abcd143d";
-                system(cpCmnd.c_str());
+                    std::string cpCmnd = "cp -r " + dirName + " .abcd143d";
+                    system(cpCmnd.c_str());
 
-                chdir(dirName.c_str());
+                    chdir(dirName.c_str());
 
-                system("rm -r site > /dev/null 2>&1");
+                    system("rm -r site > /dev/null 2>&1");
 
-                chdir(parDir.c_str());
-                std::string mvCmnd = "mv abcd143d " + dirName + "/site";
-                system(mvCmnd.c_str());
+                    chdir(parDir.c_str());
+                    std::string mvCmnd = "mv .abcd143d " + dirName + "/site";
+                    system(mvCmnd.c_str());
 
-                chdir((dirName + "/" + site.siteDir).c_str());
+                    chdir((dirName + "/" + site.siteDir).c_str());
 
-                std::string checkoutCmnd;
-                if(cloneCmnd.find("github") != std::string::npos && cloneCmnd.find(".github.io") == std::string::npos)
-                    checkoutCmnd = "git checkout gh-pages > /dev/null 2>&1";
-                else
-                    checkoutCmnd = "git checkout master > /dev/null 2>&1";
-                system(checkoutCmnd.c_str());
+                    system("git checkout master > /dev/null 2>&1");
+                }
             }
         }
 
@@ -3511,6 +3536,7 @@ int main(int argc, char* argv[])
         //ensures nsm is managing a site from this directory or one of the parent directories
         std::string parentDir = "../",
             rootDir = "/",
+            siteRootDir = get_pwd(),
             owd = get_pwd(),
             pwd = get_pwd(),
             prevPwd;
@@ -3533,6 +3559,8 @@ int main(int argc, char* argv[])
                 return 1;
             }
         }
+
+        siteRootDir = get_pwd();
 
         //ensures both pages.list and nsm.config exist
         if(!std::ifstream(".siteinfo/pages.list"))
@@ -3574,7 +3602,11 @@ int main(int argc, char* argv[])
             if(site.build_updated())
                 return 1;
 
-            std::string commitCmnd = "git commit -m \"" + std::string(argv[2]) + "\"";
+            std::string commitCmnd = "git commit -m \"" + std::string(argv[2]) + "\"",
+                        pushCmnd,
+                        siteDirBranch,
+                        siteRootDirBranch = get_pb();
+            std::cout << "siteRootDirBranch " << siteRootDirBranch << std::endl;
             std::cout << commitCmnd << std::endl;
 
             system("git config --get remote.origin.url > .txt65232g42f.txt");
@@ -3588,29 +3620,27 @@ int main(int argc, char* argv[])
                 std::cout << "error: no remote git url set" << std::endl;
                 return 1;
             }
-            std::string pushCmnd;
-            if(str.find("gitlab") == std::string::npos)
-            {
-                chdir(site.siteDir.c_str());
 
-                if(str.find("github") != std::string::npos && str.find(".github.io") == std::string::npos)
-                    pushCmnd = "git push origin gh-pages";
-                else
-                    pushCmnd = "git push origin master";
+            chdir(site.siteDir.c_str());
+
+            siteDirBranch = get_pb();
+            std::cout << "siteDirBranch " << siteDirBranch << std::endl;
+
+            if(siteDirBranch != siteRootDirBranch)
+            {
+                pushCmnd = "git push origin " + siteDirBranch;
 
                 system("git add -A .");
                 system(commitCmnd.c_str());
                 system(pushCmnd.c_str());
-
-                chdir(parentDir.c_str());
             }
+
+            chdir(siteRootDir.c_str());
+
+            pushCmnd = "git push origin " + siteRootDirBranch;
 
             system("git add -A .");
             system(commitCmnd.c_str());
-            if(str.find("gitlab") == std::string::npos)
-                pushCmnd = "git push origin stage";
-            else
-                pushCmnd = "git push origin master";
             system(pushCmnd.c_str());
 
             return 0;
