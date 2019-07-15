@@ -3606,7 +3606,6 @@ int main(int argc, char* argv[])
                         pushCmnd,
                         siteDirBranch,
                         siteRootDirBranch = get_pb();
-            std::cout << "siteRootDirBranch " << siteRootDirBranch << std::endl;
             std::cout << commitCmnd << std::endl;
 
             system("git config --get remote.origin.url > .txt65232g42f.txt");
@@ -3624,7 +3623,6 @@ int main(int argc, char* argv[])
             chdir(site.siteDir.c_str());
 
             siteDirBranch = get_pb();
-            std::cout << "siteDirBranch " << siteDirBranch << std::endl;
 
             if(siteDirBranch != siteRootDirBranch)
             {
