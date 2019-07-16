@@ -3497,35 +3497,33 @@ int main(int argc, char* argv[])
         {
             chdir(dirName.c_str());
 
+            system("git checkout stage > /dev/null 2>&1");
+
             std::set<std::string> branches = get_git_branches();
 
-            if(branches.count("stage"))
+            if(branches.count("stage") && std::ifstream(".siteinfo/nsm.config"))
             {
-                system("git checkout stage > /dev/null 2>&1");
+                SiteInfo site;
+                if(site.open() > 0)
+                    return 1;
 
-                if(std::ifstream(".siteinfo/nsm.config"))
-                {
-                    SiteInfo site;
-                    if(site.open() > 0)
-                        return 1;
+                chdir(parDir.c_str());
 
-                    chdir(parDir.c_str());
+                std::string cpCmnd = "cp -r " + dirName + " .abcd143d";
+                system(cpCmnd.c_str());
 
-                    std::string cpCmnd = "cp -r " + dirName + " .abcd143d";
-                    system(cpCmnd.c_str());
+                chdir(dirName.c_str());
 
-                    chdir(dirName.c_str());
+                std::string rmCmnd = "rm -r " + site.siteDir + " > /dev/null 2>&1";
+                system(rmCmnd.c_str());
 
-                    system("rm -r site > /dev/null 2>&1");
+                chdir(parDir.c_str());
+                std::string mvCmnd = "mv .abcd143d " + dirName + "/" + site.siteDir;
+                system(mvCmnd.c_str());
 
-                    chdir(parDir.c_str());
-                    std::string mvCmnd = "mv .abcd143d " + dirName + "/site";
-                    system(mvCmnd.c_str());
+                chdir((dirName + "/" + site.siteDir).c_str());
 
-                    chdir((dirName + "/" + site.siteDir).c_str());
-
-                    system("git checkout master > /dev/null 2>&1");
-                }
+                system("git checkout master > /dev/null 2>&1");
             }
         }
 
