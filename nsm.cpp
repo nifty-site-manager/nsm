@@ -175,7 +175,7 @@ int main(int argc, char* argv[])
         system("rm -r .txt23235f2t.txt");
         if(str != ". .. .git .txt23235f2t.txt " && str != ". .. .txt23235f2t.txt ")
         {
-            std::cout << "error: init must be run in an empty git repository" << std::endl;
+            std::cout << "error: init must be run in an empty directory or empty git repository" << std::endl;
             return 1;
         }
 
@@ -224,8 +224,18 @@ int main(int argc, char* argv[])
             ofs << "<title>" << argv[2] << " - @pagetitle</title>" << std::endl;
         ofs.close();
 
-        system("nsm track index");
-        system("nsm build-updated");
+        SiteInfo site;
+        if(site.open() > 0)
+            return 1;
+
+        Name name = "index";
+        Title title;
+        title = get_title(name);
+        site.track(name, title, site.defaultTemplate);
+        site.build_updated();
+
+        //system("nsm track index");
+        //system("nsm build-updated");
 
         std::cout << "nsm: initialised empty site in " << get_pwd() << "/.siteinfo/" << std::endl;
 
@@ -383,15 +393,6 @@ int main(int argc, char* argv[])
                 return parError(noParams, argv, "2");
             }
 
-            if(site.build_updated())
-                return 1;
-
-            std::string commitCmnd = "git commit -m \"" + std::string(argv[2]) + "\"",
-                        pushCmnd,
-                        siteDirBranch,
-                        siteRootDirBranch = get_pb();
-            std::cout << commitCmnd << std::endl;
-
             system("git config --get remote.origin.url > .txt65232g42f.txt");
             std::ifstream ifs(".txt65232g42f.txt");
             std::string str="";
@@ -403,6 +404,15 @@ int main(int argc, char* argv[])
                 std::cout << "error: no remote git url set" << std::endl;
                 return 1;
             }
+
+            if(site.build_updated())
+                return 1;
+
+            std::string commitCmnd = "git commit -m \"" + std::string(argv[2]) + "\"",
+                        pushCmnd,
+                        siteDirBranch,
+                        siteRootDirBranch = get_pb();
+            std::cout << commitCmnd << std::endl;
 
             chdir(site.siteDir.c_str());
 
