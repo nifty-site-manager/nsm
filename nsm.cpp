@@ -1,6 +1,6 @@
 /*
     nsm (nifty site manager) is a cross-platform open source
-    git-like and LaTeX-like site manager.
+    git-like and LaTeX-like command-line site manager.
 
     site: https://nift.cc
 
@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
     {
         std::cout << "+---------- available commands ----------------------------------------+" << std::endl;
         std::cout << "| nsm commands       | lists all nsm commands                          |" << std::endl;
-        std::cout << "| nsm config         | lists config settings                           |" << std::endl;
+        std::cout << "| nsm config         | list config settings or set git email/username  |" << std::endl;
         std::cout << "| nsm clone          | input: clone-url                                |" << std::endl;
         std::cout << "| nsm init           | initialise managing a site - input: (site-name) |" << std::endl;
         std::cout << "| nsm status         | lists updated and problem pages                 |" << std::endl;
@@ -241,13 +241,94 @@ int main(int argc, char* argv[])
 
         return 0;
     }
+    else if(cmd == "config" && noParams > 1)
+    {
+        //ensures correct number of parameters given
+        if(noParams != 4)
+        {
+            std::cout << "you might have meant either of:" << std::endl;
+            std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
+            std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
+            return parError(noParams, argv, "1 or 4");
+        }
+
+        std::string str = argv[2];
+        if(str == "--global")
+        {
+            str = argv[3];
+            if(str == "user.email")
+            {
+                std::string cmdStr = "git config --global user.email " + std::string(argv[4]);
+                system(cmdStr.c_str());
+            }
+            else if(str == "user.name")
+            {
+                std::string cmdStr = "git config --global user.name " + std::string(argv[4]);
+                system(cmdStr.c_str());
+            }
+            else
+            {
+                unrecognisedCommand("nsm", cmd + " " + argv[2] + " " + argv[3]);
+                return 1;
+            }
+        }
+        else
+        {
+            unrecognisedCommand("nsm", cmd + " " + argv[2]);
+            return 1;
+        }
+    }
     else if(cmd == "clone")
     {
         //ensures correct number of parameters given
         if(noParams != 2)
             return parError(noParams, argv, "2");
 
-        std::string cloneCmnd = "git clone " + std::string(argv[2]);
+        //checks that git is configured
+        std::string str;
+        system("git config --global user.email > .1223fsf23.txt");
+        std::ifstream ifs(".1223fsf23.txt");
+        ifs >> str;
+        ifs.close();
+        system("rm -r .1223fsf23.txt");
+        if(str == "")
+        {
+            std::cout << "*** Please tell me who you are." << std::endl;
+            std::cout << std::endl;
+            std::cout << "Run" << std::endl;
+            std::cout << std::endl;
+            std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
+            std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
+            std::cout << std::endl;
+            std::cout << "to set your account's default identity." << std::endl;
+
+            return 0;
+        }
+        system("git config --global user.name > .1223fsf23.txt");
+        ifs.open(".1223fsf23.txt");
+        ifs >> str;
+        ifs.close();
+        system("rm -r .1223fsf23.txt");
+        if(str == "")
+        {
+            std::cout << "*** Please tell me who you are." << std::endl;
+            std::cout << std::endl;
+            std::cout << "Run" << std::endl;
+            std::cout << std::endl;
+            std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
+            std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
+            std::cout << std::endl;
+            std::cout << "to set your account's default identity." << std::endl;
+
+            return 0;
+        }
+
+        std::string cloneURL = std::string(argv[2]);
+
+        if(cloneURL.size() && cloneURL[0] == '?')
+            cloneURL = cloneURL.substr(1, cloneURL.size()-1);
+
+        std::string cloneCmnd = "git clone " + cloneURL;
         std::string dirName = "";
         std::string parDir = "../";
 
@@ -393,9 +474,49 @@ int main(int argc, char* argv[])
                 return parError(noParams, argv, "2");
             }
 
+            //checks that git is configured
+            std::string str;
+            system("git config --global user.email > .1223fsf23.txt");
+            std::ifstream ifs(".1223fsf23.txt");
+            ifs >> str;
+            ifs.close();
+            system("rm -r .1223fsf23.txt");
+            if(str == "")
+            {
+                std::cout << "*** Please tell me who you are." << std::endl;
+                std::cout << std::endl;
+                std::cout << "Run" << std::endl;
+                std::cout << std::endl;
+                std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
+                std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
+                std::cout << std::endl;
+                std::cout << "to set your account's default identity." << std::endl;
+
+                return 0;
+            }
+            system("git config --global user.name > .1223fsf23.txt");
+            ifs.open(".1223fsf23.txt");
+            ifs >> str;
+            ifs.close();
+            system("rm -r .1223fsf23.txt");
+            if(str == "")
+            {
+                std::cout << "*** Please tell me who you are." << std::endl;
+                std::cout << std::endl;
+                std::cout << "Run" << std::endl;
+                std::cout << std::endl;
+                std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
+                std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
+                std::cout << std::endl;
+                std::cout << "to set your account's default identity." << std::endl;
+
+                return 0;
+            }
+
+            //checks that remote git url is set
             system("git config --get remote.origin.url > .txt65232g42f.txt");
-            std::ifstream ifs(".txt65232g42f.txt");
-            std::string str="";
+            ifs.open(".txt65232g42f.txt");
+            str="";
             ifs >> str;
             ifs.close();
             system("rm -r .txt65232g42f.txt");
