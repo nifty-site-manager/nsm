@@ -9,6 +9,8 @@
 */
 
 #include <unistd.h>
+#include <dirent.h>
+#include <sys/types.h>
 
 #include "SiteInfo.h"
 
@@ -18,6 +20,25 @@ std::string get_pwd()
     std::string pwd = pwd_char;
     free(pwd_char);
     return pwd;
+}
+
+std::string ls(const char *path)
+{
+    std::string lsStr;
+    struct dirent *entry;
+    DIR *dir = opendir(path);
+    if(dir == NULL)
+        return "";
+
+    while((entry = readdir(dir)) != NULL)
+    {
+        lsStr += entry->d_name;
+        lsStr += " ";
+    }
+
+    closedir(dir);
+
+    return lsStr;
 }
 
 //get present git branch
@@ -35,8 +56,7 @@ std::string get_pb()
         ifs >> branch;
 
     ifs.close();
-
-    system("rm -r .f242tgg43.txt");
+    Path("./", ".f242tgg43.txt").removePath();
 
     return branch;
 }
@@ -56,7 +76,7 @@ std::set<std::string> get_git_branches()
 
     ifs.close();
 
-    system("rm -r .f242tgg43.txt");
+    Path("./", ".f242tgg43.txt").removePath();
 
     return branches;
 }
@@ -166,14 +186,8 @@ int main(int argc, char* argv[])
         chdir(owd.c_str());
 
         //checks that directory is empty
-        system("ls -a > .txt23235f2t.txt");
-        std::ifstream ifs(".txt23235f2t.txt");
-        std::string str = "", istr;
-        while(getline(ifs, istr))
-            str += istr + " ";
-        ifs.close();
-        system("rm -r .txt23235f2t.txt");
-        if(str != ". .. .git .txt23235f2t.txt " && str != ". .. .txt23235f2t.txt ")
+        std::string str = ls("./");
+        if(str != ".git .. . " && str != ".. . " && str != ". .. .git " && str != ". .. ")
         {
             std::cout << "error: init must be run in an empty directory or empty git repository" << std::endl;
             return 1;
@@ -290,7 +304,7 @@ int main(int argc, char* argv[])
         std::ifstream ifs(".1223fsf23.txt");
         ifs >> str;
         ifs.close();
-        system("rm -r .1223fsf23.txt");
+        Path("./", ".1223fsf23.txt").removePath();
         if(str == "")
         {
             std::cout << "*** Please tell me who you are." << std::endl;
@@ -308,7 +322,7 @@ int main(int argc, char* argv[])
         ifs.open(".1223fsf23.txt");
         ifs >> str;
         ifs.close();
-        system("rm -r .1223fsf23.txt");
+        Path("./", ".1223fsf23.txt").removePath();
         if(str == "")
         {
             std::cout << "*** Please tell me who you are." << std::endl;
@@ -343,43 +357,63 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        system(cloneCmnd.c_str());
-
         for(auto i=cloneCmnd.find_last_of('/')+1; i < cloneCmnd.find_last_of('.'); ++i)
             dirName += cloneCmnd[i];
 
-        if(cloneCmnd.find("gitlab") == std::string::npos)
+        system(cloneCmnd.c_str());
+
+        chdir(dirName.c_str());
+
+        system("git checkout stage > /dev/null 2>&1 >nul 2>&1");
+        if(std::ifstream("./nul"))
+            Path("./", "nul").removePath();
+
+        std::set<std::string> branches = get_git_branches();
+
+        if(branches.count("stage") && std::ifstream(".siteinfo/nsm.config"))
         {
+            system("git checkout master > /dev/null 2>&1 >nul 2>&1");
+            if(std::ifstream("./nul"))
+                Path("./", "nul").removePath();
+
+            chdir(parDir.c_str());
+
+            system(("cp -r " + dirName + " .abcd143d > /dev/null 2>&1 >nul 2>&1").c_str());
+            system(("echo d | xcopy " + dirName + " .abcd143d /E /H > /dev/null 2>&1 >nul 2>&1").c_str());
+            if(std::ifstream("./nul"))
+                Path("./", "nul").removePath();
+
+            /*this is an alternative to the above paragraph
+            #ifdef _WIN32 //note might be using cmd-prompt/git-bash/cygwin
+                cloneCmnd += " > /dev/null 2>&1 >nul 2>&1";
+                rename(dirName.c_str(), ".abcd143d");
+                system(cloneCmnd.c_str());
+                if(std::ifstream("./nul"))
+                    Path("./", "nul").removePath();
+            #elif _WIN64 //note might be using cmd-prompt/git-bash/cygwin
+                cloneCmnd += " > /dev/null 2>&1 >nul 2>&1";
+                rename(dirName.c_str(), ".abcd143d");
+                system(cloneCmnd.c_str());
+                if(std::ifstream("./nul"))
+                    Path("./", "nul").removePath();
+            #else  //osx/unix
+                system(("cp -r " + dirName + " .abcd143d").c_str());
+            #endif*/
+
             chdir(dirName.c_str());
 
-            system("git checkout stage > /dev/null 2>&1");
+            system("git checkout stage > /dev/null 2>&1 >nul 2>&1");
+            if(std::ifstream("./nul"))
+                Path("./", "nul").removePath();
 
-            std::set<std::string> branches = get_git_branches();
+            SiteInfo site;
+            if(site.open() > 0)
+                return 1;
 
-            if(branches.count("stage") && std::ifstream(".siteinfo/nsm.config"))
-            {
-                SiteInfo site;
-                if(site.open() > 0)
-                    return 1;
+            rmdir(site.siteDir.c_str());
 
-                chdir(parDir.c_str());
-
-                std::string cpCmnd = "cp -r " + dirName + " .abcd143d";
-                system(cpCmnd.c_str());
-
-                chdir(dirName.c_str());
-
-                std::string rmCmnd = "rm -r " + site.siteDir + " > /dev/null 2>&1";
-                system(rmCmnd.c_str());
-
-                chdir(parDir.c_str());
-                std::string mvCmnd = "mv .abcd143d " + dirName + "/" + site.siteDir;
-                system(mvCmnd.c_str());
-
-                chdir((dirName + "/" + site.siteDir).c_str());
-
-                system("git checkout master > /dev/null 2>&1");
-            }
+            chdir(parDir.c_str());
+            rename(".abcd143d", (dirName + "/" + site.siteDir).c_str());
         }
 
         return 0;
@@ -480,7 +514,7 @@ int main(int argc, char* argv[])
             std::ifstream ifs(".1223fsf23.txt");
             ifs >> str;
             ifs.close();
-            system("rm -r .1223fsf23.txt");
+            Path("./", ".1223fsf23.txt").removePath();
             if(str == "")
             {
                 std::cout << "*** Please tell me who you are." << std::endl;
@@ -498,7 +532,7 @@ int main(int argc, char* argv[])
             ifs.open(".1223fsf23.txt");
             ifs >> str;
             ifs.close();
-            system("rm -r .1223fsf23.txt");
+            Path("./", ".1223fsf23.txt").removePath();
             if(str == "")
             {
                 std::cout << "*** Please tell me who you are." << std::endl;
@@ -519,7 +553,7 @@ int main(int argc, char* argv[])
             str="";
             ifs >> str;
             ifs.close();
-            system("rm -r .txt65232g42f.txt");
+            Path("./", ".txt65232g42f.txt").removePath();
             if(str == "")
             {
                 std::cout << "error: no remote git url set" << std::endl;

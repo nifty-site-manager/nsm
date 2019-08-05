@@ -37,10 +37,6 @@ Title.o: Title.cpp Title.h Quoted.o
 Quoted.o: Quoted.cpp Quoted.h
 	$(CC) $(CXXFLAGS) -c -o $@ $<
 
-install:
-	chmod 755 nsm
-	sudo mv nsm /usr/local/bin
-
 linux-gedit-highlighting:
 	chmod 644 html.lang
 	sudo cp html.lang /usr/share/gtksourceview-3.0/language-specs/html.lang
@@ -61,9 +57,16 @@ osx-install:
 	sudo chmod 644 paths
 	sudo mv paths /etc/paths
 
-windows-install:
+git-bash-install:
 	chmod 755 nsm
 	mv nsm ~/bin
+
+gitbash-install:
+	chmod 755 nsm
+	mv nsm ~/bin
+
+windows-install:
+	copy nsm.exe C:\Windows\system32
 
 clean:
 	rm -f $(objects)

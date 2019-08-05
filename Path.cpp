@@ -91,16 +91,15 @@ bool Path::ensurePathExists() const
         //std::cout << "making sure " << cDir << " exists " << std::endl;
         #ifdef _WIN32
             _mkdir(cDir.c_str()); //windows specific
-        #else //unix
+        #elif _WIN64
+            _mkdir(cDir.c_str()); //windows specific
+        #else //osx/unix
             mkdir(cDir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH); //unix/linux/osx specific
-        #endif // _WIN32
+        #endif
     }
 
     if(file.length())
-    {
-        //std::cout << "making sure " << str() << " exists " << std::endl;
         creat(str().c_str(), O_CREAT);
-    }
 
     return 0;
 }

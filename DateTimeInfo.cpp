@@ -109,11 +109,11 @@ std::string DateTimeInfo::currentOS()
         return "Windows";
     #elif _WIN64
         return "Windows"
-    #elif __APPLE__
+    #elif __APPLE__ //osx
         return "Macintosh";
     #elif __linux__
         return "Linux";
     #else  //unix
         return "Unix";
-    #endif // _WIN32
+    #endif
 }
