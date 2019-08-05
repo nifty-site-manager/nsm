@@ -45,6 +45,9 @@ linux-install:
 	chmod 755 nsm
 	sudo mv nsm /usr/local/bin
 
+linux-uninstall:
+	sudo rm /usr/local/bin/nsm
+
 osx-install:
 	chmod 755 nsm
 	sudo mkdir -p ~/.nsm
@@ -57,16 +60,28 @@ osx-install:
 	sudo chmod 644 paths
 	sudo mv paths /etc/paths
 
+osx-uninstall:
+	sudo rm /etc/paths/nsm
+
 git-bash-install:
 	chmod 755 nsm
 	mv nsm ~/bin
+
+git-bash-uninstall:
+	rm ~/bin/nsm
 
 gitbash-install:
 	chmod 755 nsm
 	mv nsm ~/bin
 
+gitbash-uninstall:
+	rm ~/bin/nsm
+
 windows-install:
 	copy nsm.exe C:\Windows\system32
+
+windows-uninstall:
+	del C:\Windows\system32\nsm.exe
 
 clean:
 	rm -f $(objects)
