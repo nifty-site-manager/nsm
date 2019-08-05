@@ -258,12 +258,14 @@ int main(int argc, char* argv[])
     else if(cmd == "config" && noParams > 1)
     {
         //ensures correct number of parameters given
-        if(noParams != 4)
+        if(noParams != 3 && noParams != 4)
         {
-            std::cout << "you might have meant either of:" << std::endl;
+            std::cout << "you might have meant one of of:" << std::endl;
+            std::cout << "  nsm config --global user.email" << std::endl;
+            std::cout << "  nsm config --global user.name" << std::endl;
             std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
             std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
-            return parError(noParams, argv, "1 or 4");
+            return parError(noParams, argv, "1, 3 or 4");
         }
 
         std::string str = argv[2];
@@ -272,13 +274,23 @@ int main(int argc, char* argv[])
             str = argv[3];
             if(str == "user.email")
             {
-                std::string cmdStr = "git config --global user.email " + std::string(argv[4]);
-                system(cmdStr.c_str());
+                if(noParams == 3)
+                    system("git config --global user.email");
+                else
+                {
+                    std::string cmdStr = "git config --global user.email \"" + std::string(argv[4]) + "\"";
+                    system(cmdStr.c_str());
+                }
             }
             else if(str == "user.name")
             {
-                std::string cmdStr = "git config --global user.name " + std::string(argv[4]);
-                system(cmdStr.c_str());
+                if(noParams == 3)
+                    system("git config --global user.name");
+                else
+                {
+                    std::string cmdStr = "git config --global user.name \"" + std::string(argv[4]) + "\" --replace-all";
+                    system(cmdStr.c_str());
+                }
             }
             else
             {

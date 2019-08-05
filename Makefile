@@ -39,29 +39,21 @@ Quoted.o: Quoted.cpp Quoted.h
 
 linux-gedit-highlighting:
 	chmod 644 html.lang
-	sudo cp html.lang /usr/share/gtksourceview-3.0/language-specs/html.lang
+	cp html.lang /usr/share/gtksourceview-3.0/language-specs/html.lang
 
 linux-install:
 	chmod 755 nsm
-	sudo mv nsm /usr/local/bin
+	mv nsm /usr/local/bin
 
 linux-uninstall:
-	sudo rm /usr/local/bin/nsm
+	rm /usr/local/bin/nsm
 
 osx-install:
 	chmod 755 nsm
-	sudo mkdir -p ~/.nsm
-	sudo mv nsm ~/.nsm
-	sudo cp /etc/paths ./
-	sudo chmod a+w paths
-	sudo grep -v "~/.nsm" paths > tempp
-	sudo mv tempp paths
-	sudo echo "~/.nsm" >> paths
-	sudo chmod 644 paths
-	sudo mv paths /etc/paths
+	mv nsm /usr/local/bin
 
 osx-uninstall:
-	sudo rm /etc/paths/nsm
+	sudo rm /usr/local/bin/nsm
 
 git-bash-install:
 	chmod 755 nsm
@@ -82,6 +74,18 @@ windows-install:
 
 windows-uninstall:
 	del C:\Windows\system32\nsm.exe
+
+linux-clean:
+	rm -f $(objects)
+
+linux-clean-all:
+	rm -f $(objects) nsm
+
+windows-clean:
+	del -f $(objects)
+
+windows-clean-all:
+	del -f $(objects) nsm
 
 clean:
 	rm -f $(objects)
