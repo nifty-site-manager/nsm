@@ -22,6 +22,30 @@ std::string get_pwd()
     return pwd;
 }
 
+bool file_exists(const char *path, const std::string& file)
+{
+    bool exists = 0;
+    std::string cFile;
+    struct dirent *entry;
+    DIR *dir = opendir(path);
+    if(dir == NULL)
+        return "";
+
+    while((entry = readdir(dir)) != NULL)
+    {
+        cFile = entry->d_name;
+        if(cFile == file)
+        {
+            exists = 1;
+            break;
+        }
+    }
+
+    closedir(dir);
+
+    return exists;
+}
+
 std::string ls(const char *path)
 {
     std::string lsStr;
@@ -137,6 +161,14 @@ int main(int argc, char* argv[])
         std::cout << "| nsm new-title      | input: page-name new-title                      |" << std::endl;
         std::cout << "| nsm new-template   | input: page-name template-path                  |" << std::endl;
         std::cout << "+----------------------------------------------------------------------+" << std::endl;
+
+        return 0;
+    }
+    else if(cmd == "help" || cmd == "-help" || cmd == "--help")
+    {
+        std::cout << "nifty site manager (nsm) is a cross-platform open source git-like and LaTeX-like site manager." << std::endl;
+        std::cout << "official site: https://nift.cc/" << std::endl;
+        std::cout << "enter `nsm commands` for available commands" << std::endl;
 
         return 0;
     }
@@ -371,6 +403,12 @@ int main(int argc, char* argv[])
 
         for(auto i=cloneCmnd.find_last_of('/')+1; i < cloneCmnd.find_last_of('.'); ++i)
             dirName += cloneCmnd[i];
+
+        if(file_exists("./", dirName))
+        {
+            std::cout << "fatal: destination path '" << dirName << "' already exists." << std::endl;
+            return 1;
+        }
 
         system(cloneCmnd.c_str());
 
