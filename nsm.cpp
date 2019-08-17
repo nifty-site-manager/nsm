@@ -180,27 +180,15 @@ int main(int argc, char* argv[])
     {
         std::string str = "";
         std::string exe = "";
-        if(std::string(argv[0]).find('\\') != std::string::npos)
+        if(std::string(argv[0]) == "nift")
         {
-            for(int i=std::string(argv[0]).find_last_of('\\')+1; std::string(argv[0])[i] != '.'; i++)
-            {
-                str += "-";
-                exe += std::string(argv[0])[i];
-            }
-        }
-        else if(std::string(argv[0]).find('/') != std::string::npos)
-        {
-            for(int i=std::string(argv[0]).find_last_of('/')+1; std::string(argv[0])[i] != '.'; i++)
-            {
-                str += "-";
-                exe += std::string(argv[0])[i];
-            }
+            str = "----";
+            exe = "nift";
         }
         else
         {
-            exe = argv[0];
-            for(size_t i=0; i<std::string(argv[0]).size(); i++)
-                str += "-";
+            str = "---";
+            exe = "nsm";
         }
 
         std::cout << "+" << str << "------- available commands ----------------------------------------+" << std::endl;
