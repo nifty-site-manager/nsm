@@ -43,37 +43,47 @@ linux-gedit-highlighting:
 
 linux-install:
 	chmod 755 nsm
+	cp nsm /usr/local/bin/nift
 	mv nsm /usr/local/bin
 
 linux-uninstall:
 	rm /usr/local/bin/nsm
+	rm /usr/local/bin/nift
 
 osx-install:
 	chmod 755 nsm
+	cp nsm /usr/local/bin/nift
 	mv nsm /usr/local/bin
 
 osx-uninstall:
-	sudo rm /usr/local/bin/nsm
+	rm /usr/local/bin/nsm
+	rm /usr/local/bin/nift 
 
 git-bash-install:
 	chmod 755 nsm
+	cp nsm ~/bin/nift
 	mv nsm ~/bin
 
 git-bash-uninstall:
 	rm ~/bin/nsm
+	rm ~/bin/nift
 
 gitbash-install:
 	chmod 755 nsm
+	cp nsm ~/bin/nift
 	mv nsm ~/bin
 
 gitbash-uninstall:
 	rm ~/bin/nsm
+	rm ~/bin/nift
 
 windows-install:
+	copy nsm.exe C:\Windows\system32\nift.exe
 	copy nsm.exe C:\Windows\system32
 
 windows-uninstall:
 	del C:\Windows\system32\nsm.exe
+	del C:\Windows\system32\nift.exe
 
 linux-clean:
 	rm -f $(objects)

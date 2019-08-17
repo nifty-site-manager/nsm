@@ -140,33 +140,37 @@ int main(int argc, char* argv[])
 
     if(cmd == "commands")
     {
-        std::cout << "+---------- available commands ----------------------------------------+" << std::endl;
-        std::cout << "| nsm commands       | lists all nsm commands                          |" << std::endl;
-        std::cout << "| nsm config         | list config settings or set git email/username  |" << std::endl;
-        std::cout << "| nsm clone          | input: clone-url                                |" << std::endl;
-        std::cout << "| nsm init           | initialise managing a site - input: (site-name) |" << std::endl;
-        std::cout << "| nsm status         | lists updated and problem pages                 |" << std::endl;
-        std::cout << "| nsm info           | input: page-name-1 .. page-name-k               |" << std::endl;
-        std::cout << "| nsm info-all       | lists tracked pages                             |" << std::endl;
-        std::cout << "| nsm info-names     | lists tracked page names                        |" << std::endl;
-        std::cout << "| nsm track          | input: page-name (page-title) (template-path)   |" << std::endl;
-        std::cout << "| nsm untrack        | input: page-name                                |" << std::endl;
-        std::cout << "| nsm rm             | input: page-name                                |" << std::endl;
-        std::cout << "| nsm mv             | input: old-name new-name                        |" << std::endl;
-        std::cout << "| nsm cp             | input: tracked-name new-name                    |" << std::endl;
-        std::cout << "| nsm build          | input: page-name-1 .. page-name-k               |" << std::endl;
-        std::cout << "| nsm build-updated  | builds updated pages                            |" << std::endl;
-        std::cout << "| nsm build-all      | builds all tracked pages                        |" << std::endl;
-        std::cout << "| nsm bcp            | input: commit-message                           |" << std::endl;
-        std::cout << "| nsm new-title      | input: page-name new-title                      |" << std::endl;
-        std::cout << "| nsm new-template   | input: page-name template-path                  |" << std::endl;
-        std::cout << "+----------------------------------------------------------------------+" << std::endl;
+        std::string str = "";
+        for(size_t i=0; i<std::string(argv[0]).size(); i++)
+            str += "-";
+
+        std::cout << "+" << str << "------- available commands ----------------------------------------+" << std::endl;
+        std::cout << "| " << argv[0] << " commands       | lists all nsm commands                          |" << std::endl;
+        std::cout << "| " << argv[0] << " config         | list config settings or set git email/username  |" << std::endl;
+        std::cout << "| " << argv[0] << " clone          | input: clone-url                                |" << std::endl;
+        std::cout << "| " << argv[0] << " init           | initialise managing a site - input: (site-name) |" << std::endl;
+        std::cout << "| " << argv[0] << " status         | lists updated and problem pages                 |" << std::endl;
+        std::cout << "| " << argv[0] << " info           | input: page-name-1 .. page-name-k               |" << std::endl;
+        std::cout << "| " << argv[0] << " info-all       | lists tracked pages                             |" << std::endl;
+        std::cout << "| " << argv[0] << " info-names     | lists tracked page names                        |" << std::endl;
+        std::cout << "| " << argv[0] << " track          | input: page-name (page-title) (template-path)   |" << std::endl;
+        std::cout << "| " << argv[0] << " untrack        | input: page-name                                |" << std::endl;
+        std::cout << "| " << argv[0] << " rm or nsm del  | input: page-name                                |" << std::endl;
+        std::cout << "| " << argv[0] << " mv or nsm move | input: old-name new-name                        |" << std::endl;
+        std::cout << "| " << argv[0] << " cp or nsm copy | input: tracked-name new-name                    |" << std::endl;
+        std::cout << "| " << argv[0] << " build          | input: page-name-1 .. page-name-k               |" << std::endl;
+        std::cout << "| " << argv[0] << " build-updated  | builds updated pages                            |" << std::endl;
+        std::cout << "| " << argv[0] << " build-all      | builds all tracked pages                        |" << std::endl;
+        std::cout << "| " << argv[0] << " bcp            | input: commit-message                           |" << std::endl;
+        std::cout << "| " << argv[0] << " new-title      | input: page-name new-title                      |" << std::endl;
+        std::cout << "| " << argv[0] << " new-template   | input: page-name template-path                  |" << std::endl;
+        std::cout << "+" << str << "-------------------------------------------------------------------+" << std::endl;
 
         return 0;
     }
     else if(cmd == "help" || cmd == "-help" || cmd == "--help")
     {
-        std::cout << "nifty site manager (nsm) is a cross-platform open source git-like and LaTeX-like site manager." << std::endl;
+        std::cout << "nifty site manager (aka nift or nsm) is a cross-platform open source git-like and LaTeX-like site manager." << std::endl;
         std::cout << "official site: https://nift.cc/" << std::endl;
         std::cout << "enter `nsm commands` for available commands" << std::endl;
 
@@ -219,7 +223,15 @@ int main(int argc, char* argv[])
 
         //checks that directory is empty
         std::string str = ls("./");
-        if(str != ".git .. . " && str != ".. . " && str != ". .. .git " && str != ". .. ")
+        std::cout << "wtf '" << str << "'" << std::endl;
+        if(str != ".. . " &&
+           str != ". .. " &&
+           str != ".git .. . " &&
+           str != ".git . .. " &&
+           str != ". .git .. " &&
+           str != ".. .git . " &&
+           str != ". .. .git " &&
+           str != ".. . .git ")
         {
             std::cout << "error: init must be run in an empty directory or empty git repository" << std::endl;
             return 1;
@@ -460,7 +472,11 @@ int main(int argc, char* argv[])
             if(site.open() > 0)
                 return 1;
 
-            rmdir(site.siteDir.c_str());
+            //rmdir(site.siteDir.c_str()); //doesn't work for non-empty directories
+            system(("rm -r " + site.siteDir + " > /dev/null 2>&1 >nul 2>&1").c_str());
+            system(("rmdir /q /s " + site.siteDir + " > /dev/null 2>&1 >nul 2>&1").c_str());
+            if(std::ifstream("./nul"))
+                Path("./", "nul").removePath();
 
             chdir(parDir.c_str());
             rename(".abcd143d", (dirName + "/" + site.siteDir).c_str());
@@ -480,8 +496,11 @@ int main(int argc, char* argv[])
            cmd != "track" &&
            cmd != "untrack" &&
            cmd != "rm" &&
+           cmd != "del" &&
            cmd != "mv" &&
+           cmd != "move" &&
            cmd != "cp" &&
+           cmd != "copy" &&
            cmd != "new-title" &&
            cmd != "new-template" &&
            cmd != "build-updated" &&
@@ -518,8 +537,6 @@ int main(int argc, char* argv[])
                 return 1;
             }
         }
-
-        siteRootDir = get_pwd();
 
         //ensures both pages.list and nsm.config exist
         if(!std::ifstream(".siteinfo/pages.list"))
@@ -709,7 +726,7 @@ int main(int argc, char* argv[])
 
             return site.untrack(pageNameToUntrack);
         }
-        else if(cmd == "rm")
+        else if(cmd == "rm" || cmd == "del")
         {
             //ensures correct number of parameters given
             if(noParams != 2)
@@ -719,7 +736,7 @@ int main(int argc, char* argv[])
 
             return site.rm(pageNameToRemove);
         }
-        else if(cmd == "mv")
+        else if(cmd == "mv" || cmd == "move")
         {
             //ensures correct number of parameters given
             if(noParams != 3)
@@ -730,7 +747,7 @@ int main(int argc, char* argv[])
 
             return site.mv(oldPageName, newPageName);
         }
-        else if(cmd == "cp")
+        else if(cmd == "cp" || cmd == "copy")
         {
             //ensures correct number of parameters given
             if(noParams != 3)
