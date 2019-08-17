@@ -231,7 +231,7 @@ int main(int argc, char* argv[])
     {
         std::cout << "nifty site manager (aka nift or nsm) is a cross-platform open source git-like and LaTeX-like site manager." << std::endl;
         std::cout << "official site: https://nift.cc/" << std::endl;
-        std::cout << "enter `nsm commands` for available commands" << std::endl;
+        std::cout << "enter `nift commands` or `nsm commands` for available commands" << std::endl;
 
         return 0;
     }
