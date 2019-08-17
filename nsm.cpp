@@ -141,29 +141,42 @@ int main(int argc, char* argv[])
     if(cmd == "commands")
     {
         std::string str = "";
-        for(size_t i=0; i<std::string(argv[0]).size(); i++)
-            str += "-";
+        std::string exe = "";
+        if(std::string(argv[0]).find('/') != std::string::npos)
+        {
+            for(int i=std::string(argv[0]).find_last_of('/')+1; std::string(argv[0])[i] != '.'; i++)
+            {
+                str += "-";
+                exe += std::string(argv[0])[i];
+            }
+        }
+        else
+        {
+            exe = argv[0];
+            for(size_t i=0; i<std::string(argv[0]).size(); i++)
+                str += "-";
+        }
 
         std::cout << "+" << str << "------- available commands ----------------------------------------+" << std::endl;
-        std::cout << "| " << argv[0] << " commands       | lists all nsm commands                          |" << std::endl;
-        std::cout << "| " << argv[0] << " config         | list config settings or set git email/username  |" << std::endl;
-        std::cout << "| " << argv[0] << " clone          | input: clone-url                                |" << std::endl;
-        std::cout << "| " << argv[0] << " init           | initialise managing a site - input: (site-name) |" << std::endl;
-        std::cout << "| " << argv[0] << " status         | lists updated and problem pages                 |" << std::endl;
-        std::cout << "| " << argv[0] << " info           | input: page-name-1 .. page-name-k               |" << std::endl;
-        std::cout << "| " << argv[0] << " info-all       | lists tracked pages                             |" << std::endl;
-        std::cout << "| " << argv[0] << " info-names     | lists tracked page names                        |" << std::endl;
-        std::cout << "| " << argv[0] << " track          | input: page-name (page-title) (template-path)   |" << std::endl;
-        std::cout << "| " << argv[0] << " untrack        | input: page-name                                |" << std::endl;
-        std::cout << "| " << argv[0] << " rm or nsm del  | input: page-name                                |" << std::endl;
-        std::cout << "| " << argv[0] << " mv or nsm move | input: old-name new-name                        |" << std::endl;
-        std::cout << "| " << argv[0] << " cp or nsm copy | input: tracked-name new-name                    |" << std::endl;
-        std::cout << "| " << argv[0] << " build          | input: page-name-1 .. page-name-k               |" << std::endl;
-        std::cout << "| " << argv[0] << " build-updated  | builds updated pages                            |" << std::endl;
-        std::cout << "| " << argv[0] << " build-all      | builds all tracked pages                        |" << std::endl;
-        std::cout << "| " << argv[0] << " bcp            | input: commit-message                           |" << std::endl;
-        std::cout << "| " << argv[0] << " new-title      | input: page-name new-title                      |" << std::endl;
-        std::cout << "| " << argv[0] << " new-template   | input: page-name template-path                  |" << std::endl;
+        std::cout << "| " << exe << " commands       | lists all nsm commands                          |" << std::endl;
+        std::cout << "| " << exe << " config         | list config settings or set git email/username  |" << std::endl;
+        std::cout << "| " << exe << " clone          | input: clone-url                                |" << std::endl;
+        std::cout << "| " << exe << " init           | initialise managing a site - input: (site-name) |" << std::endl;
+        std::cout << "| " << exe << " status         | lists updated and problem pages                 |" << std::endl;
+        std::cout << "| " << exe << " info           | input: page-name-1 .. page-name-k               |" << std::endl;
+        std::cout << "| " << exe << " info-all       | lists tracked pages                             |" << std::endl;
+        std::cout << "| " << exe << " info-names     | lists tracked page names                        |" << std::endl;
+        std::cout << "| " << exe << " track          | input: page-name (page-title) (template-path)   |" << std::endl;
+        std::cout << "| " << exe << " untrack        | input: page-name                                |" << std::endl;
+        std::cout << "| " << exe << " rm or nsm del  | input: page-name                                |" << std::endl;
+        std::cout << "| " << exe << " mv or nsm move | input: old-name new-name                        |" << std::endl;
+        std::cout << "| " << exe << " cp or nsm copy | input: tracked-name new-name                    |" << std::endl;
+        std::cout << "| " << exe << " build          | input: page-name-1 .. page-name-k               |" << std::endl;
+        std::cout << "| " << exe << " build-updated  | builds updated pages                            |" << std::endl;
+        std::cout << "| " << exe << " build-all      | builds all tracked pages                        |" << std::endl;
+        std::cout << "| " << exe << " bcp            | input: commit-message                           |" << std::endl;
+        std::cout << "| " << exe << " new-title      | input: page-name new-title                      |" << std::endl;
+        std::cout << "| " << exe << " new-template   | input: page-name template-path                  |" << std::endl;
         std::cout << "+" << str << "-------------------------------------------------------------------+" << std::endl;
 
         return 0;

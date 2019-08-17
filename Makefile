@@ -6,6 +6,7 @@ CXXFLAGS=-std=c++11 -Wall -Wextra -pedantic
 
 nsm: $(objects)
 	$(CC) $(CXXFLAGS) $(cppfiles) -o nsm
+	$(CC) $(CXXFLAGS) $(cppfiles) -o nift
 
 nsm.o: nsm.cpp SiteInfo.o
 	$(CC) $(CXXFLAGS) -c -o $@ $<
@@ -43,63 +44,55 @@ linux-gedit-highlighting:
 
 linux-install:
 	chmod 755 nsm
-	cp nsm /usr/local/bin/nift
+	mv nift /usr/local/bin
 	mv nsm /usr/local/bin
 
 linux-uninstall:
-	rm /usr/local/bin/nsm
 	rm /usr/local/bin/nift
+	rm /usr/local/bin/nsm
 
 osx-install:
 	chmod 755 nsm
-	cp nsm /usr/local/bin/nift
+	mv nift /usr/local/bin
 	mv nsm /usr/local/bin
 
 osx-uninstall:
-	rm /usr/local/bin/nsm
-	rm /usr/local/bin/nift 
+	rm /usr/local/bin/nift
+	rm /usr/local/bin/nsm 
 
 git-bash-install:
 	chmod 755 nsm
-	cp nsm ~/bin/nift
+	mv nift ~/bin
 	mv nsm ~/bin
 
 git-bash-uninstall:
-	rm ~/bin/nsm
 	rm ~/bin/nift
+	rm ~/bin/nsm
 
 gitbash-install:
 	chmod 755 nsm
-	cp nsm ~/bin/nift
+	mv nift ~/bin
 	mv nsm ~/bin
 
 gitbash-uninstall:
-	rm ~/bin/nsm
 	rm ~/bin/nift
-
-windows-install:
-	copy nsm.exe C:\Windows\system32\nift.exe
-	copy nsm.exe C:\Windows\system32
-
-windows-uninstall:
-	del C:\Windows\system32\nsm.exe
-	del C:\Windows\system32\nift.exe
+	rm ~/bin/nsm
 
 linux-clean:
 	rm -f $(objects)
 
 linux-clean-all:
-	rm -f $(objects) nsm
+	rm -f $(objects) nsm nift
 
 windows-clean:
 	del -f $(objects)
 
 windows-clean-all:
-	del -f $(objects) nsm
+	del -f $(objects) nsm.exe nift.exe
 
 clean:
 	rm -f $(objects)
 
 clean-all:
-	rm -f $(objects) nsm
+	rm -f $(objects) nsm nift
 
