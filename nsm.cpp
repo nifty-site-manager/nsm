@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 
 #include "SiteInfo.h"
 
@@ -63,6 +64,43 @@ std::string ls(const char *path)
     closedir(dir);
 
     return lsStr;
+}
+
+std::vector<std::string> lsVec(const char *path)
+{
+    std::vector<std::string> ans;
+    struct dirent *entry;
+    DIR *dir = opendir(path);
+    if(dir == NULL)
+        return ans;
+
+    while((entry = readdir(dir)) != NULL)
+        if(std::string(entry->d_name) != "." && std::string(entry->d_name) != "..")
+            ans.push_back(entry->d_name);
+
+    closedir(dir);
+
+    return ans;
+}
+
+void delDir(std::string dir)
+{
+    std::string owd = get_pwd();
+    chdir(dir.c_str());
+
+    std::vector<std::string> files = lsVec("./");
+    for(size_t f=0; f<files.size(); f++)
+    {
+        struct stat s;
+
+        if(stat(files[f].c_str(),&s) == 0 && s.st_mode & S_IFDIR)
+            delDir(files[f]);
+        else
+            Path("./", files[f]).removePath();
+    }
+
+    chdir(owd.c_str());
+    rmdir(dir.c_str());
 }
 
 //get present git branch
@@ -494,10 +532,7 @@ int main(int argc, char* argv[])
                 return 1;
 
             //rmdir(site.siteDir.c_str()); //doesn't work for non-empty directories
-            system(("rm -r " + site.siteDir + " > /dev/null 2>&1 >nul 2>&1").c_str());
-            system(("rmdir /q /s " + site.siteDir + " > /dev/null 2>&1 >nul 2>&1").c_str());
-            if(std::ifstream("./nul"))
-                Path("./", "nul").removePath();
+            delDir(site.siteDir);
 
             chdir(parDir.c_str());
             rename(".abcd143d", (dirName + "/" + site.siteDir).c_str());
