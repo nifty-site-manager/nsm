@@ -83,10 +83,11 @@ std::vector<std::string> lsVec(const char *path)
     return ans;
 }
 
-void delDir(std::string dir)
+int delDir(std::string dir)
 {
     std::string owd = get_pwd();
-    chdir(dir.c_str());
+    if(chdir(dir.c_str()))
+        return 1;
 
     std::vector<std::string> files = lsVec("./");
     for(size_t f=0; f<files.size(); f++)
@@ -94,13 +95,20 @@ void delDir(std::string dir)
         struct stat s;
 
         if(stat(files[f].c_str(),&s) == 0 && s.st_mode & S_IFDIR)
-            delDir(files[f]);
+        {
+            if(delDir(files[f]))
+                return 1;
+        }
         else
             Path("./", files[f]).removePath();
     }
 
-    chdir(owd.c_str());
-    rmdir(dir.c_str());
+    if(chdir(owd.c_str()))
+        return 1;
+    if(rmdir(dir.c_str()))
+        return 1;
+
+    return 0;
 }
 
 //get present git branch
@@ -108,7 +116,8 @@ std::string get_pb()
 {
     std::string branch = "";
 
-    system("git status > .f242tgg43.txt");
+    if(system("git status > .f242tgg43.txt"))
+        return "#error#";
     std::ifstream ifs(".f242tgg43.txt");
 
     while(ifs >> branch)
@@ -129,7 +138,8 @@ std::set<std::string> get_git_branches()
     std::set<std::string> branches;
     std::string branch = "";
 
-    system("git branch > .f242tgg43.txt");
+    if(system("git branch > .f242tgg43.txt"))
+        return branches;
     std::ifstream ifs(".f242tgg43.txt");
 
     while(ifs >> branch)
@@ -255,7 +265,8 @@ int main(int argc, char* argv[])
             prevPwd = pwd;
 
             //changes to parent directory
-            chdir(parentDir.c_str());
+            if(chdir(parentDir.c_str()))
+                return 1;
 
             //gets new pwd
             pwd = get_pwd();
@@ -266,7 +277,8 @@ int main(int argc, char* argv[])
                 return 1;
             }
         }
-        chdir(owd.c_str());
+        if(chdir(owd.c_str()))
+            return 1;
 
         //checks that directory is empty
         std::string str = ls("./");
@@ -292,7 +304,8 @@ int main(int argc, char* argv[])
         chmod(pagesListPath.str().c_str(), 0666);
 
         #ifdef _WIN32
-            system("attrib +h .siteinfo");
+            if(system("attrib +h .siteinfo"))
+                return 1;
         #endif // _WIN32
 
         std::ofstream ofs(".siteinfo/nsm.config");
@@ -339,8 +352,10 @@ int main(int argc, char* argv[])
         site.track(name, title, site.defaultTemplate);
         site.build_updated();
 
-        //system("nsm track index");
-        //system("nsm build-updated");
+        //if(system("nsm track index"))
+            //return 1;
+        //if(system("nsm build-updated"))
+            //return 1;
 
         std::cout << "nsm: initialised empty site in " << get_pwd() << "/.siteinfo/" << std::endl;
 
@@ -366,21 +381,29 @@ int main(int argc, char* argv[])
             if(str == "user.email")
             {
                 if(noParams == 3)
-                    system("git config --global user.email");
+                {
+                    if(system("git config --global user.email"))
+                        return 1;
+                }
                 else
                 {
                     std::string cmdStr = "git config --global user.email \"" + std::string(argv[4]) + "\"";
-                    system(cmdStr.c_str());
+                    if(system(cmdStr.c_str()))
+                        return 1;
                 }
             }
             else if(str == "user.name")
             {
                 if(noParams == 3)
-                    system("git config --global user.name");
+                {
+                    if(system("git config --global user.name"))
+                        return 1;
+                }
                 else
                 {
                     std::string cmdStr = "git config --global user.name \"" + std::string(argv[4]) + "\" --replace-all";
-                    system(cmdStr.c_str());
+                    if(system(cmdStr.c_str()))
+                        return 1;
                 }
             }
             else
@@ -403,7 +426,8 @@ int main(int argc, char* argv[])
 
         //checks that git is configured
         std::string str;
-        system("git config --global user.email > .1223fsf23.txt");
+        if(system("git config --global user.email > .1223fsf23.txt"))
+            return 1;
         std::ifstream ifs(".1223fsf23.txt");
         ifs >> str;
         ifs.close();
@@ -421,7 +445,8 @@ int main(int argc, char* argv[])
 
             return 0;
         }
-        system("git config --global user.name > .1223fsf23.txt");
+        if(system("git config --global user.name > .1223fsf23.txt"))
+            return 1;
         ifs.open(".1223fsf23.txt");
         ifs >> str;
         ifs.close();
@@ -469,11 +494,14 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        system(cloneCmnd.c_str());
+        if(system(cloneCmnd.c_str()))
+            return 1;
 
-        chdir(dirName.c_str());
+        if(chdir(dirName.c_str()))
+            return 1;
 
-        system("git checkout stage > /dev/null 2>&1 >nul 2>&1");
+        if(system("git checkout stage > /dev/null 2>&1 >nul 2>&1"))
+            return 1;
         if(std::ifstream("./nul"))
             Path("./", "nul").removePath();
 
@@ -481,14 +509,18 @@ int main(int argc, char* argv[])
 
         if(branches.count("stage") && std::ifstream(".siteinfo/nsm.config"))
         {
-            system("git checkout master > /dev/null 2>&1 >nul 2>&1");
+            if(system("git checkout master > /dev/null 2>&1 >nul 2>&1"))
+                return 1;
             if(std::ifstream("./nul"))
                 Path("./", "nul").removePath();
 
-            chdir(parDir.c_str());
+            if(chdir(parDir.c_str()))
+                return 1;
 
-            system(("cp -r " + dirName + " .abcd143d > /dev/null 2>&1 >nul 2>&1").c_str());
-            system(("echo d | xcopy " + dirName + " .abcd143d /E /H > /dev/null 2>&1 >nul 2>&1").c_str());
+            if(system(("cp -r " + dirName + " .abcd143d > /dev/null 2>&1 >nul 2>&1").c_str()))
+                return 1;
+            if(system(("echo d | xcopy " + dirName + " .abcd143d /E /H > /dev/null 2>&1 >nul 2>&1").c_str()))
+                return 1;
             if(std::ifstream("./nul"))
                 Path("./", "nul").removePath();
 
@@ -496,22 +528,27 @@ int main(int argc, char* argv[])
             #ifdef _WIN32 //note might be using cmd-prompt/git-bash/cygwin
                 cloneCmnd += " > /dev/null 2>&1 >nul 2>&1";
                 rename(dirName.c_str(), ".abcd143d");
-                system(cloneCmnd.c_str());
+                if(system(cloneCmnd.c_str()))
+                    return 1;
                 if(std::ifstream("./nul"))
                     Path("./", "nul").removePath();
             #elif _WIN64 //note might be using cmd-prompt/git-bash/cygwin
                 cloneCmnd += " > /dev/null 2>&1 >nul 2>&1";
                 rename(dirName.c_str(), ".abcd143d");
-                system(cloneCmnd.c_str());
+                if(system(cloneCmnd.c_str()))
+                    return 1;
                 if(std::ifstream("./nul"))
                     Path("./", "nul").removePath();
             #else  //osx/unix
-                system(("cp -r " + dirName + " .abcd143d").c_str());
+                if(system(("cp -r " + dirName + " .abcd143d").c_str()))
+                    return 1;
             #endif*/
 
-            chdir(dirName.c_str());
+            if(chdir(dirName.c_str()))
+                return 1;
 
-            system("git checkout stage > /dev/null 2>&1 >nul 2>&1");
+            if(system("git checkout stage > /dev/null 2>&1 >nul 2>&1"))
+                return 1;
             if(std::ifstream("./nul"))
                 Path("./", "nul").removePath();
 
@@ -519,10 +556,13 @@ int main(int argc, char* argv[])
             if(site.open() > 0)
                 return 1;
 
-            //rmdir(site.siteDir.c_str()); //doesn't work for non-empty directories
-            delDir(site.siteDir);
+            //if(rmdir(site.siteDir.c_str())) //doesn't work for non-empty directories
+              //  return 1;
+            if(delDir(site.siteDir))
+                return 1;
 
-            chdir(parDir.c_str());
+            if(chdir(parDir.c_str()))
+                return 1;
             rename(".abcd143d", (dirName + "/" + site.siteDir).c_str());
         }
 
@@ -569,7 +609,8 @@ int main(int argc, char* argv[])
             prevPwd = pwd;
 
             //changes to parent directory
-            chdir(parentDir.c_str());
+            if(chdir(parentDir.c_str()))
+                return 1;
 
             //gets new pwd
             pwd = get_pwd();
@@ -621,7 +662,8 @@ int main(int argc, char* argv[])
 
             //checks that git is configured
             std::string str;
-            system("git config --global user.email > .1223fsf23.txt");
+            if(system("git config --global user.email > .1223fsf23.txt"))
+                return 1;
             std::ifstream ifs(".1223fsf23.txt");
             ifs >> str;
             ifs.close();
@@ -639,7 +681,8 @@ int main(int argc, char* argv[])
 
                 return 0;
             }
-            system("git config --global user.name > .1223fsf23.txt");
+            if(system("git config --global user.name > .1223fsf23.txt"))
+                return 1;
             ifs.open(".1223fsf23.txt");
             ifs >> str;
             ifs.close();
@@ -659,7 +702,8 @@ int main(int argc, char* argv[])
             }
 
             //checks that remote git url is set
-            system("git config --get remote.origin.url > .txt65232g42f.txt");
+            if(system("git config --get remote.origin.url > .txt65232g42f.txt"))
+                return 1;
             ifs.open(".txt65232g42f.txt");
             str="";
             ifs >> str;
@@ -680,7 +724,8 @@ int main(int argc, char* argv[])
                         siteRootDirBranch = get_pb();
             std::cout << commitCmnd << std::endl;
 
-            chdir(site.siteDir.c_str());
+            if(chdir(site.siteDir.c_str()))
+                return 1;
 
             siteDirBranch = get_pb();
 
@@ -688,18 +733,25 @@ int main(int argc, char* argv[])
             {
                 pushCmnd = "git push origin " + siteDirBranch;
 
-                system("git add -A .");
-                system(commitCmnd.c_str());
-                system(pushCmnd.c_str());
+                if(system("git add -A ."))
+                    return 1;
+                if(system(commitCmnd.c_str()))
+                    return 1;
+                if(system(pushCmnd.c_str()))
+                    return 1;
             }
 
-            chdir(siteRootDir.c_str());
+            if(chdir(siteRootDir.c_str()))
+                return 1;
 
             pushCmnd = "git push origin " + siteRootDirBranch;
 
-            system("git add -A .");
-            system(commitCmnd.c_str());
-            system(pushCmnd.c_str());
+            if(system("git add -A ."))
+                return 1;
+            if(system(commitCmnd.c_str()))
+                return 1;
+            if(system(pushCmnd.c_str()))
+                return 1;
 
             return 0;
         }
