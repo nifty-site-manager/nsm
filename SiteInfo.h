@@ -1,6 +1,8 @@
 #ifndef SITE_INFO_H_
 #define SITE_INFO_H_
 
+#include <mutex>
+#include <thread>
 #include <vector>
 
 #include "PageBuilder.h"
@@ -36,7 +38,7 @@ struct SiteInfo
     int new_title(const Name &pageName, const Title &newTitle);
     int new_template(const Name &pageName, const Path &newTemplatePath);
 
-    int build(std::vector<Name> pageNamesToBuild);
+    int build(const std::vector<Name>& pageNamesToBuild);
     int build_all();
     int build_updated();
 

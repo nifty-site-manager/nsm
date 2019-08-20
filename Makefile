@@ -2,19 +2,20 @@
 objects=nsm.o DateTimeInfo.o Directory.o Filename.o PageBuilder.o PageInfo.o Path.o Quoted.o SiteInfo.o Title.o
 cppfiles=nsm.cpp DateTimeInfo.cpp Directory.cpp Filename.cpp PageBuilder.cpp PageInfo.cpp Path.cpp Quoted.cpp SiteInfo.cpp Title.cpp
 CC=g++
+LINK=-pthread
 CXXFLAGS=-std=c++11 -Wall -Wextra -pedantic
 #Flags to use when compiling for Chocolatey
 #CXXFLAGS=-std=c++11 -Wall -Wextra -pedantic -static -static-libgcc -static-libstdc++
 
 nsm: $(objects)
-	$(CC) $(CXXFLAGS) $(cppfiles) -o nsm
-	$(CC) $(CXXFLAGS) $(cppfiles) -o nift
+	$(CC) $(CXXFLAGS) $(cppfiles) -o nsm $(LINK)
+	$(CC) $(CXXFLAGS) $(cppfiles) -o nift $(LINK)
 
 nsm.o: nsm.cpp SiteInfo.o
-	$(CC) $(CXXFLAGS) -c -o $@ $<
+	$(CC) $(CXXFLAGS) -c -o $@ $< $(LINK)
 
 SiteInfo.o: SiteInfo.cpp SiteInfo.h PageBuilder.o
-	$(CC) $(CXXFLAGS) -c -o $@ $<
+	$(CC) $(CXXFLAGS) -c -o $@ $< $(LINK)
 
 PageBuilder.o: PageBuilder.cpp PageBuilder.h DateTimeInfo.o PageInfo.o
 	$(CC) $(CXXFLAGS) -c -o $@ $<

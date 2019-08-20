@@ -550,8 +550,7 @@ int SiteInfo::new_template(const Name &pageName, const Path &newTemplatePath)
     return 0;
 }
 
-
-int SiteInfo::build(std::vector<Name> pageNamesToBuild)
+int SiteInfo::build(const std::vector<Name>& pageNamesToBuild)
 {
     PageBuilder pageBuilder(pages);
     std::set<Name> untrackedPages, failedPages;
@@ -592,7 +591,85 @@ int SiteInfo::build(std::vector<Name> pageNamesToBuild)
     return 0;
 }
 
+std::mutex mtx;
+std::set<Name> failedPages;
+
+void build_thread(const std::set<PageInfo>& allPages, const std::set<PageInfo>& pagesToBuild)
+{
+    PageBuilder pageBuilder(allPages);
+
+    for(auto pageInfo=pagesToBuild.begin(); pageInfo != pagesToBuild.end(); pageInfo++)
+    {
+        if(pageBuilder.build(*pageInfo) > 0)
+        {
+            mtx.lock();
+            failedPages.insert(pageInfo->pageName);
+            mtx.unlock();
+        }
+    }
+}
+
 int SiteInfo::build_all()
+{
+    std::set<Name> untrackedPages;
+    std::set<PageInfo> pages1, pages2, pages3, pages4;
+
+    int s = pages.size(),
+        n1 = pages.size()/4,
+        n2 = 2*n1,
+        n3 = 3*n1;
+
+    int i = 0;
+    for(auto page=pages.begin(); i < s; ++page, ++i)
+    {
+        if(!tracking(page->pageName))
+            untrackedPages.insert(page->pageName);
+        else if(i < n1)
+            pages1.insert(*page);
+        else if(i < n2)
+            pages2.insert(*page);
+        else if(i < n3)
+            pages3.insert(*page);
+        else
+            pages4.insert(*page);
+    }
+
+    std::thread thread1(build_thread, pages, pages1),
+                thread2(build_thread, pages, pages2),
+                thread3(build_thread, pages, pages3),
+                thread4(build_thread, pages, pages4);
+
+    thread1.join();
+    thread2.join();
+    thread3.join();
+    thread4.join();
+
+    if(failedPages.size() > 0)
+    {
+        std::cout << std::endl;
+        std::cout << "---- following pages failed to build ----" << std::endl;
+        for(auto fName=failedPages.begin(); fName != failedPages.end(); fName++)
+            std::cout << " " << *fName << std::endl;
+        std::cout << "-----------------------------------------" << std::endl;
+    }
+    if(untrackedPages.size() > 0)
+    {
+        std::cout << std::endl;
+        std::cout << "---- nsm not tracking following pages ----" << std::endl;
+        for(auto uName=untrackedPages.begin(); uName != untrackedPages.end(); uName++)
+            std::cout << " " << *uName << std::endl;
+        std::cout << "------------------------------------------" << std::endl;
+    }
+    if(failedPages.size() == 0 && untrackedPages.size() == 0)
+    {
+        std::cout << std::endl;
+        std::cout << "all " << pages.size() << " pages built successfully" << std::endl;
+    }
+
+    return 0;
+}
+
+/*int SiteInfo::build_all_old()
 {
     PageBuilder pageBuilder(pages);
 
@@ -624,7 +701,7 @@ int SiteInfo::build_all()
     }
 
     return 0;
-}
+}*/
 
 int SiteInfo::build_updated()
 {
