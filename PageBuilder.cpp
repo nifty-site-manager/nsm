@@ -9,7 +9,7 @@ int PageBuilder::build(const PageInfo &PageToBuild)
 {
     pageToBuild = PageToBuild;
 
-    std::cout << std::endl;
+    //std::cout << std::endl;
 
     //ensures content and template files exist
     if(!std::ifstream(pageToBuild.contentPath.str()))
@@ -23,7 +23,7 @@ int PageBuilder::build(const PageInfo &PageToBuild)
         return 1;
     }
 
-    std::cout << "building page " << pageToBuild.pagePath << std::endl;
+    //std::cout << "building page " << pageToBuild.pagePath << std::endl;
 
     //makes sure variables are at default values
     codeBlockDepth = htmlCommentDepth = 0;
@@ -86,7 +86,7 @@ int PageBuilder::build(const PageInfo &PageToBuild)
     //makes sure user can't accidentally write to info file
     chmod(pageInfoPath.str().c_str(), 0444);
 
-    std::cout << "page build successful" << std::endl;
+    //std::cout << "page build successful" << std::endl;
 
     return 0;
 }
