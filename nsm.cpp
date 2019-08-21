@@ -154,14 +154,16 @@ int read_serve_commands()
 {
     std::string cmd;
 
-    while(cmd != "exit")
+    std::cout << "serving website locally, 'exit' or 'stop' to stop Nift serving" << std::endl;
+
+    while(cmd != "exit" && cmd != "stop")
     {
         std::cout << "command: ";
 
         std::cin >> cmd;
 
-        if(cmd != "exit")
-            std::cout << "unrecognised command, 'exit' to stop Nift serving" << std::endl;
+        if(cmd != "exit" && cmd != "stop")
+            std::cout << "unrecognised command, 'exit' or 'stop' to stop Nift serving" << std::endl;
     }
 
     serving = 0;
@@ -175,15 +177,16 @@ int serve(SiteInfo site)
 
     while(serving)
     {
-        ofs.open(".log.txt");
+        ofs.open(".serve-build-log.txt");
 
         site.build_updated(ofs);
 
         ofs.close();
-        Path("./", ".log.txt").removePath();
 
         usleep(500000);
     }
+
+    Path("./", ".serve-build-log.txt").removePath();
 
     return 0;
 }
