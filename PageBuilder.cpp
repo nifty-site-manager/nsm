@@ -5,25 +5,25 @@ PageBuilder::PageBuilder(const std::set<PageInfo> &Pages)
     pages = Pages;
 }
 
-int PageBuilder::build(const PageInfo &PageToBuild)
+int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
 {
     pageToBuild = PageToBuild;
 
-    //std::cout << std::endl;
+    //os << std::endl;
 
     //ensures content and template files exist
     if(!std::ifstream(pageToBuild.contentPath.str()))
     {
-        std::cout << "error: cannot build " << pageToBuild.pagePath << " as content file " << pageToBuild.contentPath << " does not exist" << std::endl;
+        os << "error: cannot build " << pageToBuild.pagePath << " as content file " << pageToBuild.contentPath << " does not exist" << std::endl;
         return 1;
     }
     if(!std::ifstream(pageToBuild.templatePath.str()))
     {
-        std::cout << "error: cannot build " << pageToBuild.pagePath << " as template file " << pageToBuild.templatePath << " does not exist." << std::endl;
+        os << "error: cannot build " << pageToBuild.pagePath << " as template file " << pageToBuild.templatePath << " does not exist." << std::endl;
         return 1;
     }
 
-    //std::cout << "building page " << pageToBuild.pagePath << std::endl;
+    //os << "building page " << pageToBuild.pagePath << std::endl;
 
     //makes sure variables are at default values
     codeBlockDepth = htmlCommentDepth = 0;
@@ -42,13 +42,13 @@ int PageBuilder::build(const PageInfo &PageToBuild)
     std::set<Path> antiDepsOfReadPath;
 
     //starts read_and_process from templatePath
-    if(read_and_process(pageToBuild.templatePath, antiDepsOfReadPath) > 0)
+    if(read_and_process(pageToBuild.templatePath, antiDepsOfReadPath, os) > 0)
         return 1;
 
     //ensures @inputcontent was found inside template dag
     if(!contentAdded)
     {
-        std::cout << "error: @inputcontent not found within template file " << pageToBuild.templatePath << " or any of its dependencies, content from " << pageToBuild.contentPath << " has not been inserted" << std::endl;
+        os << "error: @inputcontent not found within template file " << pageToBuild.templatePath << " or any of its dependencies, content from " << pageToBuild.contentPath << " has not been inserted" << std::endl;
         return 1;
     }
 
@@ -86,13 +86,13 @@ int PageBuilder::build(const PageInfo &PageToBuild)
     //makes sure user can't accidentally write to info file
     chmod(pageInfoPath.str().c_str(), 0444);
 
-    //std::cout << "page build successful" << std::endl;
+    //os << "page build successful" << std::endl;
 
     return 0;
 }
 
 //reads file whilst writing processed version to ofs
-int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsOfReadPath)
+int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsOfReadPath, std::ostream& os)
 {
     //adds read path to anti dependencies of read path
     antiDepsOfReadPath.insert(readPath);
@@ -198,7 +198,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     codeBlockDepth--;
                     if(codeBlockDepth < baseCodeBlockDepth)
                     {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": </pre> close tag has no preceding <pre*> open tag." << std::endl << std::endl;
+                        os << "error: " << readPath << ": line " << lineNo << ": </pre> close tag has no preceding <pre*> open tag." << std::endl << std::endl;
                         return 1;
                     }
                 }
@@ -258,7 +258,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@input(").length();
                     std::string inputPathStr;
 
-                    if(read_path(inputPathStr, linePos, inLine, readPath, lineNo, "@input()") > 0)
+                    if(read_path(inputPathStr, linePos, inLine, readPath, lineNo, "@input()", os) > 0)
                         return 1;
 
                     Path inputPath;
@@ -268,18 +268,18 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //ensures insert file exists
                     if(!std::ifstream(inputPathStr))
                     {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": inputting file " << inputPath << " failed as path does not exist" << std::endl;
+                        os << "error: " << readPath << ": line " << lineNo << ": inputting file " << inputPath << " failed as path does not exist" << std::endl;
                         return 1;
                     }
                     //ensures insert file isn't an anti dep of read path
                     if(antiDepsOfReadPath.count(inputPath))
                     {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": inputting file " << inputPath << " would result in an input loop" << std::endl;
+                        os << "error: " << readPath << ": line " << lineNo << ": inputting file " << inputPath << " would result in an input loop" << std::endl;
                         return 1;
                     }
 
                     //adds insert file
-                    if(read_and_process(inputPath, antiDepsOfReadPath) > 0)
+                    if(read_and_process(inputPath, antiDepsOfReadPath, os) > 0)
                         return 1;
                     //indent amount updated inside read_and_process
                 }
@@ -288,7 +288,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@pathto(").length();
                     Name targetPageName;
 
-                    if(read_path(targetPageName, linePos, inLine, readPath, lineNo, "@pathto()") > 0)
+                    if(read_path(targetPageName, linePos, inLine, readPath, lineNo, "@pathto()", os) > 0)
                         return 1;
 
                     //throws error if target targetPageName isn't being tracked by nsm
@@ -296,7 +296,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     targetPageInfo.pageName = targetPageName;
                     if(!pages.count(targetPageInfo))
                     {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": @pathto(" << targetPageName << ") failed, nsm not tracking " << targetPageName << std::endl;
+                        os << "error: " << readPath << ": line " << lineNo << ": @pathto(" << targetPageName << ") failed, nsm not tracking " << targetPageName << std::endl;
                         return 1;
                     }
 
@@ -315,7 +315,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@pathtopage(").length();
                     Name targetPageName;
 
-                    if(read_path(targetPageName, linePos, inLine, readPath, lineNo, "@pathtopage()") > 0)
+                    if(read_path(targetPageName, linePos, inLine, readPath, lineNo, "@pathtopage()", os) > 0)
                         return 1;
 
                     //throws error if target targetPageName isn't being tracked by nsm
@@ -323,7 +323,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     targetPageInfo.pageName = targetPageName;
                     if(!pages.count(targetPageInfo))
                     {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": @pathtopage(" << targetPageName << ") failed, nsm not tracking " << targetPageName << std::endl;
+                        os << "error: " << readPath << ": line " << lineNo << ": @pathtopage(" << targetPageName << ") failed, nsm not tracking " << targetPageName << std::endl;
                         return 1;
                     }
 
@@ -342,13 +342,13 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@pathtofile(").length();
                     Name targetFilePath;
 
-                    if(read_path(targetFilePath, linePos, inLine, readPath, lineNo, "@pathtofile()") > 0)
+                    if(read_path(targetFilePath, linePos, inLine, readPath, lineNo, "@pathtofile()", os) > 0)
                         return 1;
 
                     //throws error if targetFilePath doesn't exist
                     if(!std::ifstream(targetFilePath.c_str()))
                     {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": file " << targetFilePath << " does not exist" << std::endl;
+                        os << "error: " << readPath << ": line " << lineNo << ": file " << targetFilePath << " does not exist" << std::endl;
                         return 1;
                     }
                     Path targetPath;
@@ -515,13 +515,13 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@faviconinclude(").length();
                     std::string faviconPathStr;
 
-                    if(read_path(faviconPathStr, linePos, inLine, readPath, lineNo, "@faviconinclude()") > 0)
+                    if(read_path(faviconPathStr, linePos, inLine, readPath, lineNo, "@faviconinclude()", os) > 0)
                         return 1;
 
                     //warns user if favicon file doesn't exist
                     if(!std::ifstream(faviconPathStr.c_str()))
                     {
-                        std::cout << "warning: " << readPath << ": line " << lineNo << ": favicon file " << faviconPathStr << " does not exist" << std::endl;
+                        os << "warning: " << readPath << ": line " << lineNo << ": favicon file " << faviconPathStr << " does not exist" << std::endl;
                     }
 
                     Path faviconPath;
@@ -541,13 +541,13 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@cssinclude(").length();
                     std::string cssPathStr;
 
-                    if(read_path(cssPathStr, linePos, inLine, readPath, lineNo, "@cssinclude()") > 0)
+                    if(read_path(cssPathStr, linePos, inLine, readPath, lineNo, "@cssinclude()", os) > 0)
                         return 1;
 
                     //warns user if css file doesn't exist
                     if(!std::ifstream(cssPathStr.c_str()))
                     {
-                        std::cout << "warning: " << readPath << ": line " << lineNo << ": css file " << cssPathStr << " does not exist" << std::endl;
+                        os << "warning: " << readPath << ": line " << lineNo << ": css file " << cssPathStr << " does not exist" << std::endl;
                     }
 
                     Path cssPath;
@@ -567,13 +567,13 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@imginclude(").length();
                     std::string imgPathStr;
 
-                    if(read_path(imgPathStr, linePos, inLine, readPath, lineNo, "@imginclude()") > 0)
+                    if(read_path(imgPathStr, linePos, inLine, readPath, lineNo, "@imginclude()", os) > 0)
                         return 1;
 
                     //warns user if img file doesn't exist
                     if(!std::ifstream(imgPathStr.c_str()))
                     {
-                        std::cout << "warning: " << readPath << ": line " << lineNo << ": img file " << imgPathStr << " does not exist" << std::endl;
+                        os << "warning: " << readPath << ": line " << lineNo << ": img file " << imgPathStr << " does not exist" << std::endl;
                     }
 
                     Path imgPath;
@@ -591,12 +591,12 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@jsinclude(").length();
                     std::string jsPathStr;
 
-                    if(read_path(jsPathStr, linePos, inLine, readPath, lineNo, "@jsinclude()") > 0)
+                    if(read_path(jsPathStr, linePos, inLine, readPath, lineNo, "@jsinclude()", os) > 0)
                         return 1;
 
                     //warns user if js file doesn't exist
                     if(!std::ifstream(jsPathStr.c_str()))
-                        std::cout << "warning: " << readPath << ": line " << lineNo << ": js file " << jsPathStr << " does not exist" << std::endl;
+                        os << "warning: " << readPath << ": line " << lineNo << ": js file " << jsPathStr << " does not exist" << std::endl;
 
                     Path jsPath;
                     jsPath.set_file_path_from(jsPathStr);
@@ -632,7 +632,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
     if(codeBlockDepth > baseCodeBlockDepth)
     {
-        std::cout << "error: " << readPath << ": line " << openCodeLineNo << ": <pre*> open tag has no following </pre> close tag." << std::endl << std::endl;
+        os << "error: " << readPath << ": line " << openCodeLineNo << ": <pre*> open tag has no following </pre> close tag." << std::endl << std::endl;
         return 1;
     }
 
@@ -641,7 +641,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
     return 0;
 }
 
-int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::string &inLine, const Path &readPath, const int &lineNo, const std::string &callType)
+int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::string &inLine, const Path &readPath, const int &lineNo, const std::string &callType, std::ostream& os)
 {
     pathRead = "";
 
@@ -652,14 +652,14 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
     //throws error if either no closing bracket or a newline
     if(linePos == inLine.size())
     {
-        std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+        os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
         return 1;
     }
 
     //throws error if no path provided
     if(inLine[linePos] == ')')
     {
-        std::cout << "error: " << readPath << ": line " << lineNo << ": no path provided inside " << callType << " call" << std::endl << std::endl;
+        os << "error: " << readPath << ": line " << lineNo << ": no path provided inside " << callType << " call" << std::endl << std::endl;
         return 1;
     }
 
@@ -671,7 +671,7 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
         {
             if(linePos == inLine.size())
             {
-                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing single quote or newline inside " << callType << " call" << std::endl << std::endl;
+                os << "error: " << readPath << ": line " << lineNo << ": path has no closing single quote or newline inside " << callType << " call" << std::endl << std::endl;
                 return 1;
             }
             pathRead += inLine[linePos];
@@ -685,7 +685,7 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
         {
             if(linePos == inLine.size())
             {
-                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing double quote \" or newline inside " << callType << " call" << std::endl << std::endl;
+                os << "error: " << readPath << ": line " << lineNo << ": path has no closing double quote \" or newline inside " << callType << " call" << std::endl << std::endl;
                 return 1;
             }
             pathRead += inLine[linePos];
@@ -698,7 +698,7 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
         {
             if(linePos == inLine.size())
             {
-                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+                os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
                 return 1;
             }
             else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
@@ -712,12 +712,12 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
                     }
                     else if(inLine[linePos] != ' ' && inLine[linePos] != '\t')
                     {
-                        std::cout << "error: " << readPath << ": line " << lineNo << ": unquoted path inside " << callType << " call contains whitespace" << std::endl << std::endl;
+                        os << "error: " << readPath << ": line " << lineNo << ": unquoted path inside " << callType << " call contains whitespace" << std::endl << std::endl;
                         return 1;
                     }
                 }
 
-                std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+                os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
                 return 1;
             }
             pathRead += inLine[linePos];
@@ -731,14 +731,14 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
     //throws error if new line is between the path and close bracket
     if(linePos == inLine.size())
     {
-        std::cout << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside  " << callType << " call" << std::endl << std::endl;
+        os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside  " << callType << " call" << std::endl << std::endl;
         return 1;
     }
 
     //throws error if the path is invalid
     if(inLine[linePos] != ')')
     {
-        std::cout << "error: " << readPath << ": line " << lineNo << ": invalid path inside " << callType << " call" << std::endl << std::endl;
+        os << "error: " << readPath << ": line " << lineNo << ": invalid path inside " << callType << " call" << std::endl << std::endl;
         return 1;
     }
 

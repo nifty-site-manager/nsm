@@ -171,9 +171,17 @@ int read_serve_commands()
 
 int serve(SiteInfo site)
 {
+    std::ofstream ofs;
+
     while(serving)
     {
-        site.build_updated_serve();
+        ofs.open(".log.txt");
+
+        site.build_updated(ofs);
+
+        ofs.close();
+        Path("./", ".log.txt").removePath();
+
         usleep(500000);
     }
 
@@ -376,7 +384,7 @@ int main(int argc, char* argv[])
         Title title;
         title = get_title(name);
         site.track(name, title, site.defaultTemplate);
-        site.build_updated();
+        site.build_updated(std::cout);
 
         //trash = system("nsm track index");
         //trash = system("nsm build-updated");
@@ -711,7 +719,7 @@ int main(int argc, char* argv[])
                 return 1;
             }
 
-            if(site.build_updated())
+            if(site.build_updated(std::cout))
                 return 1;
 
             std::string commitCmnd = "git commit -m \"" + std::string(argv[2]) + "\"",
@@ -872,7 +880,7 @@ int main(int argc, char* argv[])
             if(noParams > 1)
                 return parError(noParams, argv, "1");
 
-            return site.build_updated();
+            return site.build_updated(std::cout);
         }
         else if(cmd == "build")
         {

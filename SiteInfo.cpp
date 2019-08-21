@@ -559,7 +559,7 @@ int SiteInfo::build(const std::vector<Name>& pageNamesToBuild)
     {
         if(tracking(*pageName))
         {
-            if(pageBuilder.build(get_info(*pageName)) > 0)
+            if(pageBuilder.build(get_info(*pageName), std::cout) > 0)
                 failedPages.insert(*pageName);
         }
         else
@@ -600,7 +600,7 @@ void build_thread(const std::set<PageInfo>& allPages, const std::set<PageInfo>& 
 
     for(auto pageInfo=pagesToBuild.begin(); pageInfo != pagesToBuild.end(); pageInfo++)
     {
-        if(pageBuilder.build(*pageInfo) > 0)
+        if(pageBuilder.build(*pageInfo, std::cout) > 0)
         {
             mtx.lock();
             failedPages.insert(pageInfo->pageName);
@@ -703,7 +703,173 @@ int SiteInfo::build_all()
     return 0;
 }*/
 
-int SiteInfo::build_updated()
+int SiteInfo::build_updated(std::ostream& os)
+{
+    PageBuilder pageBuilder(pages);
+    std::set<PageInfo> updatedPages;
+    std::set<Path> modifiedFiles,
+        removedFiles,
+        problemPages,
+        builtPages,
+        failedPages;
+
+    os << std::endl;
+    for(auto page=pages.begin(); page != pages.end(); page++)
+    {
+        //checks whether content and template files exist
+        if(!std::ifstream(page->contentPath.str()))
+        {
+            os << page->pagePath << ": content file " << page->contentPath << " does not exist" << std::endl;
+            problemPages.insert(page->pagePath);
+            continue;
+        }
+        if(!std::ifstream(page->templatePath.str()))
+        {
+            os << page->pagePath << ": template file " << page->templatePath << " does not exist" << std::endl;
+            problemPages.insert(page->pagePath);
+            continue;
+        }
+
+        //gets path of pages information from last time page was built
+        Path pageInfoPath = page->pagePath.getInfoPath();
+
+        //checks whether info path exists
+        if(!std::ifstream(pageInfoPath.str()))
+        {
+            os << page->pagePath << ": yet to be built" << std::endl;
+            updatedPages.insert(*page);
+            continue;
+        }
+        else
+        {
+            std::ifstream infoStream(pageInfoPath.str());
+            std::string timeDateLine;
+            Name prevName;
+            Title prevTitle;
+            Path prevTemplatePath;
+
+            getline(infoStream, timeDateLine);
+            read_quoted(infoStream, prevName);
+            prevTitle.read_quoted_from(infoStream);
+            prevTemplatePath.read_file_path_from(infoStream);
+
+            //probably don't even need this
+            PageInfo prevPageInfo = make_info(prevName, prevTitle, prevTemplatePath);
+
+            if(page->pageName != prevPageInfo.pageName)
+            {
+                os << page->pagePath << ": page name changed to " << page->pageName << " from " << prevPageInfo.pageName << std::endl;
+                updatedPages.insert(*page);
+                continue;
+            }
+
+            if(page->pageTitle != prevPageInfo.pageTitle)
+            {
+                os << page->pagePath << ": title changed to " << page->pageTitle << " from " << prevPageInfo.pageTitle << std::endl;
+                updatedPages.insert(*page);
+                continue;
+            }
+
+            if(page->templatePath != prevPageInfo.templatePath)
+            {
+                os << page->pagePath << ": template path changed to " << page->templatePath << " from " << prevPageInfo.templatePath << std::endl;
+                updatedPages.insert(*page);
+                continue;
+            }
+
+            Path dep;
+            while(dep.read_file_path_from(infoStream))
+            {
+                if(!std::ifstream(dep.str()))
+                {
+                    os << page->pagePath << ": dep path " << dep << " removed since last build" << std::endl;
+                    removedFiles.insert(dep);
+                    updatedPages.insert(*page);
+                    break;
+                }
+                else if(dep.modified_after(pageInfoPath))
+                {
+                    os << page->pagePath << ": dep path " << dep << " modified since last build" << std::endl;
+                    modifiedFiles.insert(dep);
+                    updatedPages.insert(*page);
+                    break;
+                }
+            }
+        }
+    }
+
+    if(removedFiles.size() > 0)
+    {
+        os << std::endl;
+        os << "---- removed content files ----" << std::endl;
+        for(auto rFile=removedFiles.begin(); rFile != removedFiles.end(); rFile++)
+            os << " " << *rFile << std::endl;
+        os << "-------------------------------" << std::endl;
+    }
+
+    if(modifiedFiles.size() > 0)
+    {
+        os << std::endl;
+        os << "------- updated content files ------" << std::endl;
+        for(auto uFile=modifiedFiles.begin(); uFile != modifiedFiles.end(); uFile++)
+            os << " " << *uFile << std::endl;
+        os << "------------------------------------" << std::endl;
+    }
+
+    if(updatedPages.size() > 0)
+    {
+        os << std::endl;
+        os << "----- pages that need building -----" << std::endl;
+        for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
+            os << " " << uPage->pagePath << std::endl;
+        os << "------------------------------------" << std::endl;
+    }
+
+    if(problemPages.size() > 0)
+    {
+        os << std::endl;
+        os << "----- pages with missing content or template file -----" << std::endl;
+        for(auto pPage=problemPages.begin(); pPage != problemPages.end(); pPage++)
+            os << " " << *pPage << std::endl;
+        os << "-------------------------------------------------------" << std::endl;
+    }
+
+    for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
+    {
+        if(pageBuilder.build(*uPage, os) > 0)
+            failedPages.insert(uPage->pagePath);
+        else
+            builtPages.insert(uPage->pagePath);
+    }
+
+    if(builtPages.size() > 0)
+    {
+        os << std::endl;
+        os << "----- pages successfully built -----" << std::endl;
+        for(auto bPage=builtPages.begin(); bPage != builtPages.end(); bPage++)
+            os << " " << *bPage << std::endl;
+        os << "------------------------------------" << std::endl;
+    }
+
+    if(failedPages.size() > 0)
+    {
+        os << std::endl;
+        os << "----- pages that failed to build -----" << std::endl;
+        for(auto pPage=failedPages.begin(); pPage != failedPages.end(); pPage++)
+            os << " " << *pPage << std::endl;
+        os << "--------------------------------------" << std::endl;
+    }
+
+    if(updatedPages.size() == 0 && problemPages.size() == 0 && failedPages.size() == 0)
+    {
+        //os << std::endl;
+        os << "all pages are already up to date" << std::endl;
+    }
+
+    return 0;
+}
+
+/*int SiteInfo::build_updated_old()
 {
     PageBuilder pageBuilder(pages);
     std::set<PageInfo> updatedPages;
@@ -836,7 +1002,7 @@ int SiteInfo::build_updated()
 
     for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
     {
-        if(pageBuilder.build(*uPage) > 0)
+        if(pageBuilder.build(*uPage, std::cout) > 0)
             failedPages.insert(uPage->pagePath);
         else
             builtPages.insert(uPage->pagePath);
@@ -867,113 +1033,7 @@ int SiteInfo::build_updated()
     }
 
     return 0;
-}
-
-int SiteInfo::build_updated_serve()
-{
-    PageBuilder pageBuilder(pages);
-    std::set<PageInfo> updatedPages;
-    std::set<Path> modifiedFiles,
-        removedFiles,
-        problemPages,
-        builtPages,
-        failedPages;
-
-    //std::cout << std::endl;
-    for(auto page=pages.begin(); page != pages.end(); page++)
-    {
-        //checks whether content and template files exist
-        if(!std::ifstream(page->contentPath.str()))
-        {
-            //std::cout << page->pagePath << ": content file " << page->contentPath << " does not exist" << std::endl;
-            problemPages.insert(page->pagePath);
-            continue;
-        }
-        if(!std::ifstream(page->templatePath.str()))
-        {
-            //std::cout << page->pagePath << ": template file " << page->templatePath << " does not exist" << std::endl;
-            problemPages.insert(page->pagePath);
-            continue;
-        }
-
-        //gets path of pages information from last time page was built
-        Path pageInfoPath = page->pagePath.getInfoPath();
-
-        //checks whether info path exists
-        if(!std::ifstream(pageInfoPath.str()))
-        {
-            //std::cout << page->pagePath << ": yet to be built" << std::endl;
-            updatedPages.insert(*page);
-            continue;
-        }
-        else
-        {
-            std::ifstream infoStream(pageInfoPath.str());
-            std::string timeDateLine;
-            Name prevName;
-            Title prevTitle;
-            Path prevTemplatePath;
-
-            getline(infoStream, timeDateLine);
-            read_quoted(infoStream, prevName);
-            prevTitle.read_quoted_from(infoStream);
-            prevTemplatePath.read_file_path_from(infoStream);
-
-            //probably don't even need this
-            PageInfo prevPageInfo = make_info(prevName, prevTitle, prevTemplatePath);
-
-            if(page->pageName != prevPageInfo.pageName)
-            {
-                //std::cout << page->pagePath << ": page name changed to " << page->pageName << " from " << prevPageInfo.pageName << std::endl;
-                updatedPages.insert(*page);
-                continue;
-            }
-
-            if(page->pageTitle != prevPageInfo.pageTitle)
-            {
-                //std::cout << page->pagePath << ": title changed to " << page->pageTitle << " from " << prevPageInfo.pageTitle << std::endl;
-                updatedPages.insert(*page);
-                continue;
-            }
-
-            if(page->templatePath != prevPageInfo.templatePath)
-            {
-                //std::cout << page->pagePath << ": template path changed to " << page->templatePath << " from " << prevPageInfo.templatePath << std::endl;
-                updatedPages.insert(*page);
-                continue;
-            }
-
-            Path dep;
-            while(dep.read_file_path_from(infoStream))
-            {
-                if(!std::ifstream(dep.str()))
-                {
-                    //std::cout << page->pagePath << ": dep path " << dep << " removed since last build" << std::endl;
-                    removedFiles.insert(dep);
-                    updatedPages.insert(*page);
-                    break;
-                }
-                else if(dep.modified_after(pageInfoPath))
-                {
-                    //std::cout << page->pagePath << ": dep path " << dep << " modified since last build" << std::endl;
-                    modifiedFiles.insert(dep);
-                    updatedPages.insert(*page);
-                    break;
-                }
-            }
-        }
-    }
-
-    for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
-    {
-        if(pageBuilder.build(*uPage) > 0)
-            failedPages.insert(uPage->pagePath);
-        else
-            builtPages.insert(uPage->pagePath);
-    }
-
-    return 0;
-}
+}*/
 
 int SiteInfo::status()
 {
