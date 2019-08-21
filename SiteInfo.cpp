@@ -869,6 +869,111 @@ int SiteInfo::build_updated()
     return 0;
 }
 
+int SiteInfo::build_updated_serve()
+{
+    PageBuilder pageBuilder(pages);
+    std::set<PageInfo> updatedPages;
+    std::set<Path> modifiedFiles,
+        removedFiles,
+        problemPages,
+        builtPages,
+        failedPages;
+
+    //std::cout << std::endl;
+    for(auto page=pages.begin(); page != pages.end(); page++)
+    {
+        //checks whether content and template files exist
+        if(!std::ifstream(page->contentPath.str()))
+        {
+            //std::cout << page->pagePath << ": content file " << page->contentPath << " does not exist" << std::endl;
+            problemPages.insert(page->pagePath);
+            continue;
+        }
+        if(!std::ifstream(page->templatePath.str()))
+        {
+            //std::cout << page->pagePath << ": template file " << page->templatePath << " does not exist" << std::endl;
+            problemPages.insert(page->pagePath);
+            continue;
+        }
+
+        //gets path of pages information from last time page was built
+        Path pageInfoPath = page->pagePath.getInfoPath();
+
+        //checks whether info path exists
+        if(!std::ifstream(pageInfoPath.str()))
+        {
+            //std::cout << page->pagePath << ": yet to be built" << std::endl;
+            updatedPages.insert(*page);
+            continue;
+        }
+        else
+        {
+            std::ifstream infoStream(pageInfoPath.str());
+            std::string timeDateLine;
+            Name prevName;
+            Title prevTitle;
+            Path prevTemplatePath;
+
+            getline(infoStream, timeDateLine);
+            read_quoted(infoStream, prevName);
+            prevTitle.read_quoted_from(infoStream);
+            prevTemplatePath.read_file_path_from(infoStream);
+
+            //probably don't even need this
+            PageInfo prevPageInfo = make_info(prevName, prevTitle, prevTemplatePath);
+
+            if(page->pageName != prevPageInfo.pageName)
+            {
+                //std::cout << page->pagePath << ": page name changed to " << page->pageName << " from " << prevPageInfo.pageName << std::endl;
+                updatedPages.insert(*page);
+                continue;
+            }
+
+            if(page->pageTitle != prevPageInfo.pageTitle)
+            {
+                //std::cout << page->pagePath << ": title changed to " << page->pageTitle << " from " << prevPageInfo.pageTitle << std::endl;
+                updatedPages.insert(*page);
+                continue;
+            }
+
+            if(page->templatePath != prevPageInfo.templatePath)
+            {
+                //std::cout << page->pagePath << ": template path changed to " << page->templatePath << " from " << prevPageInfo.templatePath << std::endl;
+                updatedPages.insert(*page);
+                continue;
+            }
+
+            Path dep;
+            while(dep.read_file_path_from(infoStream))
+            {
+                if(!std::ifstream(dep.str()))
+                {
+                    //std::cout << page->pagePath << ": dep path " << dep << " removed since last build" << std::endl;
+                    removedFiles.insert(dep);
+                    updatedPages.insert(*page);
+                    break;
+                }
+                else if(dep.modified_after(pageInfoPath))
+                {
+                    //std::cout << page->pagePath << ": dep path " << dep << " modified since last build" << std::endl;
+                    modifiedFiles.insert(dep);
+                    updatedPages.insert(*page);
+                    break;
+                }
+            }
+        }
+    }
+
+    for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
+    {
+        if(pageBuilder.build(*uPage) > 0)
+            failedPages.insert(uPage->pagePath);
+        else
+            builtPages.insert(uPage->pagePath);
+    }
+
+    return 0;
+}
 
 int SiteInfo::status()
 {

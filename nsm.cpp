@@ -1,5 +1,5 @@
 /*
-    nsm (nifty site manager) is a cross-platform open source
+    Nift (aka nsm) is a cross-platform open source
     git-like and LaTeX-like command-line site manager.
 
     site: https://nift.cc
@@ -148,6 +148,38 @@ std::set<std::string> get_git_branches()
     return branches;
 }
 
+std::atomic<bool> serving;
+
+int read_serve_commands()
+{
+    std::string cmd;
+
+    while(cmd != "exit")
+    {
+        std::cout << "command: ";
+
+        std::cin >> cmd;
+
+        if(cmd != "exit")
+            std::cout << "unrecognised command, 'exit' to stop Nift serving" << std::endl;
+    }
+
+    serving = 0;
+
+    return 0;
+}
+
+int serve(SiteInfo site)
+{
+    while(serving)
+    {
+        site.build_updated_serve();
+        usleep(500000);
+    }
+
+    return 0;
+}
+
 void unrecognisedCommand(const std::string from, const std::string cmd)
 {
     std::cout << "error: " << from << " does not recognise the command '" << cmd << "'" << std::endl;
@@ -208,12 +240,13 @@ int main(int argc, char* argv[])
         std::cout << "| " << exe << " info-names     | lists tracked page names                        |" << std::endl;
         std::cout << "| " << exe << " track          | input: page-name (page-title) (template-path)   |" << std::endl;
         std::cout << "| " << exe << " untrack        | input: page-name                                |" << std::endl;
-        std::cout << "| " << exe << " rm or nsm del  | input: page-name                                |" << std::endl;
-        std::cout << "| " << exe << " mv or nsm move | input: old-name new-name                        |" << std::endl;
-        std::cout << "| " << exe << " cp or nsm copy | input: tracked-name new-name                    |" << std::endl;
+        std::cout << "| " << exe << " rm or del      | input: page-name                                |" << std::endl;
+        std::cout << "| " << exe << " mv or move     | input: old-name new-name                        |" << std::endl;
+        std::cout << "| " << exe << " cp or copy     | input: tracked-name new-name                    |" << std::endl;
         std::cout << "| " << exe << " build          | input: page-name-1 .. page-name-k               |" << std::endl;
         std::cout << "| " << exe << " build-updated  | builds updated pages                            |" << std::endl;
         std::cout << "| " << exe << " build-all      | builds all tracked pages                        |" << std::endl;
+        std::cout << "| " << exe << " serve          | serves website locally                          |" << std::endl;
         std::cout << "| " << exe << " bcp            | input: commit-message                           |" << std::endl;
         std::cout << "| " << exe << " new-title      | input: page-name new-title                      |" << std::endl;
         std::cout << "| " << exe << " new-template   | input: page-name template-path                  |" << std::endl;
@@ -555,7 +588,8 @@ int main(int argc, char* argv[])
            cmd != "new-template" &&
            cmd != "build-updated" &&
            cmd != "build" &&
-           cmd != "build-all")
+           cmd != "build-all" &&
+           cmd != "serve")
         {
             unrecognisedCommand("nsm", cmd);
             return 1;
@@ -860,6 +894,28 @@ int main(int argc, char* argv[])
                 return parError(noParams, argv, "1");
 
             return site.build_all();
+        }
+        else if(cmd == "serve")
+        {
+            //ensures correct number of parameters given
+            if(noParams > 2)
+                return parError(noParams, argv, "1 or 2");
+
+            if(noParams == 2 && std::string(argv[2]) != "-s")
+            {
+                std::cout << "error: Nift does not recognise command serve " << argv[2] << std::endl;
+                return 1;
+            }
+
+            serving = 1;
+
+            std::thread serve_thread(serve, site);
+            if(noParams == 1)
+            {
+                std::thread read_serve_commands_thread(read_serve_commands);
+                read_serve_commands_thread.join();
+            }
+            serve_thread.join();
         }
         else
         {

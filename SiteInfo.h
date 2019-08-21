@@ -41,6 +41,7 @@ struct SiteInfo
     int build(const std::vector<Name>& pageNamesToBuild);
     int build_all();
     int build_updated();
+    int build_updated_serve();
 
     int status();
 };
