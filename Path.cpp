@@ -99,7 +99,9 @@ bool Path::ensurePathExists() const
     }
 
     if(file.length())
-        creat(str().c_str(), O_CREAT);
+    {
+        close(creat(str().c_str(), O_CREAT));
+    }
 
     return 0;
 }

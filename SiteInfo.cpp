@@ -86,6 +86,8 @@ int SiteInfo::open()
         pages.insert(inPage);
     }
 
+    ifs.close();
+
     return 0;
 }
 
@@ -100,6 +102,8 @@ int SiteInfo::save()
         ofs << page->templatePath << std::endl;
         ofs << std::endl;
     }
+
+    ofs.close();
 
     return 0;
 }
@@ -795,6 +799,8 @@ int SiteInfo::build_updated(std::ostream& os)
                     break;
                 }
             }
+
+			infoStream.close();
         }
     }
 
@@ -961,6 +967,8 @@ int SiteInfo::build_updated(std::ostream& os)
                     break;
                 }
             }
+
+			infoStream.close();
         }
     }
 
@@ -1122,6 +1130,8 @@ int SiteInfo::status()
                     needsUpdating = 1;
                 }
             }
+
+			infoStream.close();
         }
 
         if(needsUpdating && problemPages.count(*page) == 0)

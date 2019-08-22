@@ -60,7 +60,7 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
 
     //writes processed page to page file
     std::ofstream pageStream(pageToBuild.pagePath.str());
-    pageStream << processedPage.str();
+    pageStream << processedPage.str() << std::endl;
     pageStream.close();
 
     //makes sure user can't accidentally write to page file
