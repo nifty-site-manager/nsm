@@ -171,12 +171,15 @@ int read_serve_commands()
     return 0;
 }
 
-int serve(SiteInfo site)
+int serve()
 {
     std::ofstream ofs;
 
     while(serving)
     {
+        SiteInfo site;
+        trash = site.open();
+
         ofs.open(".serve-build-log.txt");
 
         site.build_updated(ofs);
@@ -920,7 +923,7 @@ int main(int argc, char* argv[])
 
             serving = 1;
 
-            std::thread serve_thread(serve, site);
+            std::thread serve_thread(serve);
             if(noParams == 1)
             {
                 std::thread read_serve_commands_thread(read_serve_commands);
