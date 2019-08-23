@@ -228,7 +228,13 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if(cmd == "commands")
+    if(cmd == "version" || cmd == "-version" || cmd == "--version")
+    {
+        std::cout << "Nift (aka nsm) v1.7" << std::endl;
+
+        return 0;
+    }
+    else if(cmd == "commands")
     {
         std::string str = "";
         std::string exe = "";
