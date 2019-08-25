@@ -595,25 +595,96 @@ int SiteInfo::build(const std::vector<Name>& pageNamesToBuild)
     return 0;
 }
 
-std::mutex mtx;
-std::set<Name> failedPages;
+std::mutex fail_mtx, built_mtx;
+std::set<Name> failedPages, builtPages;
 
-void build_thread(const std::set<PageInfo>& allPages, const std::set<PageInfo>& pagesToBuild)
+void build_thread(std::ostream& os, const std::set<PageInfo>& allPages, const std::set<PageInfo>& pagesToBuild)
 {
     PageBuilder pageBuilder(allPages);
 
     for(auto pageInfo=pagesToBuild.begin(); pageInfo != pagesToBuild.end(); pageInfo++)
     {
-        if(pageBuilder.build(*pageInfo, std::cout) > 0)
+        if(pageBuilder.build(*pageInfo, os) > 0)
         {
-            mtx.lock();
+            fail_mtx.lock();
             failedPages.insert(pageInfo->pageName);
-            mtx.unlock();
+            fail_mtx.unlock();
         }
+		else
+		{
+			built_mtx.lock();
+			builtPages.insert(pageInfo->pageName);
+			built_mtx.unlock();
+		}
     }
 }
 
 int SiteInfo::build_all()
+{
+    int no_threads = std::thread::hardware_concurrency();
+
+    std::set<Name> untrackedPages;
+    std::vector<std::set<PageInfo> > pages_vec(no_threads, std::set<PageInfo>());
+    std::vector<int> ns;
+
+    int s = pages.size();
+
+    ns.push_back(pages.size()/no_threads);
+    for(int i=2; i<no_threads; i++)
+        ns.push_back(i*ns[0]);
+    ns.push_back(s);
+
+    int i = 0;
+    for(auto page=pages.begin(); i < s; ++page, ++i)
+    {
+        if(!tracking(page->pageName))
+            untrackedPages.insert(page->pageName);
+        else
+        {
+            for(int j=0; j<no_threads; j++)
+            {
+                if(i < ns[j])
+                {
+                    pages_vec[j].insert(*page);
+					break;
+                }
+            }
+        }
+    }
+
+	std::vector<std::thread> threads;
+	for(int i=0; i<no_threads; i++)
+		threads.push_back(std::thread(build_thread, std::ref(std::cout), pages, pages_vec[i]));
+
+	for(int i=0; i<no_threads; i++)
+		threads[i].join();
+
+    if(failedPages.size() > 0)
+    {
+        std::cout << std::endl;
+        std::cout << "---- following pages failed to build ----" << std::endl;
+        for(auto fName=failedPages.begin(); fName != failedPages.end(); fName++)
+            std::cout << " " << *fName << std::endl;
+        std::cout << "-----------------------------------------" << std::endl;
+    }
+    if(untrackedPages.size() > 0)
+    {
+        std::cout << std::endl;
+        std::cout << "---- nsm not tracking following pages ----" << std::endl;
+        for(auto uName=untrackedPages.begin(); uName != untrackedPages.end(); uName++)
+            std::cout << " " << *uName << std::endl;
+        std::cout << "------------------------------------------" << std::endl;
+    }
+    if(failedPages.size() == 0 && untrackedPages.size() == 0)
+    {
+        std::cout << std::endl;
+        std::cout << "all " << pages.size() << " pages built successfully" << std::endl;
+    }
+
+    return 0;
+}
+
+/*int SiteInfo::build_all_old()
 {
     std::set<Name> untrackedPages;
     std::set<PageInfo> pages1, pages2, pages3, pages4;
@@ -671,9 +742,9 @@ int SiteInfo::build_all()
     }
 
     return 0;
-}
+}*/
 
-/*int SiteInfo::build_all_old()
+/*int SiteInfo::build_all_oldest()
 {
     PageBuilder pageBuilder(pages);
 
@@ -713,9 +784,7 @@ int SiteInfo::build_updated(std::ostream& os)
     std::set<PageInfo> updatedPages;
     std::set<Path> modifiedFiles,
         removedFiles,
-        problemPages,
-        builtPages,
-        failedPages;
+        problemPages;
 
     os << std::endl;
     for(auto page=pages.begin(); page != pages.end(); page++)
@@ -840,30 +909,54 @@ int SiteInfo::build_updated(std::ostream& os)
         os << "-------------------------------------------------------" << std::endl;
     }
 
-    for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
+    int no_threads = std::thread::hardware_concurrency();
+
+    std::vector<std::set<PageInfo> > pages_vec(no_threads, std::set<PageInfo>());
+    std::vector<int> ns;
+
+    int s = updatedPages.size();
+
+    ns.push_back(updatedPages.size()/no_threads);
+    for(int i=2; i<no_threads; i++)
+        ns.push_back(i*ns[0]);
+    ns.push_back(s);
+
+    int i = 0;
+    for(auto page=updatedPages.begin(); i < s; ++page, ++i)
     {
-        if(pageBuilder.build(*uPage, os) > 0)
-            failedPages.insert(uPage->pagePath);
-        else
-            builtPages.insert(uPage->pagePath);
+        for(int j=0; j<no_threads; j++)
+        {
+            if(i < ns[j])
+            {
+                pages_vec[j].insert(*page);
+				break;
+            }
+        }
     }
+
+	std::vector<std::thread> threads;
+	for(int i=0; i<no_threads; i++)
+		threads.push_back(std::thread(build_thread, std::ref(os), pages, pages_vec[i]));
+
+	for(int i=0; i<no_threads; i++)
+		threads[i].join();
 
     if(builtPages.size() > 0)
     {
         os << std::endl;
-        os << "----- pages successfully built -----" << std::endl;
-        for(auto bPage=builtPages.begin(); bPage != builtPages.end(); bPage++)
-            os << " " << *bPage << std::endl;
-        os << "------------------------------------" << std::endl;
+        os << "---- pages successfully built ----" << std::endl;
+        for(auto bName=builtPages.begin(); bName != builtPages.end(); bName++)
+            os << " " << *bName << std::endl;
+        os << "-----------------------------------------" << std::endl;
     }
 
     if(failedPages.size() > 0)
     {
         os << std::endl;
-        os << "----- pages that failed to build -----" << std::endl;
-        for(auto pPage=failedPages.begin(); pPage != failedPages.end(); pPage++)
-            os << " " << *pPage << std::endl;
-        os << "--------------------------------------" << std::endl;
+        os << "---- following pages failed to build ----" << std::endl;
+        for(auto fName=failedPages.begin(); fName != failedPages.end(); fName++)
+            os << " " << *fName << std::endl;
+        os << "-----------------------------------------" << std::endl;
     }
 
     if(updatedPages.size() == 0 && problemPages.size() == 0 && failedPages.size() == 0)
@@ -871,6 +964,9 @@ int SiteInfo::build_updated(std::ostream& os)
         //os << std::endl;
         os << "all pages are already up to date" << std::endl;
     }
+
+	builtPages.clear();
+	failedPages.clear();
 
     return 0;
 }
