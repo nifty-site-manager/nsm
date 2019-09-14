@@ -11,7 +11,7 @@ nsm: $(objects)
 	$(CC) $(CXXFLAGS) $(cppfiles) -o nsm $(LINK)
 	$(CC) $(CXXFLAGS) $(cppfiles) -o nift $(LINK)
 
-nsm.o: nsm.cpp SiteInfo.o
+nsm.o: nsm.cpp SiteInfo.o Timer.h
 	$(CC) $(CXXFLAGS) -c -o $@ $< $(LINK)
 
 SiteInfo.o: SiteInfo.cpp SiteInfo.h PageBuilder.o

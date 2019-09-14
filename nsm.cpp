@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 
 #include "SiteInfo.h"
+#include "Timer.h"
 
 std::atomic<int> trash;
 
@@ -230,7 +231,7 @@ int main(int argc, char* argv[])
 
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.8" << std::endl;
+        std::cout << "Nift (aka nsm) v1.9" << std::endl;
 
         return 0;
     }
@@ -316,7 +317,6 @@ int main(int argc, char* argv[])
 
         //checks that directory is empty
         std::string str = ls("./");
-        std::cout << "wtf '" << str << "'" << std::endl;
         if(str != ".. . " &&
            str != ". .. " &&
            str != ".git .. . " &&
@@ -879,7 +879,16 @@ int main(int argc, char* argv[])
             if(noParams > 1)
                 return parError(noParams, argv, "1");
 
-            return site.build_updated(std::cout);
+            Timer timer;
+
+            timer.start();
+
+            int result = site.build_updated(std::cout);
+
+            std::cout.precision(3);
+            std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
+
+            return result;
         }
         else if(cmd == "build")
         {
@@ -887,12 +896,22 @@ int main(int argc, char* argv[])
             if(noParams <= 1)
                 return parError(noParams, argv, ">1");
 
+            Timer timer;
+
+            timer.start();
+
             std::vector<Name> pageNamesToBuild;
             for(int p=2; p<argc; p++)
             {
                 pageNamesToBuild.push_back(argv[p]);
             }
-            return site.build(pageNamesToBuild);
+
+            int result = site.build(pageNamesToBuild);
+
+            std::cout.precision(3);
+            std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
+
+            return result;
         }
         else if(cmd == "build-all")
         {
@@ -900,7 +919,16 @@ int main(int argc, char* argv[])
             if(noParams != 1)
                 return parError(noParams, argv, "1");
 
-            return site.build_all();
+            Timer timer;
+
+            timer.start();
+
+            int result = site.build_all();
+
+            std::cout.precision(3);
+            std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
+
+            return result;
         }
         else if(cmd == "serve")
         {
