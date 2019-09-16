@@ -334,12 +334,12 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     linePos+=std::string("@systemoutput(").length();
                     std::string sys_call;
 
-                    if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@system()", os) > 0)
+                    if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@systemoutput()", os) > 0)
                         return 1;
 
                     if(system((sys_call + " > @systemoutput").c_str()))
                     {
-                        os << "error: " << readPath << ": line " << lineNo << ": @system(" << sys_call << ") failed" << std::endl;
+                        os << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << sys_call << ") failed" << std::endl;
                         Path("./", "@systemoutput").removePath();
                         return 1;
                     }
@@ -347,7 +347,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //indent amount updated inside read_and_process
                     if(read_and_process(Path("", "@systemoutput"), antiDepsOfReadPath, os) > 0)
                     {
-                        os << "error: " << readPath << ": line " << lineNo << ": failed to process system call '" << sys_call << "'" << std::endl;
+                        os << "error: " << readPath << ": line " << lineNo << ": failed to process output of system call '" << sys_call << "'" << std::endl;
                         Path("./", "@systemoutput").removePath();
                         return 1;
                     }
