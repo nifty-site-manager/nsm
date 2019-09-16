@@ -231,7 +231,7 @@ int main(int argc, char* argv[])
 
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.9" << std::endl;
+        std::cout << "Nift (aka nsm) v1.10" << std::endl;
 
         return 0;
     }
@@ -284,11 +284,11 @@ int main(int argc, char* argv[])
             pwd = get_pwd(),
             prevPwd;
 
-        #ifdef _WIN32
+        #if defined _WIN32 || defined _WIN64
             rootDir = "C:\\";
         #else  //unix
             rootDir = "/";
-        #endif // _WIN32
+        #endif
 
         if(std::ifstream(".siteinfo/pages.list") || std::ifstream(".siteinfo/nsm.config"))
         {
@@ -337,9 +337,9 @@ int main(int argc, char* argv[])
         //adds read and write permissions to pages list file
         chmod(pagesListPath.str().c_str(), 0666);
 
-        #ifdef _WIN32
+        #if defined _WIN32 || defined _WIN64
             trash = system("attrib +h .siteinfo");
-        #endif // _WIN32
+        #endif
 
         std::ofstream ofs(".siteinfo/nsm.config");
         ofs << "contentDir content/" << std::endl;
@@ -539,13 +539,7 @@ int main(int argc, char* argv[])
                 Path("./", "nul").removePath();
 
             /*this is an alternative to the above paragraph
-            #ifdef _WIN32 //note might be using cmd-prompt/git-bash/cygwin
-                cloneCmnd += " > /dev/null 2>&1 >nul 2>&1";
-                rename(dirName.c_str(), ".abcd143d");
-                trash = system(cloneCmnd.c_str());
-                if(std::ifstream("./nul"))
-                    Path("./", "nul").removePath();
-            #elif _WIN64 //note might be using cmd-prompt/git-bash/cygwin
+            #if defined _WIN32 || defined _WIN64 //note might be using cmd-prompt/git-bash/cygwin
                 cloneCmnd += " > /dev/null 2>&1 >nul 2>&1";
                 rename(dirName.c_str(), ".abcd143d");
                 trash = system(cloneCmnd.c_str());
@@ -883,9 +877,41 @@ int main(int argc, char* argv[])
 
             timer.start();
 
+            //checks for pre-build scripts
+            std::string prebuildPath;
+            #if defined _WIN32 || defined _WIN64
+                prebuildPath = "pre-build.bat";
+            #else  //unix
+                prebuildPath = "./pre-build.sh";
+            #endif
+            if(std::ifstream(prebuildPath))
+            {
+                if(system(prebuildPath.c_str()))
+                {
+                    std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
+                    return 1;
+                }
+            }
+
             int result = site.build_updated(std::cout);
 
-            std::cout.precision(3);
+            //checks for post-build scripts
+            std::string postbuildPath;
+            #if defined _WIN32 || defined _WIN64
+                postbuildPath = "post-build.bat";
+            #else  //unix
+                postbuildPath = "./post-build.sh";
+            #endif
+            if(std::ifstream(postbuildPath))
+            {
+                if(system(postbuildPath.c_str()))
+                {
+                    std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
+                    return 1;
+                }
+            }
+
+            std::cout.precision(4);
             std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
 
             return result;
@@ -900,6 +926,22 @@ int main(int argc, char* argv[])
 
             timer.start();
 
+            //checks for pre-build scripts
+            std::string prebuildPath;
+            #if defined _WIN32 || defined _WIN64
+                prebuildPath = "pre-build.bat";
+            #else  //unix
+                prebuildPath = "./pre-build.sh";
+            #endif
+            if(std::ifstream(prebuildPath))
+            {
+                if(system(prebuildPath.c_str()))
+                {
+                    std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
+                    return 1;
+                }
+            }
+
             std::vector<Name> pageNamesToBuild;
             for(int p=2; p<argc; p++)
             {
@@ -908,7 +950,23 @@ int main(int argc, char* argv[])
 
             int result = site.build(pageNamesToBuild);
 
-            std::cout.precision(3);
+            //checks for post-build scripts
+            std::string postbuildPath;
+            #if defined _WIN32 || defined _WIN64
+                postbuildPath = "post-build.bat";
+            #else  //unix
+                postbuildPath = "./post-build.sh";
+            #endif
+            if(std::ifstream(postbuildPath))
+            {
+                if(system(postbuildPath.c_str()))
+                {
+                    std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
+                    return 1;
+                }
+            }
+
+            std::cout.precision(4);
             std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
 
             return result;
@@ -923,9 +981,41 @@ int main(int argc, char* argv[])
 
             timer.start();
 
+            //checks for pre-build scripts
+            std::string prebuildPath;
+            #if defined _WIN32 || defined _WIN64
+                prebuildPath = "pre-build.bat";
+            #else  //unix
+                prebuildPath = "./pre-build.sh";
+            #endif
+            if(std::ifstream(prebuildPath))
+            {
+                if(system(prebuildPath.c_str()))
+                {
+                    std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
+                    return 1;
+                }
+            }
+
             int result = site.build_all();
 
-            std::cout.precision(3);
+            //checks for post-build scripts
+            std::string postbuildPath;
+            #if defined _WIN32 || defined _WIN64
+                postbuildPath = "post-build.bat";
+            #else  //unix
+                postbuildPath = "./post-build.sh";
+            #endif
+            if(std::ifstream(postbuildPath))
+            {
+                if(system(postbuildPath.c_str()))
+                {
+                    std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
+                    return 1;
+                }
+            }
+
+            std::cout.precision(4);
             std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
 
             return result;
@@ -942,6 +1032,22 @@ int main(int argc, char* argv[])
                 return 1;
             }
 
+            //checks for pre-serve scripts
+            std::string preservePath;
+            #if defined _WIN32 || defined _WIN64
+                preservePath = "pre-serve.bat";
+            #else  //unix
+                preservePath = "./pre-serve.sh";
+            #endif
+            if(std::ifstream(preservePath))
+            {
+                if(system(preservePath.c_str()))
+                {
+                    std::cout << "error: pre serve script" << preservePath << " failed" << std::endl;
+                    return 1;
+                }
+            }
+
             serving = 1;
 
             std::thread serve_thread(serve);
@@ -951,6 +1057,22 @@ int main(int argc, char* argv[])
                 read_serve_commands_thread.join();
             }
             serve_thread.join();
+
+            //checks for post-serve scripts
+            std::string postservePath;
+            #if defined _WIN32 || defined _WIN64
+                postservePath = "post-serve.bat";
+            #else  //unix
+                postservePath = "./post-serve.sh";
+            #endif
+            if(std::ifstream(postservePath))
+            {
+                if(system(postservePath.c_str()))
+                {
+                    std::cout << "error: post serve script" << postservePath << " failed" << std::endl;
+                    return 1;
+                }
+            }
         }
         else
         {

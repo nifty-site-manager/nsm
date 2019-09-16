@@ -6,32 +6,7 @@
 /*
     Timer struct
 */
-#ifdef _WIN32 //Windows timer
-    #include <io.h>
-    #include <windows.h>
-
-    struct Timer
-    {
-        clock_t startTime, currentTime;
-
-        Timer()
-        {
-
-        };
-
-        void start()
-        {
-            startTime = clock();
-        };
-
-        double getTime()
-        {
-            currentTime = clock();
-
-            return (double)(currentTime - startTime)/1000.0;
-        };
-    };
-#elif _WIN64
+#if defined _WIN32 || defined _WIN64 //Windows timer
     #include <io.h>
     #include <windows.h>
 

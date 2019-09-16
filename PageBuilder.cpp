@@ -23,6 +23,22 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
         return 1;
     }
 
+    //checks for pre-build scripts
+    Path prebuildPath = pageToBuild.contentPath;
+    #if defined _WIN32 || defined _WIN64 //windows
+        prebuildPath.file = prebuildPath.file.substr(0, prebuildPath.file.find_last_of('.')) + ".pre-build.bat";
+    #else //unix
+        prebuildPath.file = prebuildPath.file.substr(0, prebuildPath.file.find_last_of('.')) + ".pre-build.sh";
+    #endif
+    if(std::ifstream(prebuildPath.str()))
+    {
+        if(system(prebuildPath.str().c_str()))
+        {
+            std::cout << "error: pre build script " << prebuildPath.str() << " failed" << std::endl;
+            return 1;
+        }
+    }
+
     //os << "building page " << pageToBuild.pagePath << std::endl;
 
     //makes sure variables are at default values
@@ -87,6 +103,22 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
     chmod(pageInfoPath.str().c_str(), 0444);
 
     //os << "page build successful" << std::endl;
+
+    //checks for post-build scripts
+    Path postbuildPath = pageToBuild.contentPath;
+    #if defined _WIN32 || defined _WIN64 //windows
+        postbuildPath.file = postbuildPath.file.substr(0, postbuildPath.file.find_last_of('.')) + ".post-build.bat";
+    #else //unix
+        postbuildPath.file = postbuildPath.file.substr(0, postbuildPath.file.find_last_of('.')) + ".post-build.sh";
+    #endif
+    if(std::ifstream(postbuildPath.str()))
+    {
+        if(system(postbuildPath.str().c_str()))
+        {
+            std::cout << "error: post build script " << postbuildPath.str() << " failed" << std::endl;
+            return 1;
+        }
+    }
 
     return 0;
 }
@@ -282,6 +314,45 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     if(read_and_process(inputPath, antiDepsOfReadPath, os) > 0)
                         return 1;
                     //indent amount updated inside read_and_process
+                }
+                else if(inLine.substr(linePos, 8) == "@system(")
+                {
+                    linePos+=std::string("@system(").length();
+                    std::string sys_call;
+
+                    if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@system()", os) > 0)
+                        return 1;
+
+                    if(system(sys_call.c_str()))
+                    {
+                        os << "error: " << readPath << ": line " << lineNo << ": @system(" << sys_call << ") failed" << std::endl;
+                        return 1;
+                    }
+                }
+                else if(inLine.substr(linePos, 14) == "@systemoutput(")
+                {
+                    linePos+=std::string("@systemoutput(").length();
+                    std::string sys_call;
+
+                    if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@system()", os) > 0)
+                        return 1;
+
+                    if(system((sys_call + " > @systemoutput").c_str()))
+                    {
+                        os << "error: " << readPath << ": line " << lineNo << ": @system(" << sys_call << ") failed" << std::endl;
+                        Path("./", "@systemoutput").removePath();
+                        return 1;
+                    }
+
+                    //indent amount updated inside read_and_process
+                    if(read_and_process(Path("", "@systemoutput"), antiDepsOfReadPath, os) > 0)
+                    {
+                        os << "error: " << readPath << ": line " << lineNo << ": failed to process system call '" << sys_call << "'" << std::endl;
+                        Path("./", "@systemoutput").removePath();
+                        return 1;
+                    }
+
+                    Path("./", "@systemoutput").removePath();
                 }
                 else if(inLine.substr(linePos, 8) == "@pathto(")
                 {
@@ -731,7 +802,7 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
     //throws error if new line is between the path and close bracket
     if(linePos == inLine.size())
     {
-        os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside  " << callType << " call" << std::endl << std::endl;
+        os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
         return 1;
     }
 
@@ -739,6 +810,112 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
     if(inLine[linePos] != ')')
     {
         os << "error: " << readPath << ": line " << lineNo << ": invalid path inside " << callType << " call" << std::endl << std::endl;
+        return 1;
+    }
+
+    ++linePos;
+
+    return 0;
+}
+
+int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std::string &inLine, const Path &readPath, const int &lineNo, const std::string &callType, std::ostream& os)
+{
+    sys_call = "";
+
+    //skips over leading whitespace
+    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+        ++linePos;
+
+    //throws error if either no closing bracket or a newline
+    if(linePos == inLine.size())
+    {
+        os << "error: " << readPath << ": line " << lineNo << ": system call has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+        return 1;
+    }
+
+    //throws error if no path provided
+    if(inLine[linePos] == ')')
+    {
+        os << "error: " << readPath << ": line " << lineNo << ": no system call provided inside " << callType << " call" << std::endl << std::endl;
+        return 1;
+    }
+
+    //reads the input path
+    if(inLine[linePos] == '\'')
+    {
+        ++linePos;
+        for(; inLine[linePos] != '\''; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os << "error: " << readPath << ": line " << lineNo << ": system call has no closing single quote or newline inside " << callType << " call" << std::endl << std::endl;
+                return 1;
+            }
+            sys_call += inLine[linePos];
+        }
+        ++linePos;
+    }
+    else if(inLine[linePos] == '"')
+    {
+        ++linePos;
+        for(; inLine[linePos] != '"'; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os << "error: " << readPath << ": line " << lineNo << ": system call has no closing double quote \" or newline inside " << callType << " call" << std::endl << std::endl;
+                return 1;
+            }
+            sys_call += inLine[linePos];
+        }
+        ++linePos;
+    }
+    else
+    {
+        for(; inLine[linePos] != ')'; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os << "error: " << readPath << ": line " << lineNo << ": system call has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+                return 1;
+            }
+            else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
+            {
+                for(;linePos < inLine.size(); ++linePos)
+                {
+                    if(inLine[linePos] == ')')
+                    {
+                        ++linePos;
+                        return 0;
+                    }
+                    else if(inLine[linePos] != ' ' && inLine[linePos] != '\t')
+                    {
+                        os << "error: " << readPath << ": line " << lineNo << ": unquoted system call inside " << callType << " call contains whitespace" << std::endl << std::endl;
+                        return 1;
+                    }
+                }
+
+                os << "error: " << readPath << ": line " << lineNo << ": system call has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+                return 1;
+            }
+            sys_call += inLine[linePos];
+        }
+    }
+
+    //skips over hopefully trailing whitespace
+    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+        ++linePos;
+
+    //throws error if new line is between the path and close bracket
+    if(linePos == inLine.size())
+    {
+        os << "error: " << readPath << ": line " << lineNo << ": system call has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+        return 1;
+    }
+
+    //throws error if the path is invalid
+    if(inLine[linePos] != ')')
+    {
+        os << "error: " << readPath << ": line " << lineNo << ": invalid system call inside " << callType << " call" << std::endl << std::endl;
         return 1;
     }
 
