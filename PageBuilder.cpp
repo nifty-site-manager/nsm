@@ -37,13 +37,13 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
         {
             if(system(("flatpak-spawn --host bash -c " + quote(prebuildPath.str())).c_str()))
             {
-                std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
+                std::cout << "error: pre build script" << quote(prebuildPath.str()) << " failed" << std::endl;
                 return 1;
             }
         }
-        else if(system(prebuildPath.str().c_str()))
+        else if(system(quote(prebuildPath.str()).c_str())) //prebuildPath.str() needs to be quoted for page names with spaces
         {
-            std::cout << "error: pre build script " << prebuildPath.str() << " failed" << std::endl;
+            std::cout << "error: pre build script " << quote(prebuildPath.str()) << " failed" << std::endl;
             return 1;
         }
     }
@@ -127,13 +127,13 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
         {
             if(system(("flatpak-spawn --host bash -c " + quote(postbuildPath.str())).c_str()))
             {
-                std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
+                std::cout << "error: post build script" << quote(postbuildPath.str()) << " failed" << std::endl;
                 return 1;
             }
         }
-        else if(system(postbuildPath.str().c_str()))
+        else if(system(quote(postbuildPath.str()).c_str())) //postbuildPath.str() needs to be quoted for page names with spaces
         {
-            std::cout << "error: post build script " << postbuildPath.str() << " failed" << std::endl;
+            std::cout << "error: post build script " << quote(postbuildPath.str()) << " failed" << std::endl;
             return 1;
         }
     }
@@ -343,9 +343,15 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                     //checks whether we're running from flatpak
                     if(std::ifstream("/.flatpak-info"))
-                        sys_call = "flatpak-spawn --host bash -c " + quote(sys_call);
-
-                    if(system(sys_call.c_str()))
+                    {
+                        //might need sys_call unquoted here for cURL to work
+                        if(system(("flatpak-spawn --host bash -c " + quote(sys_call)).c_str()))
+                        {
+                            os << "error: " << readPath << ": line " << lineNo << ": @system(" << quote(sys_call) << ") failed" << std::endl;
+                            return 1;
+                        }
+                    }
+                    else if(system(sys_call.c_str())) //sys_call has to be unquoted for cURL to work
                     {
                         os << "error: " << readPath << ": line " << lineNo << ": @system(" << quote(sys_call) << ") failed" << std::endl;
                         return 1;
@@ -361,9 +367,16 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                     //checks whether we're running from flatpak
                     if(std::ifstream("/.flatpak-info"))
-                        sys_call = "flatpak-spawn --host bash -c " + quote(sys_call);
-
-                    if(system((sys_call + " > @systemoutput").c_str()))
+                    {
+                        //might need sys_call unquoted here for cURL to work
+                        if(system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > @systemoutput").c_str()))
+                        {
+                            os << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
+                            Path("./", "@systemoutput").removePath();
+                            return 1;
+                        }
+                    }
+                    else if(system((sys_call + " > @systemoutput").c_str())) //sys_call has to be unquoted for cURL to work
                     {
                         os << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
                         Path("./", "@systemoutput").removePath();
@@ -859,24 +872,26 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
         return 1;
     }
 
-    //throws error if no path provided
+    //throws error if no system call provided
     if(inLine[linePos] == ')')
     {
         os << "error: " << readPath << ": line " << lineNo << ": no system call provided inside " << callType << " call" << std::endl << std::endl;
         return 1;
     }
 
-    //reads the input path
+    //reads the input system call
     if(inLine[linePos] == '\'')
     {
         ++linePos;
-        for(; inLine[linePos] != '\''; ++linePos)
+        for(;; ++linePos)
         {
             if(linePos == inLine.size())
             {
                 os << "error: " << readPath << ": line " << lineNo << ": system call has no closing single quote or newline inside " << callType << " call" << std::endl << std::endl;
                 return 1;
             }
+            if(inLine[linePos] == '\'' && inLine[linePos-1] != '\\')
+                break;
             sys_call += inLine[linePos];
         }
         ++linePos;
@@ -884,13 +899,15 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
     else if(inLine[linePos] == '"')
     {
         ++linePos;
-        for(; inLine[linePos] != '"'; ++linePos)
+        for(;; ++linePos)
         {
             if(linePos == inLine.size())
             {
                 os << "error: " << readPath << ": line " << lineNo << ": system call has no closing double quote \" or newline inside " << callType << " call" << std::endl << std::endl;
                 return 1;
             }
+            if(inLine[linePos] == '"' && inLine[linePos-1] != '\\')
+                break;
             sys_call += inLine[linePos];
         }
         ++linePos;
@@ -904,41 +921,24 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
                 os << "error: " << readPath << ": line " << lineNo << ": system call has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
                 return 1;
             }
-            else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-            {
-                for(;linePos < inLine.size(); ++linePos)
-                {
-                    if(inLine[linePos] == ')')
-                    {
-                        ++linePos;
-                        return 0;
-                    }
-                    else if(inLine[linePos] != ' ' && inLine[linePos] != '\t')
-                    {
-                        os << "error: " << readPath << ": line " << lineNo << ": unquoted system call inside " << callType << " call contains whitespace" << std::endl << std::endl;
-                        return 1;
-                    }
-                }
-
-                os << "error: " << readPath << ": line " << lineNo << ": system call has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
-                return 1;
-            }
             sys_call += inLine[linePos];
         }
+
+        //could strip trailing whitespace here
     }
 
     //skips over hopefully trailing whitespace
     while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
         ++linePos;
 
-    //throws error if new line is between the path and close bracket
+    //throws error if new line is between the system call and close bracket
     if(linePos == inLine.size())
     {
         os << "error: " << readPath << ": line " << lineNo << ": system call has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
         return 1;
     }
 
-    //throws error if the path is invalid
+    //throws error if the system call is invalid (eg. has text after quoted system call)
     if(inLine[linePos] != ')')
     {
         os << "error: " << readPath << ": line " << lineNo << ": invalid system call inside " << callType << " call" << std::endl << std::endl;
