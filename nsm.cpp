@@ -886,7 +886,16 @@ int main(int argc, char* argv[])
             #endif
             if(std::ifstream(prebuildPath))
             {
-                if(system(prebuildPath.c_str()))
+                //checks whether we're running from flatpak
+                if(std::ifstream("/.flatpak-info"))
+                {
+                    if(system(("flatpak-spawn --host bash -c " + prebuildPath).c_str()))
+                    {
+                        std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
+                        return 1;
+                    }
+                }
+                else if(system(prebuildPath.c_str()))
                 {
                     std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
                     return 1;
@@ -904,7 +913,16 @@ int main(int argc, char* argv[])
             #endif
             if(std::ifstream(postbuildPath))
             {
-                if(system(postbuildPath.c_str()))
+                //checks whether we're running from flatpak
+                if(std::ifstream("/.flatpak-info"))
+                {
+                    if(system(("flatpak-spawn --host bash -c " + postbuildPath).c_str()))
+                    {
+                        std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
+                        return 1;
+                    }
+                }
+                else if(system(postbuildPath.c_str()))
                 {
                     std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
                     return 1;
@@ -935,7 +953,16 @@ int main(int argc, char* argv[])
             #endif
             if(std::ifstream(prebuildPath))
             {
-                if(system(prebuildPath.c_str()))
+                //checks whether we're running from flatpak
+                if(std::ifstream("/.flatpak-info"))
+                {
+                    if(system(("flatpak-spawn --host bash -c " + prebuildPath).c_str()))
+                    {
+                        std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
+                        return 1;
+                    }
+                }
+                else if(system(prebuildPath.c_str()))
                 {
                     std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
                     return 1;
@@ -959,7 +986,16 @@ int main(int argc, char* argv[])
             #endif
             if(std::ifstream(postbuildPath))
             {
-                if(system(postbuildPath.c_str()))
+                //checks whether we're running from flatpak
+                if(std::ifstream("/.flatpak-info"))
+                {
+                    if(system(("flatpak-spawn --host bash -c " + postbuildPath).c_str()))
+                    {
+                        std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
+                        return 1;
+                    }
+                }
+                else if(system(postbuildPath.c_str()))
                 {
                     std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
                     return 1;
@@ -990,7 +1026,16 @@ int main(int argc, char* argv[])
             #endif
             if(std::ifstream(prebuildPath))
             {
-                if(system(prebuildPath.c_str()))
+                //checks whether we're running from flatpak
+                if(std::ifstream("/.flatpak-info"))
+                {
+                    if(system(("flatpak-spawn --host bash -c " + prebuildPath).c_str()))
+                    {
+                        std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
+                        return 1;
+                    }
+                }
+                else if(system(prebuildPath.c_str()))
                 {
                     std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
                     return 1;
@@ -1008,7 +1053,16 @@ int main(int argc, char* argv[])
             #endif
             if(std::ifstream(postbuildPath))
             {
-                if(system(postbuildPath.c_str()))
+                //checks whether we're running from flatpak
+                if(std::ifstream("/.flatpak-info"))
+                {
+                    if(system(("flatpak-spawn --host bash -c " + postbuildPath).c_str()))
+                    {
+                        std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
+                        return 1;
+                    }
+                }
+                else if(system(postbuildPath.c_str()))
                 {
                     std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
                     return 1;
@@ -1041,7 +1095,16 @@ int main(int argc, char* argv[])
             #endif
             if(std::ifstream(preservePath))
             {
-                if(system(preservePath.c_str()))
+                //checks whether we're running from flatpak
+                if(std::ifstream("/.flatpak-info"))
+                {
+                    if(system(("flatpak-spawn --host bash -c " + preservePath).c_str()))
+                    {
+                        std::cout << "error: pre serve script" << preservePath << " failed" << std::endl;
+                        return 1;
+                    }
+                }
+                else if(system(preservePath.c_str()))
                 {
                     std::cout << "error: pre serve script" << preservePath << " failed" << std::endl;
                     return 1;
@@ -1067,7 +1130,16 @@ int main(int argc, char* argv[])
             #endif
             if(std::ifstream(postservePath))
             {
-                if(system(postservePath.c_str()))
+                //checks whether we're running from flatpak
+                if(std::ifstream("/.flatpak-info"))
+                {
+                    if(system(("flatpak-spawn --host bash -c " + postservePath).c_str()))
+                    {
+                        std::cout << "error: post serve script" << postservePath << " failed" << std::endl;
+                        return 1;
+                    }
+                }
+                else if(system(postservePath.c_str()))
                 {
                     std::cout << "error: post serve script" << postservePath << " failed" << std::endl;
                     return 1;

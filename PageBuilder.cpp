@@ -32,7 +32,16 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
     #endif
     if(std::ifstream(prebuildPath.str()))
     {
-        if(system(prebuildPath.str().c_str()))
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+        {
+            if(system(("flatpak-spawn --host bash -c " + quote(prebuildPath.str())).c_str()))
+            {
+                std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
+                return 1;
+            }
+        }
+        else if(system(prebuildPath.str().c_str()))
         {
             std::cout << "error: pre build script " << prebuildPath.str() << " failed" << std::endl;
             return 1;
@@ -113,7 +122,16 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
     #endif
     if(std::ifstream(postbuildPath.str()))
     {
-        if(system(postbuildPath.str().c_str()))
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+        {
+            if(system(("flatpak-spawn --host bash -c " + quote(postbuildPath.str())).c_str()))
+            {
+                std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
+                return 1;
+            }
+        }
+        else if(system(postbuildPath.str().c_str()))
         {
             std::cout << "error: post build script " << postbuildPath.str() << " failed" << std::endl;
             return 1;
@@ -323,9 +341,13 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@system()", os) > 0)
                         return 1;
 
+                    //checks whether we're running from flatpak
+                    if(std::ifstream("/.flatpak-info"))
+                        sys_call = "flatpak-spawn --host bash -c " + quote(sys_call);
+
                     if(system(sys_call.c_str()))
                     {
-                        os << "error: " << readPath << ": line " << lineNo << ": @system(" << sys_call << ") failed" << std::endl;
+                        os << "error: " << readPath << ": line " << lineNo << ": @system(" << quote(sys_call) << ") failed" << std::endl;
                         return 1;
                     }
                 }
@@ -337,9 +359,13 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@systemoutput()", os) > 0)
                         return 1;
 
+                    //checks whether we're running from flatpak
+                    if(std::ifstream("/.flatpak-info"))
+                        sys_call = "flatpak-spawn --host bash -c " + quote(sys_call);
+
                     if(system((sys_call + " > @systemoutput").c_str()))
                     {
-                        os << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << sys_call << ") failed" << std::endl;
+                        os << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
                         Path("./", "@systemoutput").removePath();
                         return 1;
                     }
