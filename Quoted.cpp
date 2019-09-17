@@ -38,10 +38,28 @@ bool read_quoted(std::istream &ifs, std::string &s)
 //outputting a string with quotes surrounded if it contains space(s)
 std::string quote(const std::string &unquoted)
 {
-    if(unquoted.find(' ') == std::string::npos ||
-       (unquoted.size() > 1 && unquoted[0] == '"' && unquoted[unquoted.size()-1] == '"') ||
-       (unquoted.size() > 1 && unquoted[0] == '\'' && unquoted[unquoted.size()-1] == '\'') )
+    if(unquoted.find(' ') == std::string::npos)
+    {
+        for(size_t i=0; i<unquoted.size(); i++)
+        {
+            //quotes anything with special characters
+            if(!std::isalnum(unquoted[i]))
+            {
+                if(unquoted.find('\'') == std::string::npos)
+                    return "'" + unquoted + "'";
+                else if(unquoted.find('"') == std::string::npos)
+                    return "\"" + unquoted + "\"";
+                else
+                    return "'" + unquoted + "'";
+            }
+        }
         return unquoted;
+    }
+    else if((unquoted.size() > 1 && unquoted[0] == '"' && unquoted[unquoted.size()-1] == '"') ||
+            (unquoted.size() > 1 && unquoted[0] == '\'' && unquoted[unquoted.size()-1] == '\''))
+        return unquoted;
+    else if(unquoted.find('\'') == std::string::npos)
+        return "'" + unquoted + "'";
     else if(unquoted.find('"') == std::string::npos)
         return "\"" + unquoted + "\"";
     else
