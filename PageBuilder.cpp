@@ -35,7 +35,7 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
         //checks whether we're running from flatpak
         if(std::ifstream("/.flatpak-info"))
         {
-            if(system(("flatpak-spawn --host bash -c " + quote(prebuildPath.str())).c_str()))
+            if(system(("flatpak-spawn --host bash -c \"'" + prebuildPath.str() + "'\"").c_str()))
             {
                 std::cout << "error: pre build script" << quote(prebuildPath.str()) << " failed" << std::endl;
                 return 1;
@@ -125,7 +125,7 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
         //checks whether we're running from flatpak
         if(std::ifstream("/.flatpak-info"))
         {
-            if(system(("flatpak-spawn --host bash -c " + quote(postbuildPath.str())).c_str()))
+            if(system(("flatpak-spawn --host bash -c \"'" + postbuildPath.str() + "'\"").c_str()))
             {
                 std::cout << "error: post build script" << quote(postbuildPath.str()) << " failed" << std::endl;
                 return 1;
@@ -332,6 +332,66 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     if(read_and_process(inputPath, antiDepsOfReadPath, os) > 0)
                         return 1;
                     //indent amount updated inside read_and_process
+                }
+                else if(inLine.substr(linePos, 8) == "@script(")
+                {
+                    linePos+=std::string("@script(").length();
+                    std::string sys_call;
+
+                    if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@script()", os) > 0)
+                        return 1;
+
+                    //checks whether we're running from flatpak
+                    if(std::ifstream("/.flatpak-info"))
+                    {
+                        //need sys_call quoted weirdly here for script paths containing spaces
+                        if(system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\"").c_str()))
+                        {
+                            os << "error: " << readPath << ": line " << lineNo << ": @script(" << quote(sys_call) << ") failed" << std::endl;
+                            return 1;
+                        }
+                    }
+                    else if(system(quote(sys_call).c_str())) //sys_call has to be quoted for script paths containing spaces
+                    {
+                        os << "error: " << readPath << ": line " << lineNo << ": @script(" << quote(sys_call) << ") failed" << std::endl;
+                        return 1;
+                    }
+                }
+                else if(inLine.substr(linePos, 14) == "@scriptoutput(")
+                {
+                    linePos+=std::string("@scriptoutput(").length();
+                    std::string sys_call;
+
+                    if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@scriptoutput()", os) > 0)
+                        return 1;
+
+                    //checks whether we're running from flatpak
+                    if(std::ifstream("/.flatpak-info"))
+                    {
+                        //need sys_call quoted weirdly here for script paths containing spaces
+                        if(system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > @scriptoutput").c_str()))
+                        {
+                            os << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(sys_call) << ") failed" << std::endl;
+                            Path("./", "@scriptoutput").removePath();
+                            return 1;
+                        }
+                    }
+                    else if(system((quote(sys_call) + " > @scriptoutput").c_str())) //sys_call has to be quoted for script paths containing spaces
+                    {
+                        os << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(sys_call) << ") failed" << std::endl;
+                        Path("./", "@scriptoutput").removePath();
+                        return 1;
+                    }
+
+                    //indent amount updated inside read_and_process
+                    if(read_and_process(Path("", "@scriptoutput"), antiDepsOfReadPath, os) > 0)
+                    {
+                        os << "error: " << readPath << ": line " << lineNo << ": failed to process output of script '" << sys_call << "'" << std::endl;
+                        Path("./", "@scriptoutput").removePath();
+                        return 1;
+                    }
+
+                    Path("./", "@scriptoutput").removePath();
                 }
                 else if(inLine.substr(linePos, 8) == "@system(")
                 {

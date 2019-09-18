@@ -11,7 +11,7 @@ std::string get_title(const Name &name)
 //uses page name to order/compare PageInfo
 bool operator<(const PageInfo &page1, const PageInfo &page2)
 {
-    return (page1.pageName < page2.pageName);
+    return (quote(page1.pageName) < quote(page2.pageName));
 }
 
 std::ostream& operator<<(std::ostream &os, const PageInfo &page)
