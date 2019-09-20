@@ -109,6 +109,68 @@ int delDir(std::string dir)
     return 0;
 }
 
+bool is_git_configured()
+{
+    //checks that git is configured
+    std::string str;
+    trash = system("git config --global user.email > .1223fsf23.txt");
+    std::ifstream ifs(".1223fsf23.txt");
+    ifs >> str;
+    ifs.close();
+    Path("./", ".1223fsf23.txt").removePath();
+    if(str == "")
+    {
+        std::cout << "*** Please tell me who you are." << std::endl;
+        std::cout << std::endl;
+        std::cout << "Run" << std::endl;
+        std::cout << std::endl;
+        std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
+        std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
+        std::cout << std::endl;
+        std::cout << "to set your account's default identity." << std::endl;
+
+        return 0;
+    }
+    trash = system("git config --global user.name > .1223fsf23.txt");
+    ifs.open(".1223fsf23.txt");
+    ifs >> str;
+    ifs.close();
+    Path("./", ".1223fsf23.txt").removePath();
+    if(str == "")
+    {
+        std::cout << "*** Please tell me who you are." << std::endl;
+        std::cout << std::endl;
+        std::cout << "Run" << std::endl;
+        std::cout << std::endl;
+        std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
+        std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
+        std::cout << std::endl;
+        std::cout << "to set your account's default identity." << std::endl;
+
+        return 0;
+    }
+
+    return 1;
+}
+
+bool is_git_remote_set()
+{
+    //checks that remote git url is set
+    trash = system("git config --get remote.origin.url > .txt65232g42f.txt");
+    std::ifstream ifs(".txt65232g42f.txt");
+    std::string str="";
+    ifs >> str;
+    ifs.close();
+    Path("./", ".txt65232g42f.txt").removePath();
+    if(str == "")
+    {
+        std::cout << "error: no remote git url set" << std::endl;
+        return 0;
+    }
+
+    return 1;
+}
+
 //get present git branch
 std::string get_pb()
 {
@@ -127,6 +189,22 @@ std::string get_pb()
     Path("./", ".f242tgg43.txt").removePath();
 
     return branch;
+}
+
+//get present git remote
+std::string get_remote()
+{
+    std::string remote = "";
+
+    trash = system("git remote > .f242tgg43.txt");
+    std::ifstream ifs(".f242tgg43.txt");
+
+    ifs >> remote;
+
+    ifs.close();
+    Path("./", ".f242tgg43.txt").removePath();
+
+    return remote;
 }
 
 //get set of git branches
@@ -149,13 +227,350 @@ std::set<std::string> get_git_branches()
     return branches;
 }
 
+bool run_prebuild_scripts(std::ostream &os)
+{
+    std::string prebuildPath = "pre-build.bat";
+    if(std::ifstream(prebuildPath))
+    {
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+        {
+            int result = system(("flatpak-spawn --host bash -c " + prebuildPath + " > out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: pre build script " << prebuildPath << " failed" << std::endl;
+                return 1;
+            }
+        }
+        else
+        {
+            int result = system((prebuildPath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: pre build script " << prebuildPath << " failed" << std::endl;
+                return 1;
+            }
+        }
+    }
+    prebuildPath = "./pre-build.sh";
+    if(std::ifstream(prebuildPath))
+    {
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+        {
+            int result = system(("flatpak-spawn --host bash -c " + prebuildPath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: pre build script " << prebuildPath << " failed" << std::endl;
+                return 1;
+            }
+        }
+        else
+        {
+            int result = system((prebuildPath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: pre build script " << prebuildPath << " failed" << std::endl;
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+bool run_postbuild_scripts(std::ostream &os)
+{
+    //checks for post-build scripts
+    std::string postbuildPath = "post-build.bat";
+    if(std::ifstream(postbuildPath))
+    {
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+        {
+            int result = system(("flatpak-spawn --host bash -c " + postbuildPath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: post build script " << postbuildPath << " failed" << std::endl;
+                return 1;
+            }
+        }
+        else
+        {
+            int result = system((postbuildPath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: post build script " << postbuildPath << " failed" << std::endl;
+                return 1;
+            }
+        }
+    }
+    postbuildPath = "./post-build.sh";
+    if(std::ifstream(postbuildPath))
+    {
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+        {
+            int result = system(("flatpak-spawn --host bash -c " + postbuildPath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: post build script " << postbuildPath << " failed" << std::endl;
+                return 1;
+            }
+        }
+        else
+        {
+            int result = system((postbuildPath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: post build script " << postbuildPath << " failed" << std::endl;
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+bool run_preserve_scripts(std::ostream &os)
+{
+    std::string preservePath = "pre-serve.bat";
+    if(std::ifstream(preservePath))
+    {
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+        {
+            int result = system(("flatpak-spawn --host bash -c " + preservePath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: pre serve script " << preservePath << " failed" << std::endl;
+                return 1;
+            }
+        }
+        else
+        {
+            int result = system((preservePath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: pre serve script " << preservePath << " failed" << std::endl;
+                return 1;
+            }
+        }
+    }
+    preservePath = "./pre-serve.sh";
+    if(std::ifstream(preservePath))
+    {
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+        {
+            int result = system(("flatpak-spawn --host bash -c " + preservePath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: pre serve script " << preservePath << " failed" << std::endl;
+                return 1;
+            }
+        }
+        else
+        {
+            int result = system((preservePath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: pre serve script " << preservePath << " failed" << std::endl;
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+bool run_postserve_scripts(std::ostream &os)
+{
+    std::string postservePath = "post-serve.bat";
+    if(std::ifstream(postservePath))
+    {
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+        {
+            int result = system(("flatpak-spawn --host bash -c " + postservePath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: post serve script " << postservePath << " failed" << std::endl;
+                return 1;
+            }
+        }
+        else
+        {
+            int result = system((postservePath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: post serve script " << postservePath << " failed" << std::endl;
+                return 1;
+            }
+        }
+    }
+    postservePath = "./post-serve.sh";
+    if(std::ifstream(postservePath))
+    {
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+        {
+            int result = system(("flatpak-spawn --host bash -c " + postservePath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: post serve script " << postservePath << " failed" << std::endl;
+                return 1;
+            }
+        }
+        else
+        {
+            int result = system((postservePath + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: post serve script " << postservePath << " failed" << std::endl;
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
 std::atomic<bool> serving;
 
 int read_serve_commands()
 {
     std::string cmd;
 
-    std::cout << "serving website locally, 'exit' or 'stop' to stop Nift serving" << std::endl;
+    std::cout << "serving website locally - 'exit', 'stop' or 'ctrl c' to stop Nift serving" << std::endl;
 
     while(cmd != "exit" && cmd != "stop")
     {
@@ -164,7 +579,7 @@ int read_serve_commands()
         std::cin >> cmd;
 
         if(cmd != "exit" && cmd != "stop")
-            std::cout << "unrecognised command, 'exit' or 'stop' to stop Nift serving" << std::endl;
+            std::cout << "unrecognised command - 'exit', 'stop' or 'ctrl c' to stop Nift serving" << std::endl;
     }
 
     serving = 0;
@@ -183,7 +598,10 @@ int serve()
 
         ofs.open(".serve-build-log.txt");
 
-        site.build_updated(ofs);
+        if(!run_prebuild_scripts(ofs))
+            site.build_updated(ofs);
+
+        run_postbuild_scripts(ofs);
 
         ofs.close();
 
@@ -231,7 +649,7 @@ int main(int argc, char* argv[])
 
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.10" << std::endl;
+        std::cout << "Nift (aka nsm) v1.11" << std::endl;
 
         return 0;
     }
@@ -241,6 +659,8 @@ int main(int argc, char* argv[])
         std::cout << "| commands       | lists all nsm commands                          |" << std::endl;
         std::cout << "| config         | list config settings or set git email/username  |" << std::endl;
         std::cout << "| clone          | input: clone-url                                |" << std::endl;
+        std::cout << "| diff           | input: file-path                                |" << std::endl;
+        std::cout << "| pull           | pull remote changes locally                     |" << std::endl;
         std::cout << "| init           | initialise managing a site - input: (site-name) |" << std::endl;
         std::cout << "| status         | lists updated and problem pages                 |" << std::endl;
         std::cout << "| info           | input: page-name-1 .. page-name-k               |" << std::endl;
@@ -447,44 +867,8 @@ int main(int argc, char* argv[])
         if(noParams != 2)
             return parError(noParams, argv, "2");
 
-        //checks that git is configured
-        std::string str;
-        trash = system("git config --global user.email > .1223fsf23.txt");
-        std::ifstream ifs(".1223fsf23.txt");
-        ifs >> str;
-        ifs.close();
-        Path("./", ".1223fsf23.txt").removePath();
-        if(str == "")
-        {
-            std::cout << "*** Please tell me who you are." << std::endl;
-            std::cout << std::endl;
-            std::cout << "Run" << std::endl;
-            std::cout << std::endl;
-            std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
-            std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
-            std::cout << std::endl;
-            std::cout << "to set your account's default identity." << std::endl;
-
-            return 0;
-        }
-        trash = system("git config --global user.name > .1223fsf23.txt");
-        ifs.open(".1223fsf23.txt");
-        ifs >> str;
-        ifs.close();
-        Path("./", ".1223fsf23.txt").removePath();
-        if(str == "")
-        {
-            std::cout << "*** Please tell me who you are." << std::endl;
-            std::cout << std::endl;
-            std::cout << "Run" << std::endl;
-            std::cout << std::endl;
-            std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
-            std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
-            std::cout << std::endl;
-            std::cout << "to set your account's default identity." << std::endl;
-
-            return 0;
-        }
+        if(!is_git_configured())
+            return 1;
 
         std::string cloneURL = std::string(argv[2]);
 
@@ -573,6 +957,8 @@ int main(int argc, char* argv[])
         //checks that we have a valid command
         if(cmd != "config" &&
            cmd != "bcp" &&
+           cmd != "diff" &&
+           cmd != "pull" &&
            cmd != "status" &&
            cmd != "info" &&
            cmd != "info-all" &&
@@ -660,57 +1046,11 @@ int main(int argc, char* argv[])
                 return parError(noParams, argv, "2");
             }
 
-            //checks that git is configured
-            std::string str;
-            trash = system("git config --global user.email > .1223fsf23.txt");
-            std::ifstream ifs(".1223fsf23.txt");
-            ifs >> str;
-            ifs.close();
-            Path("./", ".1223fsf23.txt").removePath();
-            if(str == "")
-            {
-                std::cout << "*** Please tell me who you are." << std::endl;
-                std::cout << std::endl;
-                std::cout << "Run" << std::endl;
-                std::cout << std::endl;
-                std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
-                std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
-                std::cout << std::endl;
-                std::cout << "to set your account's default identity." << std::endl;
-
-                return 0;
-            }
-            trash = system("git config --global user.name > .1223fsf23.txt");
-            ifs.open(".1223fsf23.txt");
-            ifs >> str;
-            ifs.close();
-            Path("./", ".1223fsf23.txt").removePath();
-            if(str == "")
-            {
-                std::cout << "*** Please tell me who you are." << std::endl;
-                std::cout << std::endl;
-                std::cout << "Run" << std::endl;
-                std::cout << std::endl;
-                std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
-                std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
-                std::cout << std::endl;
-                std::cout << "to set your account's default identity." << std::endl;
-
-                return 0;
-            }
-
-            //checks that remote git url is set
-            trash = system("git config --get remote.origin.url > .txt65232g42f.txt");
-            ifs.open(".txt65232g42f.txt");
-            str="";
-            ifs >> str;
-            ifs.close();
-            Path("./", ".txt65232g42f.txt").removePath();
-            if(str == "")
-            {
-                std::cout << "error: no remote git url set" << std::endl;
+            if(!is_git_configured())
                 return 1;
-            }
+
+            if(!is_git_remote_set())
+                return 1;
 
             if(site.build_updated(std::cout))
                 return 1;
@@ -743,6 +1083,69 @@ int main(int argc, char* argv[])
             trash = system(pushCmnd.c_str());
 
             return 0;
+        }
+        else if(cmd == "diff") //diff of file
+        {
+            //ensures correct number of parameters given
+            if(noParams != 2)
+            {
+                std::cout << "error: correct usage 'diff file-path'" << std::endl;
+                return parError(noParams, argv, "2");
+            }
+
+            if(!std::ifstream(".git"))
+            {
+                std::cout << "error: project directory not a git repository" << std::endl;
+                return 1;
+            }
+
+            if(!std::ifstream(argv[2]))
+            {
+                std::cout << "error: path " << quote(argv[2]) << " not in working tree" << std::endl;
+                return 1;
+            }
+            else
+                trash = system(("git diff " + std::string(argv[2])).c_str());
+
+            return 0;
+        }
+        else if(cmd =="pull")
+        {
+            //ensures correct number of parameters given
+            if(noParams != 1)
+                return parError(noParams, argv, "1");
+
+            //checks that git is configured
+            if(!is_git_configured())
+                return 1;
+
+            //checks that remote git url is set
+            if(!is_git_remote_set())
+                return 1;
+
+            std::string pullCmnd,
+                        siteDirRemote,
+                        siteRootDirRemote = get_remote(),
+                        siteDirBranch,
+                        siteRootDirBranch = get_pb();
+
+            trash = chdir(site.siteDir.c_str());
+
+            siteDirRemote = get_remote();
+            siteDirBranch = get_pb();
+
+            if(siteDirBranch != siteRootDirBranch)
+            {
+                pullCmnd = "git pull " + siteDirRemote + " " + siteDirBranch;
+
+                trash = system(pullCmnd.c_str());
+            }
+
+            trash = chdir(siteRootDir.c_str());
+
+            pullCmnd = "git pull " + siteRootDirRemote + " " + siteRootDirBranch;
+
+            trash = system(pullCmnd.c_str());
         }
         else if(cmd == "status")
         {
@@ -878,56 +1281,14 @@ int main(int argc, char* argv[])
             timer.start();
 
             //checks for pre-build scripts
-            std::string prebuildPath;
-            #if defined _WIN32 || defined _WIN64
-                prebuildPath = "pre-build.bat";
-            #else  //unix
-                prebuildPath = "./pre-build.sh";
-            #endif
-            if(std::ifstream(prebuildPath))
-            {
-                //checks whether we're running from flatpak
-                if(std::ifstream("/.flatpak-info"))
-                {
-                    if(system(("flatpak-spawn --host bash -c " + prebuildPath).c_str()))
-                    {
-                        std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
-                        return 1;
-                    }
-                }
-                else if(system(prebuildPath.c_str()))
-                {
-                    std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
-                    return 1;
-                }
-            }
+            if(run_prebuild_scripts(std::cout))
+                return 1;
 
             int result = site.build_updated(std::cout);
 
             //checks for post-build scripts
-            std::string postbuildPath;
-            #if defined _WIN32 || defined _WIN64
-                postbuildPath = "post-build.bat";
-            #else  //unix
-                postbuildPath = "./post-build.sh";
-            #endif
-            if(std::ifstream(postbuildPath))
-            {
-                //checks whether we're running from flatpak
-                if(std::ifstream("/.flatpak-info"))
-                {
-                    if(system(("flatpak-spawn --host bash -c " + postbuildPath).c_str()))
-                    {
-                        std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
-                        return 1;
-                    }
-                }
-                else if(system(postbuildPath.c_str()))
-                {
-                    std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
-                    return 1;
-                }
-            }
+            if(run_postbuild_scripts(std::cout))
+                return 1;
 
             std::cout.precision(4);
             std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
@@ -945,29 +1306,8 @@ int main(int argc, char* argv[])
             timer.start();
 
             //checks for pre-build scripts
-            std::string prebuildPath;
-            #if defined _WIN32 || defined _WIN64
-                prebuildPath = "pre-build.bat";
-            #else  //unix
-                prebuildPath = "./pre-build.sh";
-            #endif
-            if(std::ifstream(prebuildPath))
-            {
-                //checks whether we're running from flatpak
-                if(std::ifstream("/.flatpak-info"))
-                {
-                    if(system(("flatpak-spawn --host bash -c " + prebuildPath).c_str()))
-                    {
-                        std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
-                        return 1;
-                    }
-                }
-                else if(system(prebuildPath.c_str()))
-                {
-                    std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
-                    return 1;
-                }
-            }
+            if(run_prebuild_scripts(std::cout))
+                return 1;
 
             std::vector<Name> pageNamesToBuild;
             for(int p=2; p<argc; p++)
@@ -978,29 +1318,8 @@ int main(int argc, char* argv[])
             int result = site.build(pageNamesToBuild);
 
             //checks for post-build scripts
-            std::string postbuildPath;
-            #if defined _WIN32 || defined _WIN64
-                postbuildPath = "post-build.bat";
-            #else  //unix
-                postbuildPath = "./post-build.sh";
-            #endif
-            if(std::ifstream(postbuildPath))
-            {
-                //checks whether we're running from flatpak
-                if(std::ifstream("/.flatpak-info"))
-                {
-                    if(system(("flatpak-spawn --host bash -c " + postbuildPath).c_str()))
-                    {
-                        std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
-                        return 1;
-                    }
-                }
-                else if(system(postbuildPath.c_str()))
-                {
-                    std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
-                    return 1;
-                }
-            }
+            if(run_postbuild_scripts(std::cout))
+                return 1;
 
             std::cout.precision(4);
             std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
@@ -1018,56 +1337,14 @@ int main(int argc, char* argv[])
             timer.start();
 
             //checks for pre-build scripts
-            std::string prebuildPath;
-            #if defined _WIN32 || defined _WIN64
-                prebuildPath = "pre-build.bat";
-            #else  //unix
-                prebuildPath = "./pre-build.sh";
-            #endif
-            if(std::ifstream(prebuildPath))
-            {
-                //checks whether we're running from flatpak
-                if(std::ifstream("/.flatpak-info"))
-                {
-                    if(system(("flatpak-spawn --host bash -c " + prebuildPath).c_str()))
-                    {
-                        std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
-                        return 1;
-                    }
-                }
-                else if(system(prebuildPath.c_str()))
-                {
-                    std::cout << "error: pre build script" << prebuildPath << " failed" << std::endl;
-                    return 1;
-                }
-            }
+            if(run_prebuild_scripts(std::cout))
+                return 1;
 
             int result = site.build_all();
 
             //checks for post-build scripts
-            std::string postbuildPath;
-            #if defined _WIN32 || defined _WIN64
-                postbuildPath = "post-build.bat";
-            #else  //unix
-                postbuildPath = "./post-build.sh";
-            #endif
-            if(std::ifstream(postbuildPath))
-            {
-                //checks whether we're running from flatpak
-                if(std::ifstream("/.flatpak-info"))
-                {
-                    if(system(("flatpak-spawn --host bash -c " + postbuildPath).c_str()))
-                    {
-                        std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
-                        return 1;
-                    }
-                }
-                else if(system(postbuildPath.c_str()))
-                {
-                    std::cout << "error: post build script" << postbuildPath << " failed" << std::endl;
-                    return 1;
-                }
-            }
+            if(run_postbuild_scripts(std::cout))
+                return 1;
 
             std::cout.precision(4);
             std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
@@ -1087,29 +1364,8 @@ int main(int argc, char* argv[])
             }
 
             //checks for pre-serve scripts
-            std::string preservePath;
-            #if defined _WIN32 || defined _WIN64
-                preservePath = "pre-serve.bat";
-            #else  //unix
-                preservePath = "./pre-serve.sh";
-            #endif
-            if(std::ifstream(preservePath))
-            {
-                //checks whether we're running from flatpak
-                if(std::ifstream("/.flatpak-info"))
-                {
-                    if(system(("flatpak-spawn --host bash -c " + preservePath).c_str()))
-                    {
-                        std::cout << "error: pre serve script" << preservePath << " failed" << std::endl;
-                        return 1;
-                    }
-                }
-                else if(system(preservePath.c_str()))
-                {
-                    std::cout << "error: pre serve script" << preservePath << " failed" << std::endl;
-                    return 1;
-                }
-            }
+            if(run_preserve_scripts(std::cout))
+                return 1;
 
             serving = 1;
 
@@ -1122,29 +1378,8 @@ int main(int argc, char* argv[])
             serve_thread.join();
 
             //checks for post-serve scripts
-            std::string postservePath;
-            #if defined _WIN32 || defined _WIN64
-                postservePath = "post-serve.bat";
-            #else  //unix
-                postservePath = "./post-serve.sh";
-            #endif
-            if(std::ifstream(postservePath))
-            {
-                //checks whether we're running from flatpak
-                if(std::ifstream("/.flatpak-info"))
-                {
-                    if(system(("flatpak-spawn --host bash -c " + postservePath).c_str()))
-                    {
-                        std::cout << "error: post serve script" << postservePath << " failed" << std::endl;
-                        return 1;
-                    }
-                }
-                else if(system(postservePath.c_str()))
-                {
-                    std::cout << "error: post serve script" << postservePath << " failed" << std::endl;
-                    return 1;
-                }
-            }
+            if(run_postserve_scripts(std::cout))
+                return 1;
         }
         else
         {

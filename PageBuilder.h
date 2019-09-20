@@ -21,7 +21,9 @@ struct PageBuilder
 
     PageBuilder(const std::set<PageInfo> &Pages);
 
-    int build(const PageInfo &pageInfo, std::ostream& os);
+    bool run_page_prebuild_scripts(std::ostream& os);
+    bool run_page_postbuild_scripts(std::ostream& os);
+    int build(const PageInfo &PageToBuild, std::ostream& os);
     int read_and_process(const Path &readPath, std::set<Path> antiDepsOfReadPath, std::ostream& os);
     int read_path(std::string &pathRead, size_t &linePos, const std::string &inLine, const Path &readPath, const int &lineNo, const std::string &callType, std::ostream& os);
 	int read_sys_call(std::string &sys_call, size_t &linePos, const std::string &inLine, const Path &readPath, const int &lineNo, const std::string &callType, std::ostream& os);

@@ -5,6 +5,178 @@ PageBuilder::PageBuilder(const std::set<PageInfo> &Pages)
     pages = Pages;
 }
 
+bool PageBuilder::run_page_prebuild_scripts(std::ostream& os)
+{
+    Path prebuildPath = pageToBuild.contentPath;
+    prebuildPath.file = prebuildPath.file.substr(0, prebuildPath.file.find_last_of('.')) + ".pre-build.bat";
+    if(std::ifstream(prebuildPath.str()))
+    {
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+        {
+            int result = system(("flatpak-spawn --host bash -c \"'" + prebuildPath.str() + "'\" > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: pre build script " << quote(prebuildPath.str()) << " failed" << std::endl;
+                return 1;
+            }
+        }
+        else //prebuildPath.str() needs to be quoted for page names with spaces
+        {
+            int result = system((quote(prebuildPath.str()) + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: pre build script " << quote(prebuildPath.str()) << " failed" << std::endl;
+                return 1;
+            }
+        }
+    }
+    prebuildPath = pageToBuild.contentPath;
+    prebuildPath.file = prebuildPath.file.substr(0, prebuildPath.file.find_last_of('.')) + ".pre-build.sh";
+    if(std::ifstream(prebuildPath.str()))
+    {
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+        {
+            int result = system(("flatpak-spawn --host bash -c \"'" + prebuildPath.str() + "'\" > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: pre build script " << quote(prebuildPath.str()) << " failed" << std::endl;
+                return 1;
+            }
+        }
+        else //prebuildPath.str() needs to be quoted for page names with spaces
+        {
+            int result = system((quote(prebuildPath.str()) + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: pre build script " << quote(prebuildPath.str()) << " failed" << std::endl;
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+bool PageBuilder::run_page_postbuild_scripts(std::ostream& os)
+{
+    Path postbuildPath = pageToBuild.contentPath;
+    postbuildPath.file = postbuildPath.file.substr(0, postbuildPath.file.find_last_of('.')) + ".post-build.bat";
+    if(std::ifstream(postbuildPath.str()))
+    {
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+        {
+            int result = system(("flatpak-spawn --host bash -c \"'" + postbuildPath.str() + "'\" > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: post build script " << quote(postbuildPath.str()) << " failed" << std::endl;
+                return 1;
+            }
+        }
+        else //postbuildPath.str() needs to be quoted for page names with spaces
+        {
+            int result = system((quote(postbuildPath.str()) + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: post build script " << quote(postbuildPath.str()) << " failed" << std::endl;
+                return 1;
+            }
+        }
+    }
+    postbuildPath = pageToBuild.contentPath;
+    postbuildPath.file = postbuildPath.file.substr(0, postbuildPath.file.find_last_of('.')) + ".post-build.sh";
+    if(std::ifstream(postbuildPath.str()))
+    {
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+        {
+            int result = system(("flatpak-spawn --host bash -c \"'" + postbuildPath.str() + "'\" > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: post build script " << quote(postbuildPath.str()) << " failed" << std::endl;
+                return 1;
+            }
+        }
+        else //postbuildPath.str() needs to be quoted for page names with spaces
+        {
+            int result = system((quote(postbuildPath.str()) + " > .out.txt").c_str());
+
+            std::ifstream ifs(".out.txt");
+            std::string str;
+            while(getline(ifs, str))
+                os << str << std::endl;
+            ifs.close();
+            Path("./", ".out.txt").removePath();
+
+            if(result)
+            {
+                os << "error: post build script " << quote(postbuildPath.str()) << " failed" << std::endl;
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
 int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
 {
     pageToBuild = PageToBuild;
@@ -24,29 +196,8 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
     }
 
     //checks for pre-build scripts
-    Path prebuildPath = pageToBuild.contentPath;
-    #if defined _WIN32 || defined _WIN64 //windows
-        prebuildPath.file = prebuildPath.file.substr(0, prebuildPath.file.find_last_of('.')) + ".pre-build.bat";
-    #else //unix
-        prebuildPath.file = prebuildPath.file.substr(0, prebuildPath.file.find_last_of('.')) + ".pre-build.sh";
-    #endif
-    if(std::ifstream(prebuildPath.str()))
-    {
-        //checks whether we're running from flatpak
-        if(std::ifstream("/.flatpak-info"))
-        {
-            if(system(("flatpak-spawn --host bash -c \"'" + prebuildPath.str() + "'\"").c_str()))
-            {
-                std::cout << "error: pre build script" << quote(prebuildPath.str()) << " failed" << std::endl;
-                return 1;
-            }
-        }
-        else if(system(quote(prebuildPath.str()).c_str())) //prebuildPath.str() needs to be quoted for page names with spaces
-        {
-            std::cout << "error: pre build script " << quote(prebuildPath.str()) << " failed" << std::endl;
-            return 1;
-        }
-    }
+    if(this->run_page_prebuild_scripts(os))
+        return 1;
 
     //os << "building page " << pageToBuild.pagePath << std::endl;
 
@@ -67,78 +218,59 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
     std::set<Path> antiDepsOfReadPath;
 
     //starts read_and_process from templatePath
-    if(read_and_process(pageToBuild.templatePath, antiDepsOfReadPath, os) > 0)
-        return 1;
+    int result = read_and_process(pageToBuild.templatePath, antiDepsOfReadPath, os);
 
-    //ensures @inputcontent was found inside template dag
-    if(!contentAdded)
+    if(result == 0)
     {
-        os << "error: @inputcontent not found within template file " << pageToBuild.templatePath << " or any of its dependencies, content from " << pageToBuild.contentPath << " has not been inserted" << std::endl;
-        return 1;
-    }
-
-    //makes sure page file exists
-    pageToBuild.pagePath.ensurePathExists();
-
-    //makes sure we can write to page file
-    chmod(pageToBuild.pagePath.str().c_str(), 0644);
-
-    //writes processed page to page file
-    std::ofstream pageStream(pageToBuild.pagePath.str());
-    pageStream << processedPage.str() << std::endl;
-    pageStream.close();
-
-    //makes sure user can't accidentally write to page file
-    chmod(pageToBuild.pagePath.str().c_str(), 0444);
-
-    //gets path for storing page information
-    Path pageInfoPath = pageToBuild.pagePath.getInfoPath();
-
-    //makes sure page info file exists
-    pageInfoPath.ensurePathExists();
-
-    //makes sure we can write to info file_
-    chmod(pageInfoPath.str().c_str(), 0644);
-
-    //writes page info file
-    std::ofstream infoStream(pageInfoPath.str());
-    infoStream << dateTimeInfo.currentTime() << " " << dateTimeInfo.currentDate() << std::endl;
-    infoStream << this->pageToBuild << std::endl << std::endl;
-    for(auto pageDep=pageDeps.begin(); pageDep != pageDeps.end(); pageDep++)
-        infoStream << *pageDep << std::endl;
-    infoStream.close();
-
-    //makes sure user can't accidentally write to info file
-    chmod(pageInfoPath.str().c_str(), 0444);
-
-    //os << "page build successful" << std::endl;
-
-    //checks for post-build scripts
-    Path postbuildPath = pageToBuild.contentPath;
-    #if defined _WIN32 || defined _WIN64 //windows
-        postbuildPath.file = postbuildPath.file.substr(0, postbuildPath.file.find_last_of('.')) + ".post-build.bat";
-    #else //unix
-        postbuildPath.file = postbuildPath.file.substr(0, postbuildPath.file.find_last_of('.')) + ".post-build.sh";
-    #endif
-    if(std::ifstream(postbuildPath.str()))
-    {
-        //checks whether we're running from flatpak
-        if(std::ifstream("/.flatpak-info"))
+        //ensures @inputcontent was found inside template dag
+        if(!contentAdded)
         {
-            if(system(("flatpak-spawn --host bash -c \"'" + postbuildPath.str() + "'\"").c_str()))
-            {
-                std::cout << "error: post build script" << quote(postbuildPath.str()) << " failed" << std::endl;
-                return 1;
-            }
-        }
-        else if(system(quote(postbuildPath.str()).c_str())) //postbuildPath.str() needs to be quoted for page names with spaces
-        {
-            std::cout << "error: post build script " << quote(postbuildPath.str()) << " failed" << std::endl;
+            os << "error: @inputcontent not found within template file " << pageToBuild.templatePath << " or any of its dependencies, content from " << pageToBuild.contentPath << " has not been inserted" << std::endl;
             return 1;
         }
+
+        //makes sure page file exists
+        pageToBuild.pagePath.ensurePathExists();
+
+        //makes sure we can write to page file
+        chmod(pageToBuild.pagePath.str().c_str(), 0644);
+
+        //writes processed page to page file
+        std::ofstream pageStream(pageToBuild.pagePath.str());
+        pageStream << processedPage.str() << std::endl;
+        pageStream.close();
+
+        //makes sure user can't accidentally write to page file
+        chmod(pageToBuild.pagePath.str().c_str(), 0444);
+
+        //gets path for storing page information
+        Path pageInfoPath = pageToBuild.pagePath.getInfoPath();
+
+        //makes sure page info file exists
+        pageInfoPath.ensurePathExists();
+
+        //makes sure we can write to info file_
+        chmod(pageInfoPath.str().c_str(), 0644);
+
+        //writes page info file
+        std::ofstream infoStream(pageInfoPath.str());
+        infoStream << dateTimeInfo.currentTime() << " " << dateTimeInfo.currentDate() << std::endl;
+        infoStream << this->pageToBuild << std::endl << std::endl;
+        for(auto pageDep=pageDeps.begin(); pageDep != pageDeps.end(); pageDep++)
+            infoStream << *pageDep << std::endl;
+        infoStream.close();
+
+        //makes sure user can't accidentally write to info file
+        chmod(pageInfoPath.str().c_str(), 0444);
+
+        //os << "page build successful" << std::endl;
     }
 
-    return 0;
+    //checks for post-build scripts
+    if(this->run_page_postbuild_scripts(os))
+        return 1;
+
+    return result;
 }
 
 //reads file whilst writing processed version to ofs
@@ -210,7 +342,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                         linePos++;
                         indentAmount += std::string(5, ' ');
                         break;
-                    /*case '&':
+                    /*case '&': //SEEMS TO BREAK SOME VALID JAVASCRIPT CODE
+                                //CHECK DEVELOPERS PERSONAL SITE GENEALOGY PAGE
+                                //FOR EXAMPLE (SEARCH FOR \&)
                         processedPage << "&amp;";
                         linePos++;
                         indentAmount += std::string(5, ' ');
@@ -341,20 +475,51 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@script()", os) > 0)
                         return 1;
 
+                    Path scriptPath;
+                    scriptPath.set_file_path_from(sys_call);
+                    pageDeps.insert(scriptPath);
+
+                    if(!std::ifstream(sys_call))
+                    {
+                        os << "error: " << readPath << ": line " << lineNo << ": @script(" << quote(sys_call) << ") failed as script does not exist" << std::endl;
+                        return 1;
+                    }
+
                     //checks whether we're running from flatpak
                     if(std::ifstream("/.flatpak-info"))
                     {
+                        int result = system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > .out.txt").c_str());
+
+                        std::ifstream ifs(".out.txt");
+                        std::string str;
+                        while(getline(ifs, str))
+                            os << str << std::endl;
+                        ifs.close();
+                        Path("./", ".out.txt").removePath();
+
                         //need sys_call quoted weirdly here for script paths containing spaces
-                        if(system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\"").c_str()))
+                        if(result)
                         {
                             os << "error: " << readPath << ": line " << lineNo << ": @script(" << quote(sys_call) << ") failed" << std::endl;
                             return 1;
                         }
                     }
-                    else if(system(quote(sys_call).c_str())) //sys_call has to be quoted for script paths containing spaces
+                    else //sys_call has to be quoted for script paths containing spaces
                     {
-                        os << "error: " << readPath << ": line " << lineNo << ": @script(" << quote(sys_call) << ") failed" << std::endl;
-                        return 1;
+                        int result = system((quote(sys_call) + " > .out.txt").c_str());
+
+                        std::ifstream ifs(".out.txt");
+                        std::string str;
+                        while(getline(ifs, str))
+                            os << str << std::endl;
+                        ifs.close();
+                        Path("./", ".out.txt").removePath();
+
+                        if(result)
+                        {
+                            os << "error: " << readPath << ": line " << lineNo << ": @script(" << quote(sys_call) << ") failed" << std::endl;
+                            return 1;
+                        }
                     }
                 }
                 else if(inLine.substr(linePos, 14) == "@scriptoutput(")
@@ -364,6 +529,16 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                     if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@scriptoutput()", os) > 0)
                         return 1;
+
+                    Path scriptPath;
+                    scriptPath.set_file_path_from(sys_call);
+                    pageDeps.insert(scriptPath);
+
+                    if(!std::ifstream(sys_call))
+                    {
+                        os << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(sys_call) << ") failed as script does not exist" << std::endl;
+                        return 1;
+                    }
 
                     //checks whether we're running from flatpak
                     if(std::ifstream("/.flatpak-info"))
@@ -404,17 +579,38 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //checks whether we're running from flatpak
                     if(std::ifstream("/.flatpak-info"))
                     {
+                        int result = system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > .out.txt").c_str());
+
+                        std::ifstream ifs(".out.txt");
+                        std::string str;
+                        while(getline(ifs, str))
+                            os << str << std::endl;
+                        ifs.close();
+                        Path("./", ".out.txt").removePath();
+
                         //need sys_call quoted here for cURL to work
-                        if(system(("flatpak-spawn --host bash -c " + quote(sys_call)).c_str()))
+                        if(result)
                         {
                             os << "error: " << readPath << ": line " << lineNo << ": @system(" << quote(sys_call) << ") failed" << std::endl;
                             return 1;
                         }
                     }
-                    else if(system(sys_call.c_str())) //sys_call has to be unquoted for cURL to work
+                    else //sys_call has to be unquoted for cURL to work
                     {
-                        os << "error: " << readPath << ": line " << lineNo << ": @system(" << quote(sys_call) << ") failed" << std::endl;
-                        return 1;
+                        int result = system((sys_call + " > .out.txt").c_str());
+
+                        std::ifstream ifs(".out.txt");
+                        std::string str;
+                        while(getline(ifs, str))
+                            os << str << std::endl;
+                        ifs.close();
+                        Path("./", ".out.txt").removePath();
+
+                        if(result)
+                        {
+                            os << "error: " << readPath << ": line " << lineNo << ": @system(" << quote(sys_call) << ") failed" << std::endl;
+                            return 1;
+                        }
                     }
                 }
                 else if(inLine.substr(linePos, 14) == "@systemoutput(")
