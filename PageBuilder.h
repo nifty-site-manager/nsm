@@ -1,6 +1,7 @@
 #ifndef PAGE_BUILDER_H_
 #define PAGE_BUILDER_H_
 
+#include <atomic>
 #include <sstream>
 #include <set>
 
@@ -9,6 +10,7 @@
 
 struct PageBuilder
 {
+    std::atomic<long long int> counter;
     std::set<PageInfo> pages;
     PageInfo pageToBuild;
     DateTimeInfo dateTimeInfo;

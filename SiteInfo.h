@@ -1,6 +1,7 @@
 #ifndef SITE_INFO_H_
 #define SITE_INFO_H_
 
+#include <math.h>
 #include <mutex>
 #include <thread>
 #include <vector>

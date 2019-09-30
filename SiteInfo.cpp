@@ -629,9 +629,9 @@ int SiteInfo::build_all()
 
     int s = pages.size();
 
-    ns.push_back(pages.size()/no_threads);
+    ns.push_back(std::ceil((double)pages.size()/(double)no_threads));
     for(int i=2; i<no_threads; i++)
-        ns.push_back(i*ns[0]);
+        ns.push_back(std::ceil((double)i*(double)pages.size()/(double)no_threads));
     ns.push_back(s);
 
     int i = 0;
@@ -916,9 +916,9 @@ int SiteInfo::build_updated(std::ostream& os)
 
     int s = updatedPages.size();
 
-    ns.push_back(updatedPages.size()/no_threads);
+    ns.push_back(std::ceil((double)updatedPages.size()/(double)no_threads));
     for(int i=2; i<no_threads; i++)
-        ns.push_back(i*ns[0]);
+        ns.push_back(std::ceil((double)i*(double)updatedPages.size()/(double)no_threads));
     ns.push_back(s);
 
     int i = 0;

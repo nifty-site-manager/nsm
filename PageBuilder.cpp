@@ -3,6 +3,7 @@
 PageBuilder::PageBuilder(const std::set<PageInfo> &Pages)
 {
     pages = Pages;
+    counter = 0;
 }
 
 bool PageBuilder::run_page_prebuild_scripts(std::ostream& os)
@@ -179,6 +180,7 @@ bool PageBuilder::run_page_postbuild_scripts(std::ostream& os)
 
 int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
 {
+    counter = counter%1000000000000000000;
     pageToBuild = PageToBuild;
 
     //os << std::endl;
@@ -471,6 +473,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 {
                     linePos+=std::string("@script(").length();
                     std::string sys_call;
+                    std::string output_filename = ".@scriptoutput" + std::to_string(counter++);
 
                     if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@script()", os) > 0)
                         return 1;
@@ -488,14 +491,14 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //checks whether we're running from flatpak
                     if(std::ifstream("/.flatpak-info"))
                     {
-                        int result = system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > .out.txt").c_str());
+                        int result = system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > " + output_filename).c_str());
 
-                        std::ifstream ifs(".out.txt");
+                        std::ifstream ifs(output_filename);
                         std::string str;
                         while(getline(ifs, str))
                             os << str << std::endl;
                         ifs.close();
-                        Path("./", ".out.txt").removePath();
+                        Path("./", output_filename).removePath();
 
                         //need sys_call quoted weirdly here for script paths containing spaces
                         if(result)
@@ -506,14 +509,14 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     }
                     else //sys_call has to be quoted for script paths containing spaces
                     {
-                        int result = system((quote(sys_call) + " > .out.txt").c_str());
+                        int result = system((quote(sys_call) + " > " + output_filename).c_str());
 
-                        std::ifstream ifs(".out.txt");
+                        std::ifstream ifs(output_filename);
                         std::string str;
                         while(getline(ifs, str))
                             os << str << std::endl;
                         ifs.close();
-                        Path("./", ".out.txt").removePath();
+                        Path("./", output_filename).removePath();
 
                         if(result)
                         {
@@ -526,6 +529,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 {
                     linePos+=std::string("@scriptoutput(").length();
                     std::string sys_call;
+                    std::string output_filename = ".@scriptoutput" + std::to_string(counter++);
 
                     if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@scriptoutput()", os) > 0)
                         return 1;
@@ -544,34 +548,35 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     if(std::ifstream("/.flatpak-info"))
                     {
                         //need sys_call quoted weirdly here for script paths containing spaces
-                        if(system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > @scriptoutput").c_str()))
+                        if(system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > " + output_filename).c_str()))
                         {
                             os << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(sys_call) << ") failed" << std::endl;
-                            Path("./", "@scriptoutput").removePath();
+                            Path("./", output_filename).removePath();
                             return 1;
                         }
                     }
-                    else if(system((quote(sys_call) + " > @scriptoutput").c_str())) //sys_call has to be quoted for script paths containing spaces
+                    else if(system((quote(sys_call) + " > " + output_filename).c_str())) //sys_call has to be quoted for script paths containing spaces
                     {
                         os << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(sys_call) << ") failed" << std::endl;
-                        Path("./", "@scriptoutput").removePath();
+                        Path("./", output_filename).removePath();
                         return 1;
                     }
 
                     //indent amount updated inside read_and_process
-                    if(read_and_process(Path("", "@scriptoutput"), antiDepsOfReadPath, os) > 0)
+                    if(read_and_process(Path("", output_filename), antiDepsOfReadPath, os) > 0)
                     {
                         os << "error: " << readPath << ": line " << lineNo << ": failed to process output of script '" << sys_call << "'" << std::endl;
-                        Path("./", "@scriptoutput").removePath();
+                        Path("./", output_filename).removePath();
                         return 1;
                     }
 
-                    Path("./", "@scriptoutput").removePath();
+                    Path("./", output_filename).removePath();
                 }
                 else if(inLine.substr(linePos, 8) == "@system(")
                 {
                     linePos+=std::string("@system(").length();
                     std::string sys_call;
+                    std::string output_filename = ".@systemoutput" + std::to_string(counter++);
 
                     if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@system()", os) > 0)
                         return 1;
@@ -579,14 +584,14 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //checks whether we're running from flatpak
                     if(std::ifstream("/.flatpak-info"))
                     {
-                        int result = system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > .out.txt").c_str());
+                        int result = system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str());
 
-                        std::ifstream ifs(".out.txt");
+                        std::ifstream ifs(output_filename);
                         std::string str;
                         while(getline(ifs, str))
                             os << str << std::endl;
                         ifs.close();
-                        Path("./", ".out.txt").removePath();
+                        Path("./", output_filename).removePath();
 
                         //need sys_call quoted here for cURL to work
                         if(result)
@@ -597,14 +602,14 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     }
                     else //sys_call has to be unquoted for cURL to work
                     {
-                        int result = system((sys_call + " > .out.txt").c_str());
+                        int result = system((sys_call + " > " + output_filename).c_str());
 
-                        std::ifstream ifs(".out.txt");
+                        std::ifstream ifs(output_filename);
                         std::string str;
                         while(getline(ifs, str))
                             os << str << std::endl;
                         ifs.close();
-                        Path("./", ".out.txt").removePath();
+                        Path("./", output_filename).removePath();
 
                         if(result)
                         {
@@ -617,6 +622,8 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 {
                     linePos+=std::string("@systemoutput(").length();
                     std::string sys_call;
+                    std::string output_filename = ".@systemoutput" + std::to_string(counter++);
+
 
                     if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@systemoutput()", os) > 0)
                         return 1;
@@ -625,29 +632,29 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     if(std::ifstream("/.flatpak-info"))
                     {
                         //need sys_call quoted here for cURL to work
-                        if(system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > @systemoutput").c_str()))
+                        if(system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str()))
                         {
                             os << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
-                            Path("./", "@systemoutput").removePath();
+                            Path("./", output_filename).removePath();
                             return 1;
                         }
                     }
-                    else if(system((sys_call + " > @systemoutput").c_str())) //sys_call has to be unquoted for cURL to work
+                    else if(system((sys_call + " > " + output_filename).c_str())) //sys_call has to be unquoted for cURL to work
                     {
                         os << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
-                        Path("./", "@systemoutput").removePath();
+                        Path("./", output_filename).removePath();
                         return 1;
                     }
 
                     //indent amount updated inside read_and_process
-                    if(read_and_process(Path("", "@systemoutput"), antiDepsOfReadPath, os) > 0)
+                    if(read_and_process(Path("", output_filename), antiDepsOfReadPath, os) > 0)
                     {
                         os << "error: " << readPath << ": line " << lineNo << ": failed to process output of system call '" << sys_call << "'" << std::endl;
-                        Path("./", "@systemoutput").removePath();
+                        Path("./", output_filename).removePath();
                         return 1;
                     }
 
-                    Path("./", "@systemoutput").removePath();
+                    Path("./", output_filename).removePath();
                 }
                 else if(inLine.substr(linePos, 8) == "@pathto(")
                 {
