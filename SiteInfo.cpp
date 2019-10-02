@@ -870,6 +870,32 @@ int SiteInfo::build_updated(std::ostream& os)
             }
 
 			infoStream.close();
+
+            //checks for user-defined dependencies
+            Path depsPath = page->contentPath;
+            depsPath.file = depsPath.file.substr(0, depsPath.file.find_last_of('.')) + ".deps";
+
+            if(std::ifstream(depsPath.str()))
+            {
+                std::ifstream depsFile(depsPath.str());
+                while(dep.read_file_path_from(depsFile))
+                {
+                    if(!std::ifstream(dep.str()))
+                    {
+                        os << page->pagePath << ": user defined dep path " << dep << " does not exist" << std::endl;
+                        removedFiles.insert(dep);
+                        updatedPages.insert(*page);
+                        break;
+                    }
+                    else if(dep.modified_after(pageInfoPath))
+                    {
+                        os << page->pagePath << ": user defined dep path " << dep << " modified since last build" << std::endl;
+                        modifiedFiles.insert(dep);
+                        updatedPages.insert(*page);
+                        break;
+                    }
+                }
+            }
         }
     }
 

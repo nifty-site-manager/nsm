@@ -295,7 +295,10 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
         if(lineNo > 1)
         {
             indentAmount = baseIndentAmount;
-            processedPage << std::endl << baseIndentAmount;
+            if(codeBlockDepth)
+                processedPage << std::endl;
+            else
+                processedPage << std::endl << baseIndentAmount;
         }
 
         for(size_t linePos=0; linePos<inLine.length();)
@@ -390,7 +393,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                 }
 
                 //checks whether to escape <
-                if(codeBlockDepth > 0)
+                if(codeBlockDepth > 0 && inLine.substr(linePos+1, 4) != "code" && inLine.substr(linePos+1, 5) != "/code")
                 {
                     processedPage << "&lt;";
                     indentAmount += std::string("&lt;").length();
