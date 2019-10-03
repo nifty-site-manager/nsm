@@ -649,7 +649,7 @@ int main(int argc, char* argv[])
 
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.13" << std::endl;
+        std::cout << "Nift (aka nsm) v1.14" << std::endl;
 
         return 0;
     }

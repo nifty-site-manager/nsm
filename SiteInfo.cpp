@@ -162,6 +162,24 @@ PageInfo SiteInfo::make_info(const Name &pageName, const Title &pageTitle, const
     return pageInfo;
 }
 
+PageInfo make_info(const Name &pageName, const Title &pageTitle, const Path &templatePath, const Directory& contentDir, const Directory& siteDir, const std::string& contentExt, const std::string& pageExt)
+{
+    PageInfo pageInfo;
+
+    pageInfo.pageName = pageName;
+
+    Path pageNameAsPath;
+    pageNameAsPath.set_file_path_from(unquote(pageName));
+
+    pageInfo.contentPath = Path(contentDir + pageNameAsPath.dir, pageNameAsPath.file + contentExt);
+    pageInfo.pagePath = Path(siteDir + pageNameAsPath.dir, pageNameAsPath.file + pageExt);
+
+    pageInfo.pageTitle = pageTitle;
+    pageInfo.templatePath = templatePath;
+
+    return pageInfo;
+}
+
 PageInfo SiteInfo::get_info(const Name &pageName)
 {
     PageInfo page;
@@ -663,16 +681,32 @@ int SiteInfo::build_all()
     {
         std::cout << std::endl;
         std::cout << "---- following pages failed to build ----" << std::endl;
-        for(auto fName=failedPages.begin(); fName != failedPages.end(); fName++)
-            std::cout << " " << *fName << std::endl;
+        if(failedPages.size() < 20)
+            for(auto fName=failedPages.begin(); fName != failedPages.end(); fName++)
+                std::cout << " " << *fName << std::endl;
+        else
+        {
+            int x=0;
+            for(auto fName=failedPages.begin(); x < 20; fName++, x++)
+                std::cout << " " << *fName << std::endl;
+            std::cout << " along with " << failedPages.size() - 20 << " other pages" << std::endl;
+        }
         std::cout << "-----------------------------------------" << std::endl;
     }
     if(untrackedPages.size() > 0)
     {
         std::cout << std::endl;
         std::cout << "---- nsm not tracking following pages ----" << std::endl;
-        for(auto uName=untrackedPages.begin(); uName != untrackedPages.end(); uName++)
-            std::cout << " " << *uName << std::endl;
+        if(untrackedPages.size() < 20)
+            for(auto uName=untrackedPages.begin(); uName != untrackedPages.end(); uName++)
+                std::cout << " " << *uName << std::endl;
+        else
+        {
+            int x=0;
+            for(auto uName=untrackedPages.begin(); x < 20; uName++, x++)
+                std::cout << " " << *uName << std::endl;
+            std::cout << " along with " << untrackedPages.size() - 20 << " other pages" << std::endl;
+        }
         std::cout << "------------------------------------------" << std::endl;
     }
     if(failedPages.size() == 0 && untrackedPages.size() == 0)
@@ -778,28 +812,35 @@ int SiteInfo::build_all()
     return 0;
 }*/
 
-int SiteInfo::build_updated(std::ostream& os)
-{
-    PageBuilder pageBuilder(pages);
-    std::set<PageInfo> updatedPages;
-    std::set<Path> modifiedFiles,
-        removedFiles,
-        problemPages;
+std::mutex problem_mtx, updated_mtx, modified_mtx, removed_mtx, os_mtx;
+std::set<PageInfo> updatedPages;
+std::set<Path> modifiedFiles,
+    removedFiles,
+    problemPages;
 
-    os << std::endl;
-    for(auto page=pages.begin(); page != pages.end(); page++)
+void dep_thread(std::ostream& os, const std::set<PageInfo>& pagesToCheck, const Directory& contentDir, const Directory& siteDir, const std::string& contentExt, const std::string& pageExt)
+{
+    for(auto page=pagesToCheck.begin(); page != pagesToCheck.end(); page++)
     {
         //checks whether content and template files exist
         if(!std::ifstream(page->contentPath.str()))
         {
+            os_mtx.lock();
             os << page->pagePath << ": content file " << page->contentPath << " does not exist" << std::endl;
+            os_mtx.unlock();
+            problem_mtx.lock();
             problemPages.insert(page->pagePath);
+            problem_mtx.unlock();
             continue;
         }
         if(!std::ifstream(page->templatePath.str()))
         {
+            os_mtx.lock();
             os << page->pagePath << ": template file " << page->templatePath << " does not exist" << std::endl;
+            os_mtx.unlock();
+            problem_mtx.lock();
             problemPages.insert(page->pagePath);
+            problem_mtx.unlock();
             continue;
         }
 
@@ -809,8 +850,12 @@ int SiteInfo::build_updated(std::ostream& os)
         //checks whether info path exists
         if(!std::ifstream(pageInfoPath.str()))
         {
+            os_mtx.lock();
             os << page->pagePath << ": yet to be built" << std::endl;
+            os_mtx.unlock();
+            updated_mtx.lock();
             updatedPages.insert(*page);
+            updated_mtx.unlock();
             continue;
         }
         else
@@ -827,26 +872,38 @@ int SiteInfo::build_updated(std::ostream& os)
             prevTemplatePath.read_file_path_from(infoStream);
 
             //probably don't even need this
-            PageInfo prevPageInfo = make_info(prevName, prevTitle, prevTemplatePath);
+            PageInfo prevPageInfo = make_info(prevName, prevTitle, prevTemplatePath, contentDir, siteDir, contentExt, pageExt);
 
             if(page->pageName != prevPageInfo.pageName)
             {
+                os_mtx.lock();
                 os << page->pagePath << ": page name changed to " << page->pageName << " from " << prevPageInfo.pageName << std::endl;
+                os_mtx.unlock();
+                updated_mtx.lock();
                 updatedPages.insert(*page);
+                updated_mtx.unlock();
                 continue;
             }
 
             if(page->pageTitle != prevPageInfo.pageTitle)
             {
+                os_mtx.lock();
                 os << page->pagePath << ": title changed to " << page->pageTitle << " from " << prevPageInfo.pageTitle << std::endl;
+                os_mtx.unlock();
+                updated_mtx.lock();
                 updatedPages.insert(*page);
+                updated_mtx.unlock();
                 continue;
             }
 
             if(page->templatePath != prevPageInfo.templatePath)
             {
+                os_mtx.lock();
                 os << page->pagePath << ": template path changed to " << page->templatePath << " from " << prevPageInfo.templatePath << std::endl;
+                os_mtx.unlock();
+                updated_mtx.lock();
                 updatedPages.insert(*page);
+                updated_mtx.unlock();
                 continue;
             }
 
@@ -855,16 +912,28 @@ int SiteInfo::build_updated(std::ostream& os)
             {
                 if(!std::ifstream(dep.str()))
                 {
+                    os_mtx.lock();
                     os << page->pagePath << ": dep path " << dep << " removed since last build" << std::endl;
+                    os_mtx.unlock();
+                    removed_mtx.lock();
                     removedFiles.insert(dep);
+                    removed_mtx.unlock();
+                    updated_mtx.lock();
                     updatedPages.insert(*page);
+                    updated_mtx.unlock();
                     break;
                 }
                 else if(dep.modified_after(pageInfoPath))
                 {
+                    os_mtx.lock();
                     os << page->pagePath << ": dep path " << dep << " modified since last build" << std::endl;
+                    os_mtx.unlock();
+                    modified_mtx.lock();
                     modifiedFiles.insert(dep);
+                    modified_mtx.unlock();
+                    updated_mtx.lock();
                     updatedPages.insert(*page);
+                    updated_mtx.unlock();
                     break;
                 }
             }
@@ -882,29 +951,94 @@ int SiteInfo::build_updated(std::ostream& os)
                 {
                     if(!std::ifstream(dep.str()))
                     {
+                        os_mtx.lock();
                         os << page->pagePath << ": user defined dep path " << dep << " does not exist" << std::endl;
+                        os_mtx.unlock();
+                        removed_mtx.lock();
                         removedFiles.insert(dep);
+                        removed_mtx.unlock();
+                        updated_mtx.lock();
                         updatedPages.insert(*page);
+                        updated_mtx.unlock();
                         break;
                     }
                     else if(dep.modified_after(pageInfoPath))
                     {
+                        os_mtx.lock();
                         os << page->pagePath << ": user defined dep path " << dep << " modified since last build" << std::endl;
+                        os_mtx.unlock();
+                        modified_mtx.lock();
                         modifiedFiles.insert(dep);
+                        modified_mtx.unlock();
+                        updated_mtx.lock();
                         updatedPages.insert(*page);
+                        updated_mtx.unlock();
                         break;
                     }
                 }
             }
         }
     }
+}
+
+int SiteInfo::build_updated(std::ostream& os)
+{
+    PageBuilder pageBuilder(pages);
+    builtPages.clear();
+    failedPages.clear();
+    problemPages.clear();
+    updatedPages.clear();
+    modifiedFiles.clear();
+    removedFiles.clear();
+
+    os << std::endl;
+
+    int no_threads = std::thread::hardware_concurrency();
+
+    std::vector<std::set<PageInfo> > pages_vec(no_threads, std::set<PageInfo>());
+    std::vector<int> ns;
+
+    int s = pages.size();
+
+    ns.push_back(std::ceil((double)pages.size()/(double)no_threads));
+    for(int i=2; i<no_threads; i++)
+        ns.push_back(std::ceil((double)i*(double)pages.size()/(double)no_threads));
+    ns.push_back(s);
+
+    int i = 0;
+    for(auto page=pages.begin(); i < s; ++page, ++i)
+    {
+        for(int j=0; j<no_threads; j++)
+        {
+            if(i < ns[j])
+            {
+                pages_vec[j].insert(*page);
+                break;
+            }
+        }
+    }
+
+	std::vector<std::thread> threads;
+	for(int i=0; i<no_threads; i++)
+		threads.push_back(std::thread(dep_thread, std::ref(os), pages_vec[i], contentDir, siteDir, contentExt, pageExt));
+
+	for(int i=0; i<no_threads; i++)
+		threads[i].join();
 
     if(removedFiles.size() > 0)
     {
         os << std::endl;
         os << "---- removed content files ----" << std::endl;
-        for(auto rFile=removedFiles.begin(); rFile != removedFiles.end(); rFile++)
-            os << " " << *rFile << std::endl;
+        if(removedFiles.size() < 20)
+            for(auto rFile=removedFiles.begin(); rFile != removedFiles.end(); rFile++)
+                os << " " << *rFile << std::endl;
+        else
+        {
+            int x=0;
+            for(auto rFile=removedFiles.begin(); x < 20; rFile++, x++)
+                os << " " << *rFile << std::endl;
+            os << " along with " << removedFiles.size() - 20 << " other content files" << std::endl;
+        }
         os << "-------------------------------" << std::endl;
     }
 
@@ -912,8 +1046,16 @@ int SiteInfo::build_updated(std::ostream& os)
     {
         os << std::endl;
         os << "------- updated content files ------" << std::endl;
-        for(auto uFile=modifiedFiles.begin(); uFile != modifiedFiles.end(); uFile++)
-            os << " " << *uFile << std::endl;
+        if(modifiedFiles.size() < 20)
+            for(auto uFile=modifiedFiles.begin(); uFile != modifiedFiles.end(); uFile++)
+                os << " " << *uFile << std::endl;
+        else
+        {
+            int x=0;
+            for(auto uFile=modifiedFiles.begin(); x < 20; uFile++, x++)
+                os << " " << *uFile << std::endl;
+            os << " along with " << modifiedFiles.size() - 20 << " other content files" << std::endl;
+        }
         os << "------------------------------------" << std::endl;
     }
 
@@ -921,8 +1063,16 @@ int SiteInfo::build_updated(std::ostream& os)
     {
         os << std::endl;
         os << "----- pages that need building -----" << std::endl;
-        for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
-            os << " " << uPage->pagePath << std::endl;
+        if(updatedPages.size() < 20)
+            for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
+                os << " " << uPage->pagePath << std::endl;
+        else
+        {
+            int x=0;
+            for(auto uPage=updatedPages.begin(); x < 20; uPage++, x++)
+                os << " " << uPage->pagePath << std::endl;
+            os << " along with " << updatedPages.size() - 20 << " other pages" << std::endl;
+        }
         os << "------------------------------------" << std::endl;
     }
 
@@ -930,24 +1080,30 @@ int SiteInfo::build_updated(std::ostream& os)
     {
         os << std::endl;
         os << "----- pages with missing content or template file -----" << std::endl;
-        for(auto pPage=problemPages.begin(); pPage != problemPages.end(); pPage++)
-            os << " " << *pPage << std::endl;
+        if(problemPages.size() < 20)
+            for(auto pPage=problemPages.begin(); pPage != problemPages.end(); pPage++)
+                os << " " << *pPage << std::endl;
+        else
+        {
+            int x=0;
+            for(auto pPage=problemPages.begin(); x < 20; pPage++, x++)
+                os << " " << *pPage << std::endl;
+            os << " along with " << problemPages.size() - 20 << " other pages" << std::endl;
+        }
         os << "-------------------------------------------------------" << std::endl;
     }
 
-    int no_threads = std::thread::hardware_concurrency();
+    pages_vec = std::vector<std::set<PageInfo> >(no_threads, std::set<PageInfo>());
+    ns.clear();
 
-    std::vector<std::set<PageInfo> > pages_vec(no_threads, std::set<PageInfo>());
-    std::vector<int> ns;
-
-    int s = updatedPages.size();
+    s = updatedPages.size();
 
     ns.push_back(std::ceil((double)updatedPages.size()/(double)no_threads));
     for(int i=2; i<no_threads; i++)
         ns.push_back(std::ceil((double)i*(double)updatedPages.size()/(double)no_threads));
     ns.push_back(s);
 
-    int i = 0;
+    i = 0;
     for(auto page=updatedPages.begin(); i < s; ++page, ++i)
     {
         for(int j=0; j<no_threads; j++)
@@ -960,7 +1116,7 @@ int SiteInfo::build_updated(std::ostream& os)
         }
     }
 
-	std::vector<std::thread> threads;
+	threads.clear();
 	for(int i=0; i<no_threads; i++)
 		threads.push_back(std::thread(build_thread, std::ref(os), pages, pages_vec[i]));
 
@@ -971,8 +1127,16 @@ int SiteInfo::build_updated(std::ostream& os)
     {
         os << std::endl;
         os << "---- pages successfully built ----" << std::endl;
-        for(auto bName=builtPages.begin(); bName != builtPages.end(); bName++)
-            os << " " << *bName << std::endl;
+        if(builtPages.size() < 20)
+            for(auto bName=builtPages.begin(); bName != builtPages.end(); bName++)
+                os << " " << *bName << std::endl;
+        else
+        {
+            int x=0;
+            for(auto bName=builtPages.begin(); x < 20; bName++, x++)
+                os << " " << *bName << std::endl;
+            os << " along with " << builtPages.size() - 20 << " other pages" << std::endl;
+        }
         os << "-----------------------------------------" << std::endl;
     }
 
@@ -980,8 +1144,16 @@ int SiteInfo::build_updated(std::ostream& os)
     {
         os << std::endl;
         os << "---- following pages failed to build ----" << std::endl;
-        for(auto fName=failedPages.begin(); fName != failedPages.end(); fName++)
-            os << " " << *fName << std::endl;
+        if(failedPages.size() < 20)
+            for(auto fName=failedPages.begin(); fName != failedPages.end(); fName++)
+                os << " " << *fName << std::endl;
+        else
+        {
+            int x=0;
+            for(auto fName=failedPages.begin(); x < 20; fName++, x++)
+                os << " " << *fName << std::endl;
+            os << " along with " << failedPages.size() - 20 << " other pages" << std::endl;
+        }
         os << "-----------------------------------------" << std::endl;
     }
 

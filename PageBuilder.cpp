@@ -19,14 +19,18 @@ bool PageBuilder::run_page_prebuild_scripts(std::ostream& os)
 
             std::ifstream ifs(".out.txt");
             std::string str;
+            os_mtx.lock();
             while(getline(ifs, str))
                 os << str << std::endl;
+            os_mtx.unlock();
             ifs.close();
             Path("./", ".out.txt").removePath();
 
             if(result)
             {
+                os_mtx.lock();
                 os << "error: pre build script " << quote(prebuildPath.str()) << " failed" << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
         }
@@ -36,14 +40,18 @@ bool PageBuilder::run_page_prebuild_scripts(std::ostream& os)
 
             std::ifstream ifs(".out.txt");
             std::string str;
+            os_mtx.lock();
             while(getline(ifs, str))
                 os << str << std::endl;
+            os_mtx.unlock();
             ifs.close();
             Path("./", ".out.txt").removePath();
 
             if(result)
             {
+                os_mtx.lock();
                 os << "error: pre build script " << quote(prebuildPath.str()) << " failed" << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
         }
@@ -59,14 +67,18 @@ bool PageBuilder::run_page_prebuild_scripts(std::ostream& os)
 
             std::ifstream ifs(".out.txt");
             std::string str;
+            os_mtx.lock();
             while(getline(ifs, str))
                 os << str << std::endl;
+            os_mtx.unlock();
             ifs.close();
             Path("./", ".out.txt").removePath();
 
             if(result)
             {
+                os_mtx.lock();
                 os << "error: pre build script " << quote(prebuildPath.str()) << " failed" << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
         }
@@ -76,14 +88,18 @@ bool PageBuilder::run_page_prebuild_scripts(std::ostream& os)
 
             std::ifstream ifs(".out.txt");
             std::string str;
+            os_mtx.lock();
             while(getline(ifs, str))
                 os << str << std::endl;
+            os_mtx.unlock();
             ifs.close();
             Path("./", ".out.txt").removePath();
 
             if(result)
             {
+                os_mtx.lock();
                 os << "error: pre build script " << quote(prebuildPath.str()) << " failed" << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
         }
@@ -105,14 +121,18 @@ bool PageBuilder::run_page_postbuild_scripts(std::ostream& os)
 
             std::ifstream ifs(".out.txt");
             std::string str;
+            os_mtx.lock();
             while(getline(ifs, str))
                 os << str << std::endl;
+            os_mtx.unlock();
             ifs.close();
             Path("./", ".out.txt").removePath();
 
             if(result)
             {
+                os_mtx.lock();
                 os << "error: post build script " << quote(postbuildPath.str()) << " failed" << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
         }
@@ -122,14 +142,18 @@ bool PageBuilder::run_page_postbuild_scripts(std::ostream& os)
 
             std::ifstream ifs(".out.txt");
             std::string str;
+            os_mtx.lock();
             while(getline(ifs, str))
                 os << str << std::endl;
+            os_mtx.unlock();
             ifs.close();
             Path("./", ".out.txt").removePath();
 
             if(result)
             {
+                os_mtx.lock();
                 os << "error: post build script " << quote(postbuildPath.str()) << " failed" << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
         }
@@ -145,14 +169,18 @@ bool PageBuilder::run_page_postbuild_scripts(std::ostream& os)
 
             std::ifstream ifs(".out.txt");
             std::string str;
+            os_mtx.lock();
             while(getline(ifs, str))
                 os << str << std::endl;
+            os_mtx.unlock();
             ifs.close();
             Path("./", ".out.txt").removePath();
 
             if(result)
             {
+                os_mtx.lock();
                 os << "error: post build script " << quote(postbuildPath.str()) << " failed" << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
         }
@@ -162,14 +190,18 @@ bool PageBuilder::run_page_postbuild_scripts(std::ostream& os)
 
             std::ifstream ifs(".out.txt");
             std::string str;
+            os_mtx.lock();
             while(getline(ifs, str))
                 os << str << std::endl;
+            os_mtx.unlock();
             ifs.close();
             Path("./", ".out.txt").removePath();
 
             if(result)
             {
+                os_mtx.lock();
                 os << "error: post build script " << quote(postbuildPath.str()) << " failed" << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
         }
@@ -183,17 +215,23 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
     counter = counter%1000000000000000000;
     pageToBuild = PageToBuild;
 
+    //os_mtx.lock();
     //os << std::endl;
+    //os_mtx.unlock();
 
     //ensures content and template files exist
     if(!std::ifstream(pageToBuild.contentPath.str()))
     {
+        os_mtx.lock();
         os << "error: cannot build " << pageToBuild.pagePath << " as content file " << pageToBuild.contentPath << " does not exist" << std::endl;
+        os_mtx.unlock();
         return 1;
     }
     if(!std::ifstream(pageToBuild.templatePath.str()))
     {
+        os_mtx.lock();
         os << "error: cannot build " << pageToBuild.pagePath << " as template file " << pageToBuild.templatePath << " does not exist." << std::endl;
+        os_mtx.unlock();
         return 1;
     }
 
@@ -201,7 +239,9 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
     if(this->run_page_prebuild_scripts(os))
         return 1;
 
+    //os_mtx.lock();
     //os << "building page " << pageToBuild.pagePath << std::endl;
+    //os_mtx.unlock();
 
     //makes sure variables are at default values
     codeBlockDepth = htmlCommentDepth = 0;
@@ -227,7 +267,9 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
         //ensures @inputcontent was found inside template dag
         if(!contentAdded)
         {
+            os_mtx.lock();
             os << "error: @inputcontent not found within template file " << pageToBuild.templatePath << " or any of its dependencies, content from " << pageToBuild.contentPath << " has not been inserted" << std::endl;
+            os_mtx.unlock();
             return 1;
         }
 
@@ -265,7 +307,9 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
         //makes sure user can't accidentally write to info file
         chmod(pageInfoPath.str().c_str(), 0444);
 
+        //os_mtx.lock();
         //os << "page build successful" << std::endl;
+        //os_mtx.unlock();
     }
 
     //checks for post-build scripts
@@ -387,7 +431,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     codeBlockDepth--;
                     if(codeBlockDepth < baseCodeBlockDepth)
                     {
+                        os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": </pre> close tag has no preceding <pre*> open tag." << std::endl << std::endl;
+                        os_mtx.unlock();
                         return 1;
                     }
                 }
@@ -457,13 +503,17 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //ensures insert file exists
                     if(!std::ifstream(inputPathStr))
                     {
+                        os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": inputting file " << inputPath << " failed as path does not exist" << std::endl;
+                        os_mtx.unlock();
                         return 1;
                     }
                     //ensures insert file isn't an anti dep of read path
                     if(antiDepsOfReadPath.count(inputPath))
                     {
+                        os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": inputting file " << inputPath << " would result in an input loop" << std::endl;
+                        os_mtx.unlock();
                         return 1;
                     }
 
@@ -487,7 +537,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                     if(!std::ifstream(sys_call))
                     {
+                        os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": @script(" << quote(sys_call) << ") failed as script does not exist" << std::endl;
+                        os_mtx.unlock();
                         return 1;
                     }
 
@@ -498,15 +550,19 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                         std::ifstream ifs(output_filename);
                         std::string str;
+                        os_mtx.lock();
                         while(getline(ifs, str))
                             os << str << std::endl;
+                        os_mtx.unlock();
                         ifs.close();
                         Path("./", output_filename).removePath();
 
                         //need sys_call quoted weirdly here for script paths containing spaces
                         if(result)
                         {
+                            os_mtx.lock();
                             os << "error: " << readPath << ": line " << lineNo << ": @script(" << quote(sys_call) << ") failed" << std::endl;
+                            os_mtx.unlock();
                             return 1;
                         }
                     }
@@ -516,14 +572,18 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                         std::ifstream ifs(output_filename);
                         std::string str;
+                        os_mtx.lock();
                         while(getline(ifs, str))
                             os << str << std::endl;
+                        os_mtx.unlock();
                         ifs.close();
                         Path("./", output_filename).removePath();
 
                         if(result)
                         {
+                            os_mtx.lock();
                             os << "error: " << readPath << ": line " << lineNo << ": @script(" << quote(sys_call) << ") failed" << std::endl;
+                            os_mtx.unlock();
                             return 1;
                         }
                     }
@@ -543,7 +603,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                     if(!std::ifstream(sys_call))
                     {
+                        os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(sys_call) << ") failed as script does not exist" << std::endl;
+                        os_mtx.unlock();
                         return 1;
                     }
 
@@ -553,14 +615,18 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                         //need sys_call quoted weirdly here for script paths containing spaces
                         if(system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > " + output_filename).c_str()))
                         {
+                            os_mtx.lock();
                             os << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(sys_call) << ") failed" << std::endl;
+                            os_mtx.unlock();
                             Path("./", output_filename).removePath();
                             return 1;
                         }
                     }
                     else if(system((quote(sys_call) + " > " + output_filename).c_str())) //sys_call has to be quoted for script paths containing spaces
                     {
+                        os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(sys_call) << ") failed" << std::endl;
+                        os_mtx.unlock();
                         Path("./", output_filename).removePath();
                         return 1;
                     }
@@ -568,7 +634,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //indent amount updated inside read_and_process
                     if(read_and_process(Path("", output_filename), antiDepsOfReadPath, os) > 0)
                     {
+                        os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": failed to process output of script '" << sys_call << "'" << std::endl;
+                        os_mtx.unlock();
                         Path("./", output_filename).removePath();
                         return 1;
                     }
@@ -591,15 +659,19 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                         std::ifstream ifs(output_filename);
                         std::string str;
+                        os_mtx.lock();
                         while(getline(ifs, str))
                             os << str << std::endl;
+                        os_mtx.unlock();
                         ifs.close();
                         Path("./", output_filename).removePath();
 
                         //need sys_call quoted here for cURL to work
                         if(result)
                         {
+                            os_mtx.lock();
                             os << "error: " << readPath << ": line " << lineNo << ": @system(" << quote(sys_call) << ") failed" << std::endl;
+                            os_mtx.unlock();
                             return 1;
                         }
                     }
@@ -609,14 +681,18 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                         std::ifstream ifs(output_filename);
                         std::string str;
+                        os_mtx.lock();
                         while(getline(ifs, str))
                             os << str << std::endl;
+                        os_mtx.unlock();
                         ifs.close();
                         Path("./", output_filename).removePath();
 
                         if(result)
                         {
+                            os_mtx.lock();
                             os << "error: " << readPath << ": line " << lineNo << ": @system(" << quote(sys_call) << ") failed" << std::endl;
+                            os_mtx.unlock();
                             return 1;
                         }
                     }
@@ -637,14 +713,18 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                         //need sys_call quoted here for cURL to work
                         if(system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str()))
                         {
+                            os_mtx.lock();
                             os << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
+                            os_mtx.unlock();
                             Path("./", output_filename).removePath();
                             return 1;
                         }
                     }
                     else if(system((sys_call + " > " + output_filename).c_str())) //sys_call has to be unquoted for cURL to work
                     {
+                        os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
+                        os_mtx.unlock();
                         Path("./", output_filename).removePath();
                         return 1;
                     }
@@ -652,7 +732,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //indent amount updated inside read_and_process
                     if(read_and_process(Path("", output_filename), antiDepsOfReadPath, os) > 0)
                     {
+                        os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": failed to process output of system call '" << sys_call << "'" << std::endl;
+                        os_mtx.unlock();
                         Path("./", output_filename).removePath();
                         return 1;
                     }
@@ -672,7 +754,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     targetPageInfo.pageName = targetPageName;
                     if(!pages.count(targetPageInfo))
                     {
+                        os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": @pathto(" << targetPageName << ") failed, nsm not tracking " << targetPageName << std::endl;
+                        os_mtx.unlock();
                         return 1;
                     }
 
@@ -699,7 +783,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     targetPageInfo.pageName = targetPageName;
                     if(!pages.count(targetPageInfo))
                     {
+                        os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": @pathtopage(" << targetPageName << ") failed, nsm not tracking " << targetPageName << std::endl;
+                        os_mtx.unlock();
                         return 1;
                     }
 
@@ -724,7 +810,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //throws error if targetFilePath doesn't exist
                     if(!std::ifstream(targetFilePath.c_str()))
                     {
+                        os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": file " << targetFilePath << " does not exist" << std::endl;
+                        os_mtx.unlock();
                         return 1;
                     }
                     Path targetPath;
@@ -897,7 +985,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //warns user if favicon file doesn't exist
                     if(!std::ifstream(faviconPathStr.c_str()))
                     {
+                        os_mtx.lock();
                         os << "warning: " << readPath << ": line " << lineNo << ": favicon file " << faviconPathStr << " does not exist" << std::endl;
+                        os_mtx.unlock();
                     }
 
                     Path faviconPath;
@@ -923,7 +1013,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //warns user if css file doesn't exist
                     if(!std::ifstream(cssPathStr.c_str()))
                     {
+                        os_mtx.lock();
                         os << "warning: " << readPath << ": line " << lineNo << ": css file " << cssPathStr << " does not exist" << std::endl;
+                        os_mtx.unlock();
                     }
 
                     Path cssPath;
@@ -949,7 +1041,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //warns user if img file doesn't exist
                     if(!std::ifstream(imgPathStr.c_str()))
                     {
+                        os_mtx.lock();
                         os << "warning: " << readPath << ": line " << lineNo << ": img file " << imgPathStr << " does not exist" << std::endl;
+                        os_mtx.unlock();
                     }
 
                     Path imgPath;
@@ -972,7 +1066,11 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                     //warns user if js file doesn't exist
                     if(!std::ifstream(jsPathStr.c_str()))
+                    {
+                        os_mtx.lock();
                         os << "warning: " << readPath << ": line " << lineNo << ": js file " << jsPathStr << " does not exist" << std::endl;
+                        os_mtx.unlock();
+                    }
 
                     Path jsPath;
                     jsPath.set_file_path_from(jsPathStr);
@@ -1008,7 +1106,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
     if(codeBlockDepth > baseCodeBlockDepth)
     {
+        os_mtx.lock();
         os << "error: " << readPath << ": line " << openCodeLineNo << ": <pre*> open tag has no following </pre> close tag." << std::endl << std::endl;
+        os_mtx.unlock();
         return 1;
     }
 
@@ -1028,14 +1128,18 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
     //throws error if either no closing bracket or a newline
     if(linePos == inLine.size())
     {
+        os_mtx.lock();
         os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
         return 1;
     }
 
     //throws error if no path provided
     if(inLine[linePos] == ')')
     {
+        os_mtx.lock();
         os << "error: " << readPath << ": line " << lineNo << ": no path provided inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
         return 1;
     }
 
@@ -1047,7 +1151,9 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
         {
             if(linePos == inLine.size())
             {
+                os_mtx.lock();
                 os << "error: " << readPath << ": line " << lineNo << ": path has no closing single quote or newline inside " << callType << " call" << std::endl << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
             pathRead += inLine[linePos];
@@ -1061,7 +1167,9 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
         {
             if(linePos == inLine.size())
             {
+                os_mtx.lock();
                 os << "error: " << readPath << ": line " << lineNo << ": path has no closing double quote \" or newline inside " << callType << " call" << std::endl << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
             pathRead += inLine[linePos];
@@ -1074,7 +1182,9 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
         {
             if(linePos == inLine.size())
             {
+                os_mtx.lock();
                 os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
             else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
@@ -1088,12 +1198,16 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
                     }
                     else if(inLine[linePos] != ' ' && inLine[linePos] != '\t')
                     {
+                        os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": unquoted path inside " << callType << " call contains whitespace" << std::endl << std::endl;
+                        os_mtx.unlock();
                         return 1;
                     }
                 }
 
+                os_mtx.lock();
                 os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
             pathRead += inLine[linePos];
@@ -1107,14 +1221,18 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
     //throws error if new line is between the path and close bracket
     if(linePos == inLine.size())
     {
+        os_mtx.lock();
         os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
         return 1;
     }
 
     //throws error if the path is invalid
     if(inLine[linePos] != ')')
     {
+        os_mtx.lock();
         os << "error: " << readPath << ": line " << lineNo << ": invalid path inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
         return 1;
     }
 
@@ -1134,14 +1252,18 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
     //throws error if either no closing bracket or a newline
     if(linePos == inLine.size())
     {
+        os_mtx.lock();
         os << "error: " << readPath << ": line " << lineNo << ": system call has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
         return 1;
     }
 
     //throws error if no system call provided
     if(inLine[linePos] == ')')
     {
+        os_mtx.lock();
         os << "error: " << readPath << ": line " << lineNo << ": no system call provided inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
         return 1;
     }
 
@@ -1153,7 +1275,9 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
         {
             if(linePos == inLine.size())
             {
+                os_mtx.lock();
                 os << "error: " << readPath << ": line " << lineNo << ": system call has no closing single quote or newline inside " << callType << " call" << std::endl << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
             if(inLine[linePos] == '\'' && inLine[linePos-1] != '\\')
@@ -1169,7 +1293,9 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
         {
             if(linePos == inLine.size())
             {
+                os_mtx.lock();
                 os << "error: " << readPath << ": line " << lineNo << ": system call has no closing double quote \" or newline inside " << callType << " call" << std::endl << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
             if(inLine[linePos] == '"' && inLine[linePos-1] != '\\')
@@ -1184,7 +1310,9 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
         {
             if(linePos == inLine.size())
             {
+                os_mtx.lock();
                 os << "error: " << readPath << ": line " << lineNo << ": system call has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+                os_mtx.unlock();
                 return 1;
             }
             sys_call += inLine[linePos];
@@ -1200,14 +1328,18 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
     //throws error if new line is between the system call and close bracket
     if(linePos == inLine.size())
     {
+        os_mtx.lock();
         os << "error: " << readPath << ": line " << lineNo << ": system call has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
         return 1;
     }
 
     //throws error if the system call is invalid (eg. has text after quoted system call)
     if(inLine[linePos] != ')')
     {
+        os_mtx.lock();
         os << "error: " << readPath << ": line " << lineNo << ": invalid system call inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
         return 1;
     }
 

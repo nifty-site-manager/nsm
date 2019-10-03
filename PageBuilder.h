@@ -2,6 +2,7 @@
 #define PAGE_BUILDER_H_
 
 #include <atomic>
+#include <mutex>
 #include <sstream>
 #include <set>
 
@@ -11,6 +12,7 @@
 struct PageBuilder
 {
     std::atomic<long long int> counter;
+	std::mutex os_mtx;
     std::set<PageInfo> pages;
     PageInfo pageToBuild;
     DateTimeInfo dateTimeInfo;
