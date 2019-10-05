@@ -8,7 +8,7 @@ int SiteInfo::open()
     if(!std::ifstream(".siteinfo/nsm.config"))
     {
         //this should never happen!
-        std::cout << "ERROR: SiteInfo.h: could not open nsm config file as .siteinfo/nsm.config does not exist" << std::endl;
+        std::cout << "ERROR: SiteInfo.h: could not open Nift config file as .siteinfo/nsm.config does not exist" << std::endl;
         return 1;
     }
 
@@ -19,7 +19,7 @@ int SiteInfo::open()
         return 1;
     }
 
-    //reads nsm config file
+    //reads Nift config file
     std::ifstream ifs(".siteinfo/nsm.config");
     std::string inType;
     while(ifs >> inType)
@@ -42,12 +42,28 @@ int SiteInfo::open()
     Name inName;
     Title inTitle;
     Path inTemplatePath;
+    std::ifstream ifsx;
+    std::string inExt;
     while(read_quoted(ifs, inName))
     {
         inTitle.read_quoted_from(ifs);
         inTemplatePath.read_file_path_from(ifs);
 
         PageInfo inPage = make_info(inName, inTitle, inTemplatePath);
+
+        //checks for non-default page extension
+        Path extPath = inPage.pagePath.getInfoPath();
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".ext";
+
+        if(std::ifstream(extPath.str()))
+        {
+            ifsx.open(extPath.str());
+
+            ifsx >> inExt;
+            inPage.pagePath.file = inPage.pagePath.file.substr(0, inPage.pagePath.file.find_first_of('.')) + inExt;
+
+            ifsx.close();
+        }
 
         //checks that content and template files aren't the same
         if(inPage.contentPath == inPage.templatePath)
@@ -207,7 +223,7 @@ int SiteInfo::info(const std::vector<Name> &pageNames)
             std::cout << "template path: " << cPageInfo.templatePath << std::endl;
         }
         else
-            std::cout << "nsm is not tracking " << *pageName << std::endl;
+            std::cout << "Nift is not tracking " << *pageName << std::endl;
     }
     std::cout << "--------------------------------------------" << std::endl;
 
@@ -272,7 +288,7 @@ int SiteInfo::track(const Name &name, const Title &title, const Path &templatePa
         PageInfo cInfo = *(pages.find(newPage));
 
         std::cout << std::endl;
-        std::cout << "error: nsm is already tracking " << newPage.pagePath << std::endl;
+        std::cout << "error: Nift is already tracking " << newPage.pagePath << std::endl;
         std::cout << "----- current page details -----" << std::endl;
         std::cout << "   page title: " << cInfo.pageTitle << std::endl;
         std::cout << "    page path: " << cInfo.pagePath << std::endl;
@@ -319,7 +335,7 @@ int SiteInfo::untrack(const Name &pageNameToUntrack)
     if(!tracking(pageNameToUntrack))
     {
         std::cout << std::endl;
-        std::cout << "error: nsm is not tracking " << pageNameToUntrack << std::endl;
+        std::cout << "error: Nift is not tracking " << pageNameToUntrack << std::endl;
         return 1;
     }
 
@@ -356,7 +372,7 @@ int SiteInfo::rm(const Name &pageNameToRemove)
     if(!tracking(pageNameToRemove))
     {
         std::cout << std::endl;
-        std::cout << "error: nsm is not tracking " << pageNameToRemove << std::endl;
+        std::cout << "error: Nift is not tracking " << pageNameToRemove << std::endl;
         return 1;
     }
 
@@ -398,13 +414,13 @@ int SiteInfo::mv(const Name &oldPageName, const Name &newPageName)
     if(!tracking(oldPageName)) //checks old page is being tracked
     {
         std::cout << std::endl;
-        std::cout << "error: nsm is not tracking " << oldPageName << std::endl;
+        std::cout << "error: Nift is not tracking " << oldPageName << std::endl;
         return 1;
     }
     else if(tracking(newPageName)) //checks new page isn't already tracked
     {
         std::cout << std::endl;
-        std::cout << "error: nsm is already tracking " << newPageName << std::endl;
+        std::cout << "error: Nift is already tracking " << newPageName << std::endl;
         return 1;
     }
 
@@ -469,13 +485,13 @@ int SiteInfo::cp(const Name &trackedPageName, const Name &newPageName)
     if(!tracking(trackedPageName)) //checks old page is being tracked
     {
         std::cout << std::endl;
-        std::cout << "error: nsm is not tracking " << trackedPageName << std::endl;
+        std::cout << "error: Nift is not tracking " << trackedPageName << std::endl;
         return 1;
     }
     else if(tracking(newPageName)) //checks new page isn't already tracked
     {
         std::cout << std::endl;
-        std::cout << "error: nsm is already tracking " << newPageName << std::endl;
+        std::cout << "error: Nift is already tracking " << newPageName << std::endl;
         return 1;
     }
 
@@ -533,7 +549,7 @@ int SiteInfo::new_title(const Name &pageName, const Title &newTitle)
     }
     else
     {
-        std::cout << "error: nsm is not tracking " << pageName << std::endl;
+        std::cout << "error: Nift is not tracking " << pageName << std::endl;
         return 1;
     }
 
@@ -565,7 +581,65 @@ int SiteInfo::new_template(const Name &pageName, const Path &newTemplatePath)
     }
     else
     {
-        std::cout << "error: nsm is not tracking " << pageName << std::endl;
+        std::cout << "error: Nift is not tracking " << pageName << std::endl;
+        return 1;
+    }
+
+    return 0;
+}
+
+int SiteInfo::new_ext(const Name &pageName, const std::string &newExt)
+{
+    if(newExt == "" || newExt[0] != '.')
+    {
+        std::cout << "error: page extension must start with a fullstop" << std::endl;
+        return 1;
+    }
+
+    PageInfo pageInfo = get_info(pageName);
+    if(pages.count(pageInfo))
+    {
+        //checks for non-default page extension
+        Path extPath = pageInfo.pagePath.getInfoPath();
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".ext";
+
+        //makes sure we can write to ext file
+        chmod(extPath.str().c_str(), 0644);
+
+        if(newExt != pageExt)
+        {
+            std::ofstream ofs(extPath.str());
+            ofs << newExt << std::endl;
+            ofs.close();
+
+            //makes sure user can't edit ext file
+            chmod(extPath.str().c_str(), 0444);
+        }
+        else
+            extPath.removePath();
+
+        //moves the built page
+        if(std::ifstream(pageInfo.pagePath.str()))
+        {
+            Path newPagePath = pageInfo.pagePath;
+            newPagePath.file = newPagePath.file.substr(0, newPagePath.file.find_first_of('.')) + newExt;
+            std::ifstream ifs(pageInfo.pagePath.str());
+            std::ofstream ofs(newPagePath.str());
+            std::string str;
+            while(getline(ifs, str))
+                ofs << str << std::endl;
+            ofs.close();
+            ifs.close();
+            pageInfo.pagePath.removePath();
+        }
+
+        //informs user that page extension was successfully changed
+        std::cout << std::endl;
+        std::cout << "successfully changed page extention to " << newExt << std::endl;
+    }
+    else
+    {
+        std::cout << "error: Nift is not tracking " << pageName << std::endl;
         return 1;
     }
 
@@ -599,10 +673,10 @@ int SiteInfo::build(const std::vector<Name>& pageNamesToBuild)
     if(untrackedPages.size() > 0)
     {
         std::cout << std::endl;
-        std::cout << "---- nsm not tracking following pages ----" << std::endl;
+        std::cout << "---- Nift not tracking following pages ----" << std::endl;
         for(auto uName=untrackedPages.begin(); uName != untrackedPages.end(); uName++)
             std::cout << " " << *uName << std::endl;
-        std::cout << "------------------------------------------" << std::endl;
+        std::cout << "-------------------------------------------" << std::endl;
     }
     if(failedPages.size() == 0 && untrackedPages.size() == 0)
     {
@@ -696,7 +770,7 @@ int SiteInfo::build_all()
     if(untrackedPages.size() > 0)
     {
         std::cout << std::endl;
-        std::cout << "---- nsm not tracking following pages ----" << std::endl;
+        std::cout << "---- Nift not tracking following pages ----" << std::endl;
         if(untrackedPages.size() < 20)
             for(auto uName=untrackedPages.begin(); uName != untrackedPages.end(); uName++)
                 std::cout << " " << *uName << std::endl;
@@ -707,7 +781,7 @@ int SiteInfo::build_all()
                 std::cout << " " << *uName << std::endl;
             std::cout << " along with " << untrackedPages.size() - 20 << " other pages" << std::endl;
         }
-        std::cout << "------------------------------------------" << std::endl;
+        std::cout << "-------------------------------------------" << std::endl;
     }
     if(failedPages.size() == 0 && untrackedPages.size() == 0)
     {
@@ -764,10 +838,10 @@ int SiteInfo::build_all()
     if(untrackedPages.size() > 0)
     {
         std::cout << std::endl;
-        std::cout << "---- nsm not tracking following pages ----" << std::endl;
+        std::cout << "---- Nift not tracking following pages ----" << std::endl;
         for(auto uName=untrackedPages.begin(); uName != untrackedPages.end(); uName++)
             std::cout << " " << *uName << std::endl;
-        std::cout << "------------------------------------------" << std::endl;
+        std::cout << "-------------------------------------------" << std::endl;
     }
     if(failedPages.size() == 0 && untrackedPages.size() == 0)
     {
@@ -785,7 +859,7 @@ int SiteInfo::build_all()
     if(pages.size() == 0)
     {
         std::cout << std::endl;
-        std::cout << "nsm is not tracking any pages, nothing to build" << std::endl;
+        std::cout << "Nift is not tracking any pages, nothing to build" << std::endl;
         return 0;
     }
 
@@ -942,7 +1016,7 @@ void dep_thread(std::ostream& os, const std::set<PageInfo>& pagesToCheck, const 
 
             //checks for user-defined dependencies
             Path depsPath = page->contentPath;
-            depsPath.file = depsPath.file.substr(0, depsPath.file.find_last_of('.')) + ".deps";
+            depsPath.file = depsPath.file.substr(0, depsPath.file.find_first_of('.')) + ".deps";
 
             if(std::ifstream(depsPath.str()))
             {
@@ -1028,7 +1102,7 @@ int SiteInfo::build_updated(std::ostream& os)
     if(removedFiles.size() > 0)
     {
         os << std::endl;
-        os << "---- removed content files ----" << std::endl;
+        os << "---- removed dependency files ----" << std::endl;
         if(removedFiles.size() < 20)
             for(auto rFile=removedFiles.begin(); rFile != removedFiles.end(); rFile++)
                 os << " " << *rFile << std::endl;
@@ -1037,15 +1111,15 @@ int SiteInfo::build_updated(std::ostream& os)
             int x=0;
             for(auto rFile=removedFiles.begin(); x < 20; rFile++, x++)
                 os << " " << *rFile << std::endl;
-            os << " along with " << removedFiles.size() - 20 << " other content files" << std::endl;
+            os << " along with " << removedFiles.size() - 20 << " other dependency files" << std::endl;
         }
-        os << "-------------------------------" << std::endl;
+        os << "----------------------------------" << std::endl;
     }
 
     if(modifiedFiles.size() > 0)
     {
         os << std::endl;
-        os << "------- updated content files ------" << std::endl;
+        os << "------- updated dependency files ------" << std::endl;
         if(modifiedFiles.size() < 20)
             for(auto uFile=modifiedFiles.begin(); uFile != modifiedFiles.end(); uFile++)
                 os << " " << *uFile << std::endl;
@@ -1054,9 +1128,9 @@ int SiteInfo::build_updated(std::ostream& os)
             int x=0;
             for(auto uFile=modifiedFiles.begin(); x < 20; uFile++, x++)
                 os << " " << *uFile << std::endl;
-            os << " along with " << modifiedFiles.size() - 20 << " other content files" << std::endl;
+            os << " along with " << modifiedFiles.size() - 20 << " other dependency files" << std::endl;
         }
-        os << "------------------------------------" << std::endl;
+        os << "---------------------------------------" << std::endl;
     }
 
     if(updatedPages.size() > 0)
@@ -1137,7 +1211,7 @@ int SiteInfo::build_updated(std::ostream& os)
                 os << " " << *bName << std::endl;
             os << " along with " << builtPages.size() - 20 << " other pages" << std::endl;
         }
-        os << "-----------------------------------------" << std::endl;
+        os << "----------------------------------" << std::endl;
     }
 
     if(failedPages.size() > 0)
@@ -1342,7 +1416,7 @@ int SiteInfo::status()
     if(pages.size() == 0)
     {
         std::cout << std::endl;
-        std::cout << "nsm does not have any pages tracked" << std::endl;
+        std::cout << "Nift does not have any pages tracked" << std::endl;
         return 0;
     }
 

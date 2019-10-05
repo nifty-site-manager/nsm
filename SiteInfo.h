@@ -38,6 +38,7 @@ struct SiteInfo
 
     int new_title(const Name &pageName, const Title &newTitle);
     int new_template(const Name &pageName, const Path &newTemplatePath);
+    int new_ext(const Name &pageName, const std::string &newExt);
 
     int build(const std::vector<Name>& pageNamesToBuild);
     int build_all();

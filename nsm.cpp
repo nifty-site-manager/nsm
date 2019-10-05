@@ -643,20 +643,20 @@ int main(int argc, char* argv[])
 
     if(get_pwd() == "/")
     {
-        std::cout << "error: don't run nsm from the root directory!" << std::endl;
+        std::cout << "error: don't run Nift from the root directory!" << std::endl;
         return 1;
     }
 
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.14" << std::endl;
+        std::cout << "Nift (aka nsm) v1.15" << std::endl;
 
         return 0;
     }
     else if(cmd == "commands")
     {
         std::cout << "+------ available commands ----------------------------------------+" << std::endl;
-        std::cout << "| commands       | lists all nsm commands                          |" << std::endl;
+        std::cout << "| commands       | lists all Nift commands                         |" << std::endl;
         std::cout << "| config         | list config settings or set git email/username  |" << std::endl;
         std::cout << "| clone          | input: clone-url                                |" << std::endl;
         std::cout << "| diff           | input: file-path                                |" << std::endl;
@@ -678,6 +678,7 @@ int main(int argc, char* argv[])
         std::cout << "| bcp            | input: commit-message                           |" << std::endl;
         std::cout << "| new-title      | input: page-name new-title                      |" << std::endl;
         std::cout << "| new-template   | input: page-name template-path                  |" << std::endl;
+        std::cout << "| new-ext        | input: page-name page-extension                 |" << std::endl;
         std::cout << "+------------------------------------------------------------------+" << std::endl;
 
         return 0;
@@ -697,7 +698,7 @@ int main(int argc, char* argv[])
         if(noParams > 2)
             return parError(noParams, argv, "1-2");
 
-        //ensures nsm is not managing a site from this directory or one of the ancestor directories
+        //ensures Nift is not managing a site from this directory or one of the ancestor directories
         std::string parentDir = "../",
             rootDir = "C:\\",
             owd = get_pwd(),
@@ -712,7 +713,7 @@ int main(int argc, char* argv[])
 
         if(std::ifstream(".siteinfo/pages.list") || std::ifstream(".siteinfo/nsm.config"))
         {
-            std::cout << "nsm is already managing a site in " << owd << " (or an accessible ancestor directory)" << std::endl;
+            std::cout << "Nift is already managing a site in " << owd << " (or an accessible ancestor directory)" << std::endl;
             return 1;
         }
 
@@ -729,7 +730,7 @@ int main(int argc, char* argv[])
 
             if(std::ifstream(".siteinfo/pages.list") || std::ifstream(".siteinfo/nsm.config"))
             {
-                std::cout << "nsm is already managing a site in " << owd << " (or an accessible ancestor directory)" << std::endl;
+                std::cout << "Nift is already managing a site in " << owd << " (or an accessible ancestor directory)" << std::endl;
                 return 1;
             }
         }
@@ -808,7 +809,7 @@ int main(int argc, char* argv[])
         //trash = system("nsm track index");
         //trash = system("nsm build-updated");
 
-        std::cout << "nsm: initialised empty site in " << get_pwd() << "/.siteinfo/" << std::endl;
+        std::cout << "Nift: initialised empty site in " << get_pwd() << "/.siteinfo/" << std::endl;
 
         return 0;
     }
@@ -973,6 +974,7 @@ int main(int argc, char* argv[])
            cmd != "copy" &&
            cmd != "new-title" &&
            cmd != "new-template" &&
+           cmd != "new-ext" &&
            cmd != "build-updated" &&
            cmd != "build" &&
            cmd != "build-all" &&
@@ -982,7 +984,7 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        //ensures nsm is managing a site from this directory or one of the parent directories
+        //ensures Nift is managing a site from this directory or one of the parent directories
         std::string parentDir = "../",
             rootDir = "/",
             siteRootDir = get_pwd(),
@@ -1004,7 +1006,7 @@ int main(int argc, char* argv[])
             //checks we haven't made it to root directory or stuck at same dir
             if(pwd == rootDir || pwd == prevPwd)
             {
-                std::cout << "nsm is not managing a site from " << owd << " (or any accessible parent directories)" << std::endl;
+                std::cout << "Nift is not managing a site from " << owd << " (or any accessible parent directories)" << std::endl;
                 return 1;
             }
         }
@@ -1269,6 +1271,16 @@ int main(int argc, char* argv[])
             newTemplatePath.set_file_path_from(argv[3]);
 
             return site.new_template(pageName, newTemplatePath);
+        }
+        else if(cmd == "new-ext")
+        {
+            //ensures correct number of parameters given
+            if(noParams != 3)
+                return parError(noParams, argv, "3");
+
+            Name pageName = argv[2];
+
+            return site.new_ext(pageName, argv[3]);
         }
         else if(cmd == "build-updated")
         {

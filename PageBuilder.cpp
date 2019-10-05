@@ -9,7 +9,7 @@ PageBuilder::PageBuilder(const std::set<PageInfo> &Pages)
 bool PageBuilder::run_page_prebuild_scripts(std::ostream& os)
 {
     Path prebuildPath = pageToBuild.contentPath;
-    prebuildPath.file = prebuildPath.file.substr(0, prebuildPath.file.find_last_of('.')) + ".pre-build.bat";
+    prebuildPath.file = prebuildPath.file.substr(0, prebuildPath.file.find_first_of('.')) + ".pre-build.bat";
     if(std::ifstream(prebuildPath.str()))
     {
         //checks whether we're running from flatpak
@@ -57,7 +57,7 @@ bool PageBuilder::run_page_prebuild_scripts(std::ostream& os)
         }
     }
     prebuildPath = pageToBuild.contentPath;
-    prebuildPath.file = prebuildPath.file.substr(0, prebuildPath.file.find_last_of('.')) + ".pre-build.sh";
+    prebuildPath.file = prebuildPath.file.substr(0, prebuildPath.file.find_first_of('.')) + ".pre-build.sh";
     if(std::ifstream(prebuildPath.str()))
     {
         //checks whether we're running from flatpak
@@ -111,7 +111,7 @@ bool PageBuilder::run_page_prebuild_scripts(std::ostream& os)
 bool PageBuilder::run_page_postbuild_scripts(std::ostream& os)
 {
     Path postbuildPath = pageToBuild.contentPath;
-    postbuildPath.file = postbuildPath.file.substr(0, postbuildPath.file.find_last_of('.')) + ".post-build.bat";
+    postbuildPath.file = postbuildPath.file.substr(0, postbuildPath.file.find_first_of('.')) + ".post-build.bat";
     if(std::ifstream(postbuildPath.str()))
     {
         //checks whether we're running from flatpak
@@ -159,7 +159,7 @@ bool PageBuilder::run_page_postbuild_scripts(std::ostream& os)
         }
     }
     postbuildPath = pageToBuild.contentPath;
-    postbuildPath.file = postbuildPath.file.substr(0, postbuildPath.file.find_last_of('.')) + ".post-build.sh";
+    postbuildPath.file = postbuildPath.file.substr(0, postbuildPath.file.find_first_of('.')) + ".post-build.sh";
     if(std::ifstream(postbuildPath.str()))
     {
         //checks whether we're running from flatpak
@@ -522,6 +522,26 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                         return 1;
                     //indent amount updated inside read_and_process
                 }
+                else if(inLine.substr(linePos, 5) == "@dep(")
+                {
+                    linePos+=std::string("@dep(").length();
+                    std::string sys_call;
+
+                    if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@dep()", os) > 0)
+                        return 1;
+
+                    Path depPath;
+                    depPath.set_file_path_from(sys_call);
+                    pageDeps.insert(depPath);
+
+                    if(!std::ifstream(sys_call))
+                    {
+                        os_mtx.lock();
+                        os << "error: " << readPath << ": line " << lineNo << ": @dep(" << quote(sys_call) << ") failed as dependency does not exist" << std::endl;
+                        os_mtx.unlock();
+                        return 1;
+                    }
+                }
                 else if(inLine.substr(linePos, 8) == "@script(")
                 {
                     linePos+=std::string("@script(").length();
@@ -749,13 +769,13 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     if(read_path(targetPageName, linePos, inLine, readPath, lineNo, "@pathto()", os) > 0)
                         return 1;
 
-                    //throws error if target targetPageName isn't being tracked by nsm
+                    //throws error if target targetPageName isn't being tracked by Nift
                     PageInfo targetPageInfo;
                     targetPageInfo.pageName = targetPageName;
                     if(!pages.count(targetPageInfo))
                     {
                         os_mtx.lock();
-                        os << "error: " << readPath << ": line " << lineNo << ": @pathto(" << targetPageName << ") failed, nsm not tracking " << targetPageName << std::endl;
+                        os << "error: " << readPath << ": line " << lineNo << ": @pathto(" << targetPageName << ") failed, Nift not tracking " << targetPageName << std::endl;
                         os_mtx.unlock();
                         return 1;
                     }
@@ -778,13 +798,13 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     if(read_path(targetPageName, linePos, inLine, readPath, lineNo, "@pathtopage()", os) > 0)
                         return 1;
 
-                    //throws error if target targetPageName isn't being tracked by nsm
+                    //throws error if target targetPageName isn't being tracked by Nift
                     PageInfo targetPageInfo;
                     targetPageInfo.pageName = targetPageName;
                     if(!pages.count(targetPageInfo))
                     {
                         os_mtx.lock();
-                        os << "error: " << readPath << ": line " << lineNo << ": @pathtopage(" << targetPageName << ") failed, nsm not tracking " << targetPageName << std::endl;
+                        os << "error: " << readPath << ": line " << lineNo << ": @pathtopage(" << targetPageName << ") failed, Nift not tracking " << targetPageName << std::endl;
                         os_mtx.unlock();
                         return 1;
                     }
