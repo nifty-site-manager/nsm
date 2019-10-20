@@ -1,7 +1,7 @@
 #basic makefile for nsm
 objects=nsm.o DateTimeInfo.o Directory.o Filename.o PageBuilder.o PageInfo.o Path.o Quoted.o SiteInfo.o Title.o
 cppfiles=nsm.cpp DateTimeInfo.cpp Directory.cpp Filename.cpp PageBuilder.cpp PageInfo.cpp Path.cpp Quoted.cpp SiteInfo.cpp Title.cpp
-CC=g++
+CC=${CXX}
 LINK=-pthread
 CXXFLAGS=-std=c++11 -Wall -Wextra -pedantic -O3
 #Flags to use when compiling for Chocolatey
