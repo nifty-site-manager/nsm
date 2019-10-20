@@ -3,9 +3,14 @@ objects=nsm.o DateTimeInfo.o Directory.o Filename.o PageBuilder.o PageInfo.o Pat
 cppfiles=nsm.cpp DateTimeInfo.cpp Directory.cpp Filename.cpp PageBuilder.cpp PageInfo.cpp Path.cpp Quoted.cpp SiteInfo.cpp Title.cpp
 CC=${CXX}
 LINK=-pthread
-CXXFLAGS=-std=c++11 -Wall -Wextra -pedantic -O3
+CXXFLAGS+= -std=c++11 -Wall -Wextra -pedantic -O3
 #Flags to use when compiling for Chocolatey
 #CXXFLAGS=-std=c++11 -Wall -Wextra -pedantic -O3 -static -static-libgcc -static-libstdc++
+DESTDIR?=
+PREFIX?=/usr/local
+BINDIR=${DESTDIR}${PREFIX}/bin
+
+all: nsm
 
 nsm: $(objects)
 	$(CC) $(CXXFLAGS) $(cppfiles) -o nsm $(LINK)
@@ -45,23 +50,15 @@ linux-gedit-highlighting:
 	chmod 644 html.lang
 	cp html.lang /usr/share/gtksourceview-3.0/language-specs/html.lang
 
-linux-install:
+install:
+	mkdir -p ${BINDIR}
 	chmod 755 nsm
-	mv nift /usr/local/bin
-	mv nsm /usr/local/bin
+	mv nift ${BINDIR}
+	mv nsm ${BINDIR}
 
-linux-uninstall:
-	rm /usr/local/bin/nift
-	rm /usr/local/bin/nsm
-
-osx-install:
-	chmod 755 nsm
-	mv nift /usr/local/bin
-	mv nsm /usr/local/bin
-
-osx-uninstall:
-	rm /usr/local/bin/nift
-	rm /usr/local/bin/nsm 
+uninstall:
+	rm ${BINDIR}/nift
+	rm ${BINDIR}/nsm
 
 git-bash-install:
 	chmod 755 nsm
