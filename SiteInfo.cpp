@@ -1,6 +1,5 @@
 #include "SiteInfo.h"
 
-
 int SiteInfo::open()
 {
     pages.clear();
@@ -37,6 +36,18 @@ int SiteInfo::open()
     }
     ifs.close();
 
+    if(contentExt == "" || contentExt[0] != '.')
+    {
+        std::cout << "error: content extension must start with a fullstop" << std::endl;
+        return 1;
+    }
+
+    if(pageExt == "" || pageExt[0] != '.')
+    {
+        std::cout << "error: page extension must start with a fullstop" << std::endl;
+        return 1;
+    }
+
     //reads page list file
     ifs.open(".siteinfo/pages.list");
     Name inName;
@@ -53,7 +64,7 @@ int SiteInfo::open()
 
         //checks for non-default page extension
         Path extPath = inPage.pagePath.getInfoPath();
-        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".ext";
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
 
         if(std::ifstream(extPath.str()))
         {
@@ -588,7 +599,52 @@ int SiteInfo::new_template(const Name &pageName, const Path &newTemplatePath)
     return 0;
 }
 
-int SiteInfo::new_ext(const Name &pageName, const std::string &newExt)
+int SiteInfo::new_page_ext(const std::string &newExt)
+{
+    if(newExt == "" || newExt[0] != '.')
+    {
+        std::cout << "error: page extension must start with a fullstop" << std::endl;
+        return 1;
+    }
+
+    pageExt = newExt;
+
+    std::ofstream ofs(".siteinfo/nsm.config");
+    ofs << "contentDir " << quote(contentDir) << std::endl;
+    ofs << "contentExt " << quote(contentExt) << std::endl;
+    ofs << "siteDir " << quote(siteDir) << std::endl;
+    ofs << "pageExt " << quote(pageExt) << std::endl;
+    ofs << "defaultTemplate " << quote(defaultTemplate.str()) << std::endl;
+    ofs.close();
+
+    for(auto page=pages.begin(); page!=pages.end(); page++)
+    {
+        //checks for non-default page extension
+        Path extPath = page->pagePath.getInfoPath();
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+
+        if(std::ifstream(extPath.str()))
+        {
+            std::ifstream ifs(extPath.str());
+            std::string oldExt;
+
+            read_quoted(ifs, oldExt);
+            ifs.close();
+
+            if(oldExt != newExt)
+                continue;
+        }
+
+        new_page_ext(page->pageName, newExt);
+    }
+
+    //informs user that page extension was successfully changed
+    std::cout << "successfully changed page extention to " << newExt << std::endl;
+
+    return 0;
+}
+
+int SiteInfo::new_page_ext(const Name &pageName, const std::string &newExt)
 {
     if(newExt == "" || newExt[0] != '.')
     {
@@ -601,7 +657,7 @@ int SiteInfo::new_ext(const Name &pageName, const std::string &newExt)
     {
         //checks for non-default page extension
         Path extPath = pageInfo.pagePath.getInfoPath();
-        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".ext";
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
 
         //makes sure we can write to ext file
         chmod(extPath.str().c_str(), 0644);
@@ -623,19 +679,18 @@ int SiteInfo::new_ext(const Name &pageName, const std::string &newExt)
         {
             Path newPagePath = pageInfo.pagePath;
             newPagePath.file = newPagePath.file.substr(0, newPagePath.file.find_first_of('.')) + newExt;
-            std::ifstream ifs(pageInfo.pagePath.str());
-            std::ofstream ofs(newPagePath.str());
-            std::string str;
-            while(getline(ifs, str))
-                ofs << str << std::endl;
-            ofs.close();
-            ifs.close();
-            pageInfo.pagePath.removePath();
+            if(newPagePath.str() != pageInfo.pagePath.str())
+            {
+                std::ifstream ifs(pageInfo.pagePath.str());
+                std::ofstream ofs(newPagePath.str());
+                std::string str;
+                while(getline(ifs, str))
+                    ofs << str << std::endl;
+                ofs.close();
+                ifs.close();
+                pageInfo.pagePath.removePath();
+            }
         }
-
-        //informs user that page extension was successfully changed
-        std::cout << std::endl;
-        std::cout << "successfully changed page extention to " << newExt << std::endl;
     }
     else
     {
@@ -687,15 +742,29 @@ int SiteInfo::build(const std::vector<Name>& pageNamesToBuild)
     return 0;
 }
 
-std::mutex fail_mtx, built_mtx;
+std::mutex fail_mtx, built_mtx, set_mtx;
 std::set<Name> failedPages, builtPages;
+std::set<PageInfo>::iterator cPage;
 
-void build_thread(std::ostream& os, const std::set<PageInfo>& allPages, const std::set<PageInfo>& pagesToBuild)
+std::atomic<int> counter;
+
+void build_thread(std::ostream& os, const std::set<PageInfo>& pages, const int& no_pages)
 {
-    PageBuilder pageBuilder(allPages);
+    PageBuilder pageBuilder(pages);
+    std::set<PageInfo>::iterator pageInfo;
 
-    for(auto pageInfo=pagesToBuild.begin(); pageInfo != pagesToBuild.end(); pageInfo++)
+    while(counter < no_pages)
     {
+        set_mtx.lock();
+        if(counter >= no_pages)
+        {
+            set_mtx.unlock();
+            return;
+        }
+        counter++;
+        pageInfo = cPage++;
+        set_mtx.unlock();
+
         if(pageBuilder.build(*pageInfo, os) > 0)
         {
             fail_mtx.lock();
@@ -716,37 +785,13 @@ int SiteInfo::build_all()
     int no_threads = std::thread::hardware_concurrency();
 
     std::set<Name> untrackedPages;
-    std::vector<std::set<PageInfo> > pages_vec(no_threads, std::set<PageInfo>());
-    std::vector<int> ns;
 
-    int s = pages.size();
-
-    ns.push_back(std::ceil((double)pages.size()/(double)no_threads));
-    for(int i=2; i<no_threads; i++)
-        ns.push_back(std::ceil((double)i*(double)pages.size()/(double)no_threads));
-    ns.push_back(s);
-
-    int i = 0;
-    for(auto page=pages.begin(); i < s; ++page, ++i)
-    {
-        if(!tracking(page->pageName))
-            untrackedPages.insert(page->pageName);
-        else
-        {
-            for(int j=0; j<no_threads; j++)
-            {
-                if(i < ns[j])
-                {
-                    pages_vec[j].insert(*page);
-					break;
-                }
-            }
-        }
-    }
+    cPage = pages.begin();
+    counter = 0;
 
 	std::vector<std::thread> threads;
 	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(build_thread, std::ref(std::cout), pages, pages_vec[i]));
+		threads.push_back(std::thread(build_thread, std::ref(std::cout), pages, pages.size()));
 
 	for(int i=0; i<no_threads; i++)
 		threads[i].join();
@@ -786,7 +831,7 @@ int SiteInfo::build_all()
     if(failedPages.size() == 0 && untrackedPages.size() == 0)
     {
         std::cout << std::endl;
-        std::cout << "all " << pages.size() << " pages built successfully" << std::endl;
+        std::cout << "all " << builtPages.size() << " pages built successfully" << std::endl;
     }
 
     return 0;
@@ -892,10 +937,22 @@ std::set<Path> modifiedFiles,
     removedFiles,
     problemPages;
 
-void dep_thread(std::ostream& os, const std::set<PageInfo>& pagesToCheck, const Directory& contentDir, const Directory& siteDir, const std::string& contentExt, const std::string& pageExt)
+void dep_thread(std::ostream& os, const int& no_pages, const Directory& contentDir, const Directory& siteDir, const std::string& contentExt, const std::string& pageExt)
 {
-    for(auto page=pagesToCheck.begin(); page != pagesToCheck.end(); page++)
+    std::set<PageInfo>::iterator page;
+
+    while(counter < no_pages)
     {
+        set_mtx.lock();
+        if(counter >= no_pages)
+        {
+            set_mtx.unlock();
+            return;
+        }
+        counter++;
+        page = cPage++;
+        set_mtx.unlock();
+
         //checks whether content and template files exist
         if(!std::ifstream(page->contentPath.str()))
         {
@@ -1069,32 +1126,12 @@ int SiteInfo::build_updated(std::ostream& os)
 
     int no_threads = std::thread::hardware_concurrency();
 
-    std::vector<std::set<PageInfo> > pages_vec(no_threads, std::set<PageInfo>());
-    std::vector<int> ns;
-
-    int s = pages.size();
-
-    ns.push_back(std::ceil((double)pages.size()/(double)no_threads));
-    for(int i=2; i<no_threads; i++)
-        ns.push_back(std::ceil((double)i*(double)pages.size()/(double)no_threads));
-    ns.push_back(s);
-
-    int i = 0;
-    for(auto page=pages.begin(); i < s; ++page, ++i)
-    {
-        for(int j=0; j<no_threads; j++)
-        {
-            if(i < ns[j])
-            {
-                pages_vec[j].insert(*page);
-                break;
-            }
-        }
-    }
+    cPage = pages.begin();
+    counter = 0;
 
 	std::vector<std::thread> threads;
 	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(dep_thread, std::ref(os), pages_vec[i], contentDir, siteDir, contentExt, pageExt));
+		threads.push_back(std::thread(dep_thread, std::ref(os), pages.size(), contentDir, siteDir, contentExt, pageExt));
 
 	for(int i=0; i<no_threads; i++)
 		threads[i].join();
@@ -1167,32 +1204,12 @@ int SiteInfo::build_updated(std::ostream& os)
         os << "-------------------------------------------------------" << std::endl;
     }
 
-    pages_vec = std::vector<std::set<PageInfo> >(no_threads, std::set<PageInfo>());
-    ns.clear();
-
-    s = updatedPages.size();
-
-    ns.push_back(std::ceil((double)updatedPages.size()/(double)no_threads));
-    for(int i=2; i<no_threads; i++)
-        ns.push_back(std::ceil((double)i*(double)updatedPages.size()/(double)no_threads));
-    ns.push_back(s);
-
-    i = 0;
-    for(auto page=updatedPages.begin(); i < s; ++page, ++i)
-    {
-        for(int j=0; j<no_threads; j++)
-        {
-            if(i < ns[j])
-            {
-                pages_vec[j].insert(*page);
-				break;
-            }
-        }
-    }
+    cPage = updatedPages.begin();
+    counter = 0;
 
 	threads.clear();
 	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(build_thread, std::ref(os), pages, pages_vec[i]));
+		threads.push_back(std::thread(build_thread, std::ref(os), pages, updatedPages.size()));
 
 	for(int i=0; i<no_threads; i++)
 		threads[i].join();
@@ -1200,7 +1217,7 @@ int SiteInfo::build_updated(std::ostream& os)
     if(builtPages.size() > 0)
     {
         os << std::endl;
-        os << "---- pages successfully built ----" << std::endl;
+        os << "------- pages successfully built -------" << std::endl;
         if(builtPages.size() < 20)
             for(auto bName=builtPages.begin(); bName != builtPages.end(); bName++)
                 os << " " << *bName << std::endl;
@@ -1211,7 +1228,7 @@ int SiteInfo::build_updated(std::ostream& os)
                 os << " " << *bName << std::endl;
             os << " along with " << builtPages.size() - 20 << " other pages" << std::endl;
         }
-        os << "----------------------------------" << std::endl;
+        os << "----------------------------------------" << std::endl;
     }
 
     if(failedPages.size() > 0)

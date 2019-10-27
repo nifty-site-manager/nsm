@@ -488,6 +488,18 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     std::string replaceText = "@input(" + quote(pageToBuild.contentPath.str()) + ")";
                     inLine.replace(linePos, 13, replaceText);
                 }
+                else if(inLine.substr(linePos, 10) == "@inputhead")
+                {
+                    Path headPath = pageToBuild.contentPath;
+                    headPath.file = headPath.file.substr(0, headPath.file.find_first_of('.')) + ".head";
+                    if(std::ifstream(headPath.str()))
+                    {
+                        std::string replaceText = "@input(" + quote(headPath.str()) + ")";
+                        inLine.replace(linePos, 10, replaceText);
+                    }
+                    else
+                        inLine.replace(linePos, 10, "");
+                }
                 else if(inLine.substr(linePos, 7) == "@input(")
                 {
                     linePos+=std::string("@input(").length();
@@ -1176,6 +1188,8 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
                 os_mtx.unlock();
                 return 1;
             }
+            else if(inLine[linePos] == '\'')
+                break;
             pathRead += inLine[linePos];
         }
         ++linePos;
@@ -1183,7 +1197,7 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
     else if(inLine[linePos] == '"')
     {
         ++linePos;
-        for(; inLine[linePos] != '"'; ++linePos)
+        for(;; ++linePos)
         {
             if(linePos == inLine.size())
             {
@@ -1192,6 +1206,8 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
                 os_mtx.unlock();
                 return 1;
             }
+            else if(inLine[linePos] == '"')
+                break;
             pathRead += inLine[linePos];
         }
         ++linePos;
@@ -1300,8 +1316,12 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
                 os_mtx.unlock();
                 return 1;
             }
-            if(inLine[linePos] == '\'' && inLine[linePos-1] != '\\')
+            else if(inLine[linePos] == '\'')
                 break;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
             sys_call += inLine[linePos];
         }
         ++linePos;
@@ -1318,8 +1338,12 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
                 os_mtx.unlock();
                 return 1;
             }
-            if(inLine[linePos] == '"' && inLine[linePos-1] != '\\')
+            else if(inLine[linePos] == '"')
                 break;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
             sys_call += inLine[linePos];
         }
         ++linePos;
@@ -1335,6 +1359,10 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
                 os_mtx.unlock();
                 return 1;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
             sys_call += inLine[linePos];
         }
 

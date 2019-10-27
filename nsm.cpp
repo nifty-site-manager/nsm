@@ -649,7 +649,7 @@ int main(int argc, char* argv[])
 
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.15" << std::endl;
+        std::cout << "Nift (aka nsm) v1.16" << std::endl;
 
         return 0;
     }
@@ -678,7 +678,7 @@ int main(int argc, char* argv[])
         std::cout << "| bcp            | input: commit-message                           |" << std::endl;
         std::cout << "| new-title      | input: page-name new-title                      |" << std::endl;
         std::cout << "| new-template   | input: page-name template-path                  |" << std::endl;
-        std::cout << "| new-ext        | input: page-name page-extension                 |" << std::endl;
+        std::cout << "| new-page-ext   | input: (page-name) page-extension               |" << std::endl;
         std::cout << "+------------------------------------------------------------------+" << std::endl;
 
         return 0;
@@ -974,7 +974,7 @@ int main(int argc, char* argv[])
            cmd != "copy" &&
            cmd != "new-title" &&
            cmd != "new-template" &&
-           cmd != "new-ext" &&
+           cmd != "new-page-ext" &&
            cmd != "build-updated" &&
            cmd != "build" &&
            cmd != "build-all" &&
@@ -1272,15 +1272,25 @@ int main(int argc, char* argv[])
 
             return site.new_template(pageName, newTemplatePath);
         }
-        else if(cmd == "new-ext")
+        else if(cmd == "new-page-ext")
         {
             //ensures correct number of parameters given
-            if(noParams != 3)
-                return parError(noParams, argv, "3");
+            if(noParams != 2 && noParams != 3)
+                return parError(noParams, argv, "2 or 3");
 
-            Name pageName = argv[2];
+            if(noParams == 2)
+                return site.new_page_ext(argv[2]);
+            else
+            {
+                Name pageName = argv[2];
 
-            return site.new_ext(pageName, argv[3]);
+                int return_val = site.new_page_ext(pageName, argv[3]);
+
+                if(!return_val) //informs user that page extension was successfully changed
+                    std::cout << "successfully changed page extention for " << pageName << " to " << argv[3] << std::endl;
+
+                return return_val;
+            }
         }
         else if(cmd == "build-updated")
         {
