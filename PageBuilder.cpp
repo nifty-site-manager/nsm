@@ -299,7 +299,7 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
         //writes page info file
         std::ofstream infoStream(pageInfoPath.str());
         infoStream << dateTimeInfo.currentTime() << " " << dateTimeInfo.currentDate() << "\n";
-        infoStream << this->pageToBuild << "\n" << "\n";
+        infoStream << this->pageToBuild << "\n\n";
         for(auto pageDep=pageDeps.begin(); pageDep != pageDeps.end(); pageDep++)
             infoStream << *pageDep << "\n";
         infoStream.close();
