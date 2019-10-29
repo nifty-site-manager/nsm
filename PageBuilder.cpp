@@ -281,7 +281,7 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
 
         //writes processed page to page file
         std::ofstream pageStream(pageToBuild.pagePath.str());
-        pageStream << processedPage.str() << std::endl;
+        pageStream << processedPage.str() << "\n";
         pageStream.close();
 
         //makes sure user can't accidentally write to page file
@@ -298,10 +298,10 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
 
         //writes page info file
         std::ofstream infoStream(pageInfoPath.str());
-        infoStream << dateTimeInfo.currentTime() << " " << dateTimeInfo.currentDate() << std::endl;
-        infoStream << this->pageToBuild << std::endl << std::endl;
+        infoStream << dateTimeInfo.currentTime() << " " << dateTimeInfo.currentDate() << "\n";
+        infoStream << this->pageToBuild << "\n" << "\n";
         for(auto pageDep=pageDeps.begin(); pageDep != pageDeps.end(); pageDep++)
-            infoStream << *pageDep << std::endl;
+            infoStream << *pageDep << "\n";
         infoStream.close();
 
         //makes sure user can't accidentally write to info file
@@ -340,9 +340,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
         {
             indentAmount = baseIndentAmount;
             if(codeBlockDepth)
-                processedPage << std::endl;
+                processedPage << "\n";
             else
-                processedPage << std::endl << baseIndentAmount;
+                processedPage << "\n" << baseIndentAmount;
         }
 
         for(size_t linePos=0; linePos<inLine.length();)
