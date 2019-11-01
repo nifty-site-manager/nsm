@@ -1,5 +1,96 @@
 #include "SiteInfo.h"
 
+std::string get_pwd()
+{
+    char * pwd_char = getcwd(NULL, 0);
+    std::string pwd = pwd_char;
+    free(pwd_char);
+    return pwd;
+}
+
+bool file_exists(const char *path, const std::string& file)
+{
+    bool exists = 0;
+    std::string cFile;
+    struct dirent *entry;
+    DIR *dir = opendir(path);
+    if(dir == NULL)
+        return "";
+
+    while((entry = readdir(dir)) != NULL)
+    {
+        cFile = entry->d_name;
+        if(cFile == file)
+        {
+            exists = 1;
+            break;
+        }
+    }
+
+    closedir(dir);
+
+    return exists;
+}
+
+std::string ls(const char *path)
+{
+    std::string lsStr;
+    struct dirent *entry;
+    DIR *dir = opendir(path);
+    if(dir == NULL)
+        return "";
+
+    while((entry = readdir(dir)) != NULL)
+    {
+        lsStr += entry->d_name;
+        lsStr += " ";
+    }
+
+    closedir(dir);
+
+    return lsStr;
+}
+
+std::vector<std::string> lsVec(const char *path)
+{
+    std::vector<std::string> ans;
+    struct dirent *entry;
+    DIR *dir = opendir(path);
+    if(dir == NULL)
+        return ans;
+
+    while((entry = readdir(dir)) != NULL)
+        if(std::string(entry->d_name) != "." && std::string(entry->d_name) != "..")
+            ans.push_back(entry->d_name);
+
+    closedir(dir);
+
+    return ans;
+}
+
+int delDir(std::string dir)
+{
+    std::string owd = get_pwd();
+    int trash = chdir(dir.c_str());
+    trash = trash + 1; //gets rid of stupid warning
+
+    std::vector<std::string> files = lsVec("./");
+    for(size_t f=0; f<files.size(); f++)
+    {
+        struct stat s;
+
+        if(stat(files[f].c_str(),&s) == 0 && s.st_mode & S_IFDIR)
+            trash = delDir(files[f]);
+        else
+            Path("./", files[f]).removePath();
+    }
+
+    trash = chdir(owd.c_str());
+    trash = rmdir(dir.c_str());
+
+    return 0;
+}
+
 int SiteInfo::open()
 {
     pages.clear();
@@ -62,8 +153,22 @@ int SiteInfo::open()
 
         PageInfo inPage = make_info(inName, inTitle, inTemplatePath);
 
-        //checks for non-default page extension
+        //checks for non-default content extension
         Path extPath = inPage.pagePath.getInfoPath();
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+
+        if(std::ifstream(extPath.str()))
+        {
+            ifsx.open(extPath.str());
+
+            ifsx >> inExt;
+            inPage.contentPath.file = inPage.contentPath.file.substr(0, inPage.contentPath.file.find_first_of('.')) + inExt;
+
+            ifsx.close();
+        }
+
+        //checks for non-default page extension
+        extPath = inPage.pagePath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
 
         if(std::ifstream(extPath.str()))
@@ -122,13 +227,8 @@ int SiteInfo::save()
 {
     std::ofstream ofs(".siteinfo/pages.list");
 
-    for(auto page=pages.begin(); page != pages.end(); page++)
-    {
-        ofs << quote(page->pageName) << std::endl;
-        ofs << page->pageTitle << std::endl;
-        ofs << page->templatePath << std::endl;
-        ofs << std::endl;
-    }
+    for(auto page=pages.begin(); page!=pages.end(); page++)
+        ofs << *page << "\n\n";
 
     ofs.close();
 
@@ -330,7 +430,7 @@ int SiteInfo::track(const Name &name, const Title &title, const Path &templatePa
     //saves new set of pages to pages.list
     std::ofstream ofs(".siteinfo/pages.list");
     for(auto page=pages.begin(); page!=pages.end(); page++)
-        ofs << *page << std::endl << std::endl;
+        ofs << *page << "\n\n";
     ofs.close();
 
     //informs user that page addition was successful
@@ -454,7 +554,7 @@ int SiteInfo::mv(const Name &oldPageName, const Name &newPageName)
     std::ofstream ofs(newPageInfo.contentPath.str());
     std::string inLine;
     while(getline(ifs, inLine))
-        ofs << inLine << std::endl;
+        ofs << inLine << "\n";
     ofs.close();
     ifs.close();
 
@@ -525,7 +625,7 @@ int SiteInfo::cp(const Name &trackedPageName, const Name &newPageName)
     std::ofstream ofs(newPageInfo.contentPath.str());
     std::string inLine;
     while(getline(ifs, inLine))
-        ofs << inLine << std::endl;
+        ofs << inLine << "\n";
     ofs.close();
     ifs.close();
 
@@ -555,7 +655,6 @@ int SiteInfo::new_title(const Name &pageName, const Title &newTitle)
         save();
 
         //informs user that page title was successfully changed
-        std::cout << std::endl;
         std::cout << "successfully changed page title to " << newTitle << std::endl;
     }
     else
@@ -563,6 +662,51 @@ int SiteInfo::new_title(const Name &pageName, const Title &newTitle)
         std::cout << "error: Nift is not tracking " << pageName << std::endl;
         return 1;
     }
+
+    return 0;
+}
+
+int SiteInfo::new_template(const Path &newTemplatePath)
+{
+    Name pageName;
+    Title pageTitle;
+    Path pageTemplatePath;
+    rename(".siteinfo/pages.list", ".siteinfo/pages.list-old");
+    std::ifstream ifs(".siteinfo/pages.list-old");
+    std::ofstream ofs(".siteinfo/pages.list");
+    while(read_quoted(ifs, pageName))
+    {
+        pageTitle.read_quoted_from(ifs);
+        pageTemplatePath.read_file_path_from(ifs);
+
+        ofs << quote(pageName) << std::endl;
+        ofs << pageTitle << std::endl;
+        if(pageTemplatePath == defaultTemplate)
+            ofs << newTemplatePath << std::endl << std::endl;
+        else
+            ofs << pageTemplatePath << std::endl << std::endl;
+    }
+    ifs.close();
+    ofs.close();
+    Path(".siteinfo/", "pages.list-old").removePath();
+
+    //sets new template
+    defaultTemplate = newTemplatePath;
+
+    //saves new default template to Nift config file
+    ofs.open(".siteinfo/nsm.config");
+    ofs << "contentDir " << quote(contentDir) << "\n";
+    ofs << "contentExt " << quote(contentExt) << "\n";
+    ofs << "siteDir " << quote(siteDir) << "\n";
+    ofs << "pageExt " << quote(pageExt) << "\n";
+    ofs << "defaultTemplate " << defaultTemplate << "\n";
+    ofs.close();
+
+    //warns user if new template path doesn't exist
+    if(!std::ifstream(newTemplatePath.str()))
+        std::cout << "warning: new template path " << newTemplatePath << " does not exist" << std::endl;
+
+    std::cout << "successfully changed default template to " << newTemplatePath << std::endl;
 
     return 0;
 }
@@ -581,14 +725,264 @@ int SiteInfo::new_template(const Name &pageName, const Path &newTemplatePath)
 
         //warns user if new template path doesn't exist
         if(!std::ifstream(newTemplatePath.str()))
+            std::cout << "warning: new template path " << newTemplatePath << " does not exist" << std::endl;
+    }
+    else
+    {
+        std::cout << "error: Nift is not tracking " << pageName << std::endl;
+        return 1;
+    }
+
+    return 0;
+}
+
+int SiteInfo::new_site_dir(const Directory &newSiteDir)
+{
+    if(newSiteDir == "")
+    {
+        std::cout << "error: new site directory cannot be the empty string" << std::endl;
+        return 1;
+    }
+
+    if(newSiteDir == siteDir)
+    {
+        std::cout << "error: site directory is already " << quote(newSiteDir) << std::endl;
+        return 1;
+    }
+
+    if(std::ifstream(newSiteDir))
+    {
+        std::cout << "error: new site directory " << quote(newSiteDir) << " already exists" << std::endl;
+        return 1;
+    }
+
+    std::string parDir = "../",
+                rootDir = "/",
+                siteRootDir = get_pwd(),
+                pwd = get_pwd();
+
+    int trash = chdir(siteDir.c_str());
+    trash = trash + 1; //gets rid of stupid warning
+    trash = chdir(parDir.c_str());
+    std::string delDir = get_pwd();
+    trash = chdir(siteRootDir.c_str());
+
+    //ensures new site directory exists
+    Path(newSiteDir, Filename("")).ensurePathExists();
+
+    //moves site directory
+    rename(siteDir.c_str(), newSiteDir.c_str());
+
+    //deletes any remaining empty directories
+    trash = chdir(delDir.c_str());
+    size_t pos;
+    while(ls("./") == ". .. ")
+    {
+        pwd = get_pwd();
+        trash = chdir(parDir.c_str());
+        pos = pwd.find_last_of('/');
+        trash = rmdir(pwd.substr(pos+1, pwd.size()-(pos+1)).c_str());
+    }
+
+    //changes back to site root directory
+    trash = chdir(siteRootDir.c_str());
+
+    //ensures new info directory exists
+    Path(".siteinfo/" + newSiteDir, Filename("")).ensurePathExists();
+
+    //moves old info directory
+    rename((".siteinfo/" + siteDir).c_str(), (".siteinfo/" + newSiteDir).c_str());
+
+    //deletes any remaining empty directories
+    trash = chdir((".siteinfo/" + delDir).c_str());
+    while(ls("./") == ". .. ")
+    {
+        pwd = get_pwd();
+        trash = chdir(parDir.c_str());
+        pos = pwd.find_last_of('/');
+        trash = rmdir(pwd.substr(pos+1, pwd.size()-(pos+1)).c_str());
+    }
+
+    //changes back to site root directory
+    trash = chdir(siteRootDir.c_str());
+
+    //sets new site directory
+    siteDir = newSiteDir;
+
+    //saves new site directory to Nift config file
+    std::ofstream ofs(".siteinfo/nsm.config");
+    ofs << "contentDir " << quote(contentDir) << "\n";
+    ofs << "contentExt " << quote(contentExt) << "\n";
+    ofs << "siteDir " << quote(siteDir) << "\n";
+    ofs << "pageExt " << quote(pageExt) << "\n";
+    ofs << "defaultTemplate " << defaultTemplate << "\n";
+    ofs.close();
+
+    std::cout << "successfully changed site directory to " << quote(newSiteDir) << std::endl;
+
+    return 0;
+}
+
+int SiteInfo::new_content_dir(const Directory &newContDir)
+{
+    if(newContDir == "")
+    {
+        std::cout << "error: new content directory cannot be the empty string" << std::endl;
+        return 1;
+    }
+
+    if(newContDir == contentDir)
+    {
+        std::cout << "error: content directory is already " << quote(newContDir) << std::endl;
+        return 1;
+    }
+
+    if(std::ifstream(newContDir))
+    {
+        std::cout << "error: new content directory " << quote(newContDir) << " already exists" << std::endl;
+        return 1;
+    }
+
+    std::string parDir = "../",
+                rootDir = "/",
+                siteRootDir = get_pwd(),
+                pwd = get_pwd();
+
+    int trash = chdir(contentDir.c_str());
+    trash = trash + 1; //gets rid of stupid warning
+    trash = chdir(parDir.c_str());
+    std::string delDir = get_pwd();
+    trash = chdir(siteRootDir.c_str());
+
+    //ensures new site directory exists
+    Path(newContDir, Filename("")).ensurePathExists();
+
+    //moves content directory
+    rename(contentDir.c_str(), newContDir.c_str());
+
+    //deletes any remaining empty directories
+    trash = chdir(delDir.c_str());
+    size_t pos;
+    while(ls("./") == ". .. ")
+    {
+        pwd = get_pwd();
+        trash = chdir(parDir.c_str());
+        pos = pwd.find_last_of('/');
+        trash = rmdir(pwd.substr(pos+1, pwd.size()-(pos+1)).c_str());
+    }
+
+    //changes back to site root directory
+    trash = chdir(siteRootDir.c_str());
+
+    //sets new site directory
+    contentDir = newContDir;
+
+    //saves new site directory to Nift config file
+    std::ofstream ofs(".siteinfo/nsm.config");
+    ofs << "contentDir " << quote(contentDir) << "\n";
+    ofs << "contentExt " << quote(contentExt) << "\n";
+    ofs << "siteDir " << quote(siteDir) << "\n";
+    ofs << "pageExt " << quote(pageExt) << "\n";
+    ofs << "defaultTemplate " << defaultTemplate << "\n";
+    ofs.close();
+
+    std::cout << "successfully changed content directory to " << quote(newContDir) << std::endl;
+
+    return 0;
+}
+
+int SiteInfo::new_content_ext(const std::string &newExt)
+{
+    if(newExt == "" || newExt[0] != '.')
+    {
+        std::cout << "error: page extension must start with a fullstop" << std::endl;
+        return 1;
+    }
+
+    contentExt = newExt;
+
+    std::ofstream ofs(".siteinfo/nsm.config");
+    ofs << "contentDir " << quote(contentDir) << "\n";
+    ofs << "contentExt " << quote(contentExt) << "\n";
+    ofs << "siteDir " << quote(siteDir) << "\n";
+    ofs << "pageExt " << quote(pageExt) << "\n";
+    ofs << "defaultTemplate " << defaultTemplate << "\n";
+    ofs.close();
+
+    for(auto page=pages.begin(); page!=pages.end(); page++)
+    {
+        //checks for non-default page extension
+        Path extPath = page->pagePath.getInfoPath();
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+
+        if(std::ifstream(extPath.str()))
         {
-            std::cout << std::endl;
-            std::cout << "warning: new template path " << newTemplatePath.str() << " does not exist" << std::endl;
+            std::ifstream ifs(extPath.str());
+            std::string oldExt;
+
+            read_quoted(ifs, oldExt);
+            ifs.close();
+
+            if(oldExt != newExt)
+                continue;
         }
 
-        //informs user that page title was successfully changed
-        std::cout << std::endl;
-        std::cout << "successfully changed template path to " << newTemplatePath.str() << std::endl;
+        new_content_ext(page->pageName, newExt);
+    }
+
+    //informs user that page extension was successfully changed
+    std::cout << "successfully changed page extention to " << newExt << std::endl;
+
+    return 0;
+}
+
+int SiteInfo::new_content_ext(const Name &pageName, const std::string &newExt)
+{
+    if(newExt == "" || newExt[0] != '.')
+    {
+        std::cout << "error: content extension must start with a fullstop" << std::endl;
+        return 1;
+    }
+
+    PageInfo pageInfo = get_info(pageName);
+    if(pages.count(pageInfo))
+    {
+        //checks for non-default page extension
+        Path extPath = pageInfo.pagePath.getInfoPath();
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+
+        //makes sure we can write to ext file
+        chmod(extPath.str().c_str(), 0644);
+
+        if(newExt != contentExt)
+        {
+            std::ofstream ofs(extPath.str());
+            ofs << newExt << "\n";
+            ofs.close();
+
+            //makes sure user can't edit ext file
+            chmod(extPath.str().c_str(), 0444);
+        }
+        else
+            extPath.removePath();
+
+        //moves the content file
+        if(std::ifstream(pageInfo.pagePath.str()))
+        {
+            Path newContPath = pageInfo.contentPath;
+            newContPath.file = newContPath.file.substr(0, newContPath.file.find_first_of('.')) + newExt;
+            if(newContPath.str() != pageInfo.contentPath.str())
+            {
+                std::ifstream ifs(pageInfo.contentPath.str());
+                std::ofstream ofs(newContPath.str());
+                std::string str;
+                while(getline(ifs, str))
+                    ofs << str << "\n";
+                ofs.close();
+                ifs.close();
+                pageInfo.contentPath.removePath();
+            }
+        }
     }
     else
     {
@@ -610,11 +1004,11 @@ int SiteInfo::new_page_ext(const std::string &newExt)
     pageExt = newExt;
 
     std::ofstream ofs(".siteinfo/nsm.config");
-    ofs << "contentDir " << quote(contentDir) << std::endl;
-    ofs << "contentExt " << quote(contentExt) << std::endl;
-    ofs << "siteDir " << quote(siteDir) << std::endl;
-    ofs << "pageExt " << quote(pageExt) << std::endl;
-    ofs << "defaultTemplate " << quote(defaultTemplate.str()) << std::endl;
+    ofs << "contentDir " << quote(contentDir) << "\n";
+    ofs << "contentExt " << quote(contentExt) << "\n";
+    ofs << "siteDir " << quote(siteDir) << "\n";
+    ofs << "pageExt " << quote(pageExt) << "\n";
+    ofs << "defaultTemplate " << defaultTemplate << "\n";
     ofs.close();
 
     for(auto page=pages.begin(); page!=pages.end(); page++)
@@ -665,7 +1059,7 @@ int SiteInfo::new_page_ext(const Name &pageName, const std::string &newExt)
         if(newExt != pageExt)
         {
             std::ofstream ofs(extPath.str());
-            ofs << newExt << std::endl;
+            ofs << newExt << "\n";
             ofs.close();
 
             //makes sure user can't edit ext file
@@ -685,7 +1079,7 @@ int SiteInfo::new_page_ext(const Name &pageName, const std::string &newExt)
                 std::ofstream ofs(newPagePath.str());
                 std::string str;
                 while(getline(ifs, str))
-                    ofs << str << std::endl;
+                    ofs << str << "\n";
                 ofs.close();
                 ifs.close();
                 pageInfo.pagePath.removePath();
@@ -703,7 +1097,7 @@ int SiteInfo::new_page_ext(const Name &pageName, const std::string &newExt)
 
 int SiteInfo::build(const std::vector<Name>& pageNamesToBuild)
 {
-    PageBuilder pageBuilder(pages);
+    PageBuilder pageBuilder(&pages);
     std::set<Name> untrackedPages, failedPages;
 
     for(auto pageName=pageNamesToBuild.begin(); pageName != pageNamesToBuild.end(); pageName++)
@@ -748,7 +1142,7 @@ std::set<PageInfo>::iterator cPage;
 
 std::atomic<int> counter;
 
-void build_thread(std::ostream& os, const std::set<PageInfo>& pages, const int& no_pages)
+void build_thread(std::ostream& os, std::set<PageInfo>* pages, const int& no_pages)
 {
     PageBuilder pageBuilder(pages);
     std::set<PageInfo>::iterator pageInfo;
@@ -791,7 +1185,7 @@ int SiteInfo::build_all()
 
 	std::vector<std::thread> threads;
 	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(build_thread, std::ref(std::cout), pages, pages.size()));
+		threads.push_back(std::thread(build_thread, std::ref(std::cout), &pages, pages.size()));
 
 	for(int i=0; i<no_threads; i++)
 		threads[i].join();
@@ -829,10 +1223,7 @@ int SiteInfo::build_all()
         std::cout << "-------------------------------------------" << std::endl;
     }
     if(failedPages.size() == 0 && untrackedPages.size() == 0)
-    {
-        std::cout << std::endl;
         std::cout << "all " << builtPages.size() << " pages built successfully" << std::endl;
-    }
 
     return 0;
 }
@@ -1002,8 +1393,9 @@ void dep_thread(std::ostream& os, const int& no_pages, const Directory& contentD
             prevTitle.read_quoted_from(infoStream);
             prevTemplatePath.read_file_path_from(infoStream);
 
-            //probably don't even need this
             PageInfo prevPageInfo = make_info(prevName, prevTitle, prevTemplatePath, contentDir, siteDir, contentExt, pageExt);
+
+            //note we haven't checked for non-default content/page extension, pretty sure we don't need to here
 
             if(page->pageName != prevPageInfo.pageName)
             {
@@ -1114,15 +1506,12 @@ void dep_thread(std::ostream& os, const int& no_pages, const Directory& contentD
 
 int SiteInfo::build_updated(std::ostream& os)
 {
-    PageBuilder pageBuilder(pages);
     builtPages.clear();
     failedPages.clear();
     problemPages.clear();
     updatedPages.clear();
     modifiedFiles.clear();
     removedFiles.clear();
-
-    os << std::endl;
 
     int no_threads = std::thread::hardware_concurrency();
 
@@ -1209,7 +1598,7 @@ int SiteInfo::build_updated(std::ostream& os)
 
 	threads.clear();
 	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(build_thread, std::ref(os), pages, updatedPages.size()));
+		threads.push_back(std::thread(build_thread, std::ref(os), &pages, updatedPages.size()));
 
 	for(int i=0; i<no_threads; i++)
 		threads[i].join();

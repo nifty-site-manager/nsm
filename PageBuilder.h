@@ -11,9 +11,8 @@
 
 struct PageBuilder
 {
-    std::atomic<long long int> counter;
 	std::mutex os_mtx;
-    std::set<PageInfo> pages;
+    std::set<PageInfo>* pages;
     PageInfo pageToBuild;
     DateTimeInfo dateTimeInfo;
     int codeBlockDepth,
@@ -23,7 +22,7 @@ struct PageBuilder
     std::stringstream processedPage;
     std::set<Path> pageDeps;
 
-    PageBuilder(const std::set<PageInfo> &Pages);
+    PageBuilder(std::set<PageInfo> *Pages);
 
     bool run_page_prebuild_scripts(std::ostream& os);
     bool run_page_postbuild_scripts(std::ostream& os);

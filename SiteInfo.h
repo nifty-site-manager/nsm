@@ -7,7 +7,19 @@
 #include <thread>
 #include <vector>
 
+#include <atomic>
+#include <unistd.h>
+#include <dirent.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
 #include "PageBuilder.h"
+
+std::string get_pwd();
+bool file_exists(const char *path, const std::string& file);
+std::string ls(const char *path);
+std::vector<std::string> lsVec(const char *path);
+int delDir(std::string dir);
 
 struct SiteInfo
 {
@@ -38,7 +50,12 @@ struct SiteInfo
     int cp(const Name &trackedPageName, const Name &newPageName);
 
     int new_title(const Name &pageName, const Title &newTitle);
+    int new_template(const Path &newTemplatePath);
     int new_template(const Name &pageName, const Path &newTemplatePath);
+    int new_site_dir(const Directory &newSiteDir);
+    int new_content_dir(const Directory &newContDir);
+    int new_content_ext(const std::string &newExt);
+    int new_content_ext(const Name &pageName, const std::string &newExt);
     int new_page_ext(const std::string &newExt);
     int new_page_ext(const Name &pageName, const std::string &newExt);
 

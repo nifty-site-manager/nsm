@@ -19,96 +19,6 @@
 
 std::atomic<int> trash;
 
-std::string get_pwd()
-{
-    char * pwd_char = getcwd(NULL, 0);
-    std::string pwd = pwd_char;
-    free(pwd_char);
-    return pwd;
-}
-
-bool file_exists(const char *path, const std::string& file)
-{
-    bool exists = 0;
-    std::string cFile;
-    struct dirent *entry;
-    DIR *dir = opendir(path);
-    if(dir == NULL)
-        return "";
-
-    while((entry = readdir(dir)) != NULL)
-    {
-        cFile = entry->d_name;
-        if(cFile == file)
-        {
-            exists = 1;
-            break;
-        }
-    }
-
-    closedir(dir);
-
-    return exists;
-}
-
-std::string ls(const char *path)
-{
-    std::string lsStr;
-    struct dirent *entry;
-    DIR *dir = opendir(path);
-    if(dir == NULL)
-        return "";
-
-    while((entry = readdir(dir)) != NULL)
-    {
-        lsStr += entry->d_name;
-        lsStr += " ";
-    }
-
-    closedir(dir);
-
-    return lsStr;
-}
-
-std::vector<std::string> lsVec(const char *path)
-{
-    std::vector<std::string> ans;
-    struct dirent *entry;
-    DIR *dir = opendir(path);
-    if(dir == NULL)
-        return ans;
-
-    while((entry = readdir(dir)) != NULL)
-        if(std::string(entry->d_name) != "." && std::string(entry->d_name) != "..")
-            ans.push_back(entry->d_name);
-
-    closedir(dir);
-
-    return ans;
-}
-
-int delDir(std::string dir)
-{
-    std::string owd = get_pwd();
-    trash = chdir(dir.c_str());
-
-    std::vector<std::string> files = lsVec("./");
-    for(size_t f=0; f<files.size(); f++)
-    {
-        struct stat s;
-
-        if(stat(files[f].c_str(),&s) == 0 && s.st_mode & S_IFDIR)
-            trash = delDir(files[f]);
-        else
-            Path("./", files[f]).removePath();
-    }
-
-    trash = chdir(owd.c_str());
-    trash = rmdir(dir.c_str());
-
-    return 0;
-}
-
 bool is_git_configured()
 {
     //checks that git is configured
@@ -630,6 +540,9 @@ bool parError(int noParams, char* argv[], const std::string &expectedNo)
 
 int main(int argc, char* argv[])
 {
+    Timer timer;
+    timer.start();
+
     int noParams = argc-1;
     trash = trash + 1; //so trash is 'used'
 
@@ -649,7 +562,7 @@ int main(int argc, char* argv[])
 
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.16" << std::endl;
+        std::cout << "Nift (aka nsm) v1.17" << std::endl;
 
         return 0;
     }
@@ -677,7 +590,10 @@ int main(int argc, char* argv[])
         std::cout << "| serve          | serves website locally                          |" << std::endl;
         std::cout << "| bcp            | input: commit-message                           |" << std::endl;
         std::cout << "| new-title      | input: page-name new-title                      |" << std::endl;
-        std::cout << "| new-template   | input: page-name template-path                  |" << std::endl;
+        std::cout << "| new-template   | input: (page-name) template-path                |" << std::endl;
+        std::cout << "| new-site-dir   | input: dir-path                                 |" << std::endl;
+        std::cout << "| new-cont-dir   | input: dir-path                                 |" << std::endl;
+        std::cout << "| new-cont-ext   | input: (page-name) content-extension            |" << std::endl;
         std::cout << "| new-page-ext   | input: (page-name) page-extension               |" << std::endl;
         std::cout << "+------------------------------------------------------------------+" << std::endl;
 
@@ -974,6 +890,9 @@ int main(int argc, char* argv[])
            cmd != "copy" &&
            cmd != "new-title" &&
            cmd != "new-template" &&
+           cmd != "new-site-dir" &&
+           cmd != "new-cont-dir" &&
+           cmd != "new-cont-ext" &&
            cmd != "new-page-ext" &&
            cmd != "build-updated" &&
            cmd != "build" &&
@@ -1263,14 +1182,75 @@ int main(int argc, char* argv[])
         else if(cmd == "new-template")
         {
             //ensures correct number of parameters given
-            if(noParams != 3)
-                return parError(noParams, argv, "3");
+            if(noParams != 2 && noParams != 3)
+                return parError(noParams, argv, "2 or 3");
 
-            Name pageName = argv[2];
-            Path newTemplatePath;
-            newTemplatePath.set_file_path_from(argv[3]);
+            if(noParams == 2)
+            {
+                Path newTemplatePath;
+                newTemplatePath.set_file_path_from(argv[2]);
 
-            return site.new_template(pageName, newTemplatePath);
+                return site.new_template(newTemplatePath);
+            }
+            else
+            {
+                Name pageName = argv[2];
+                Path newTemplatePath;
+                newTemplatePath.set_file_path_from(argv[3]);
+
+                int return_val =  site.new_template(pageName, newTemplatePath);
+
+                if(!return_val)
+                    std::cout << "successfully changed template path to " << newTemplatePath.str() << std::endl;
+
+                return return_val;
+            }
+        }
+        else if(cmd == "new-site-dir")
+        {
+            //ensures correct number of parameters given
+            if(noParams != 2)
+                return parError(noParams, argv, "2");
+
+            Directory newSiteDir = argv[2];
+
+            if(newSiteDir != "" && newSiteDir[newSiteDir.size()-1] != '/' && newSiteDir[newSiteDir.size()-1] != '\\')
+                newSiteDir += "/";
+
+            return site.new_site_dir(newSiteDir);
+        }
+        else if(cmd == "new-cont-dir")
+        {
+            //ensures correct number of parameters given
+            if(noParams != 2)
+                return parError(noParams, argv, "2");
+
+            Directory newContDir = argv[2];
+
+            if(newContDir != "" && newContDir[newContDir.size()-1] != '/' && newContDir[newContDir.size()-1] != '\\')
+                newContDir += "/";
+
+            return site.new_content_dir(newContDir);
+        }
+        else if(cmd == "new-cont-ext")
+        {
+            //ensures correct number of parameters given
+            if(noParams != 2 && noParams != 3)
+                return parError(noParams, argv, "2 or 3");
+
+            if(noParams == 2)
+                return site.new_content_ext(argv[2]);
+            else
+            {
+                Name pageName = argv[2];
+
+                int return_val = site.new_content_ext(pageName, argv[3]);
+
+                if(!return_val) //informs user that page extension was successfully changed
+                    std::cout << "successfully changed page extention for " << pageName << " to " << argv[3] << std::endl;
+
+                return return_val;
+            }
         }
         else if(cmd == "new-page-ext")
         {
@@ -1298,10 +1278,6 @@ int main(int argc, char* argv[])
             if(noParams > 1)
                 return parError(noParams, argv, "1");
 
-            Timer timer;
-
-            timer.start();
-
             //checks for pre-build scripts
             if(run_prebuild_scripts(std::cout))
                 return 1;
@@ -1322,10 +1298,6 @@ int main(int argc, char* argv[])
             //ensures correct number of parameters given
             if(noParams <= 1)
                 return parError(noParams, argv, ">1");
-
-            Timer timer;
-
-            timer.start();
 
             //checks for pre-build scripts
             if(run_prebuild_scripts(std::cout))
@@ -1353,10 +1325,6 @@ int main(int argc, char* argv[])
             //ensures correct number of parameters given
             if(noParams != 1)
                 return parError(noParams, argv, "1");
-
-            Timer timer;
-
-            timer.start();
 
             //checks for pre-build scripts
             if(run_prebuild_scripts(std::cout))
