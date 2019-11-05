@@ -7,7 +7,7 @@ CXXFLAGS+= -std=c++11 -Wall -Wextra -pedantic -O3
 #Flags to use when compiling for Chocolatey
 #CXXFLAGS=-std=c++11 -Wall -Wextra -pedantic -O3 -static -static-libgcc -static-libstdc++
 DESTDIR?=
-PREFIX?=/usr/local
+PREFIX?=/usr
 BINDIR=${DESTDIR}${PREFIX}/bin
 
 all: nsm
