@@ -1,8 +1,8 @@
 # Nift
 
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](/LICENSE)
-[![source code](https://img.shields.io/github/languages/code-size/nifty-site-manager/nsm.svg?label=source%20code)](https://www.github.com/nifty-site-manager/nsm)
-[![platforms](https://img.shields.io/badge/platforms-bsd%20%7C%20linux%20%7C%20osx%20%7C%20windows-blue)](https://nift.cc)
+[![source code](https://img.shields.io/github/languages/code-size/nifty-site-manager/nsm.svg?label=Source%20Code)](https://www.github.com/nifty-site-manager/nsm)
+[![platforms](https://img.shields.io/badge/Platforms-BSD%20%7C%20Linux%20%7C%20OSX%20%7C%20Windows-blue)](https://nift.cc)
 [![language](https://img.shields.io/badge/Language-C%2B%2B-blue)](https://nift.cc)
 
 > 🛠 Nift is the world's fastest framework for managing and generating websites
