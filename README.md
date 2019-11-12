@@ -1,9 +1,3 @@
-<p align="center">
-    <img src="https://github.com/nifty-site-manager/nsm/blob/master/nsm.png?raw=true" width='120'/>
-</p>
-
-=====
-
 # Nift
 
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](/LICENSE)
