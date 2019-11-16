@@ -2,28 +2,28 @@
     Nift (aka nsm) is a cross-platform open source
     git-like and LaTeX-like command-line site manager.
 
-    site: https://nift.cc
+    official website: https://nift.cc
+    github: https://github.com/nifty-site-manager/nsm
 
     Copyright (c) 2015-present
+    Creator: Nicholas Ham
     https://n-ham.com
 */
 
-#include <atomic>
-#include <unistd.h>
-#include <dirent.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
 #include "SiteInfo.h"
 #include "Timer.h"
-
-std::atomic<int> trash;
 
 bool is_git_configured()
 {
     //checks that git is configured
     std::string str;
-    trash = system("git config --global user.email > .1223fsf23.txt");
+    int ret_val = system("git config --global user.email > .1223fsf23.txt");
+    if(ret_val)
+    {
+        std::cout << "error: nsm.cpp: is_git_configured(): system('git config --global user.email > .1223fsf23.txt') failed in " << quote(get_pwd()) << std::endl;
+        //Path("./", ".1223fsf23.txt").removePath();
+        return 0;
+    }
     std::ifstream ifs(".1223fsf23.txt");
     ifs >> str;
     ifs.close();
@@ -41,7 +41,13 @@ bool is_git_configured()
 
         return 0;
     }
-    trash = system("git config --global user.name > .1223fsf23.txt");
+    ret_val = system("git config --global user.name > .1223fsf23.txt");
+    if(ret_val)
+    {
+        std::cout << "error: nsm.cpp: is_git_configured(): system('git config --global user.name > .1223fsf23.txt') failed in " << quote(get_pwd()) << std::endl;
+        //Path("./", ".1223fsf23.txt").removePath();
+        return 0;
+    }
     ifs.open(".1223fsf23.txt");
     ifs >> str;
     ifs.close();
@@ -66,7 +72,13 @@ bool is_git_configured()
 bool is_git_remote_set()
 {
     //checks that remote git url is set
-    trash = system("git config --get remote.origin.url > .txt65232g42f.txt");
+    int ret_val = system("git config --get remote.origin.url > .txt65232g42f.txt");
+    if(ret_val)
+    {
+        std::cout << "error: nsm.cpp: is_git_remote_set(): system('git config --get remote.origin.url > .txt65232g42f.txt') failed in " << quote(get_pwd()) << std::endl;
+        //Path("./", ".txt65232g42f.txt").removePath();
+        return 0;
+    }
     std::ifstream ifs(".txt65232g42f.txt");
     std::string str="";
     ifs >> str;
@@ -86,7 +98,14 @@ std::string get_pb()
 {
     std::string branch = "";
 
-    trash = system("git status > .f242tgg43.txt");
+    int ret_val = system("git status > .f242tgg43.txt");
+    if(ret_val)
+    {
+        std::cout << "error: nsm.cpp: get_pb(): system('git status > .f242tgg43.txt') failed in " << quote(get_pwd()) << std::endl;
+        //Path("./", ".f242tgg43.txt").removePath();
+        return "##error##";
+    }
+
     std::ifstream ifs(".f242tgg43.txt");
 
     while(ifs >> branch)
@@ -106,7 +125,14 @@ std::string get_remote()
 {
     std::string remote = "";
 
-    trash = system("git remote > .f242tgg43.txt");
+    int ret_val = system("git remote > .f242tgg43.txt");
+    if(ret_val)
+    {
+        std::cout << "error: nsm.cpp: get_remote(): system('git remote > .f242tgg43.txt') failed in " << quote(get_pwd()) << std::endl;
+        //Path("./", ".f242tgg43.txt").removePath();
+        return "##error##";
+    }
+
     std::ifstream ifs(".f242tgg43.txt");
 
     ifs >> remote;
@@ -123,7 +149,14 @@ std::set<std::string> get_git_branches()
     std::set<std::string> branches;
     std::string branch = "";
 
-    trash = system("git branch > .f242tgg43.txt");
+    int ret_val = system("git branch > .f242tgg43.txt");
+    if(ret_val)
+    {
+        std::cout << "error: nsm.cpp: get_git_branches(): system('git branch > .f242tgg43.txt') failed in " << quote(get_pwd()) << std::endl;
+        //Path("./", ".f242tgg43.txt").removePath();
+        return branches;
+    }
+
     std::ifstream ifs(".f242tgg43.txt");
 
     while(ifs >> branch)
@@ -504,7 +537,12 @@ int serve()
     while(serving)
     {
         SiteInfo site;
-        trash = site.open();
+        if(site.open())
+        {
+            std::cout << "error: nsm.cpp: serve(): failed to open site" << std::endl;
+            std::cout << "Nift is no longer serving!" << std::endl;
+            return 1;
+        }
 
         ofs.open(".serve-build-log.txt");
 
@@ -544,7 +582,7 @@ int main(int argc, char* argv[])
     timer.start();
 
     int noParams = argc-1;
-    trash = trash + 1; //so trash is 'used'
+    int ret_val;
 
     if(noParams == 0)
     {
@@ -562,7 +600,7 @@ int main(int argc, char* argv[])
 
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.17" << std::endl;
+        std::cout << "Nift (aka nsm) v1.18" << std::endl;
 
         return 0;
     }
@@ -601,7 +639,7 @@ int main(int argc, char* argv[])
     }
     else if(cmd == "help" || cmd == "-help" || cmd == "--help")
     {
-        std::cout << "nifty site manager (aka nift or nsm) is a cross-platform open source git-like and LaTeX-like site manager." << std::endl;
+        std::cout << "Nift (aka nifty-site-manager or nsm) is a cross-platform open source git-like and LaTeX-like site manager." << std::endl;
         std::cout << "official site: https://nift.cc/" << std::endl;
         std::cout << "enter `nift commands` or `nsm commands` for available commands" << std::endl;
 
@@ -639,7 +677,12 @@ int main(int argc, char* argv[])
             prevPwd = pwd;
 
             //changes to parent directory
-            trash = chdir(parentDir.c_str());
+            ret_val = chdir(parentDir.c_str());
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: init: failed to change directory to " << quote(parentDir) << " from " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
 
             //gets new pwd
             pwd = get_pwd();
@@ -650,7 +693,12 @@ int main(int argc, char* argv[])
                 return 1;
             }
         }
-        trash = chdir(owd.c_str());
+        ret_val = chdir(owd.c_str());
+        if(ret_val)
+        {
+            std::cout << "error: nsm.cpp: init: failed to change directory to " << quote(owd) << " from " << quote(get_pwd()) << std::endl;
+            return ret_val;
+        }
 
         //checks that directory is empty
         std::string str = ls("./");
@@ -675,7 +723,9 @@ int main(int argc, char* argv[])
         chmod(pagesListPath.str().c_str(), 0666);
 
         #if defined _WIN32 || defined _WIN64
-            trash = system("attrib +h .siteinfo");
+            ret_val = system("attrib +h .siteinfo");
+
+            //if handling error here need to check what happens in all of cmd prompt/power shell/git bash/cygwin/etc.
         #endif
 
         std::ofstream ofs(".siteinfo/nsm.config");
@@ -722,9 +772,6 @@ int main(int argc, char* argv[])
         site.track(name, title, site.defaultTemplate);
         site.build_updated(std::cout);
 
-        //trash = system("nsm track index");
-        //trash = system("nsm build-updated");
-
         std::cout << "Nift: initialised empty site in " << get_pwd() << "/.siteinfo/" << std::endl;
 
         return 0;
@@ -749,21 +796,45 @@ int main(int argc, char* argv[])
             if(str == "user.email")
             {
                 if(noParams == 3)
-                    trash = system("git config --global user.email");
+                {
+                    ret_val = system("git config --global user.email");
+                    if(ret_val)
+                    {
+                        std::cout << "error: nsm.cpp: config: system('git config --global user.email') failed in " << quote(get_pwd()) << std::endl;
+                        return ret_val;
+                    }
+                }
                 else
                 {
                     std::string cmdStr = "git config --global user.email \"" + std::string(argv[4]) + "\"";
-                    trash = system(cmdStr.c_str());
+                    ret_val = system(cmdStr.c_str());
+                    if(ret_val)
+                    {
+                        std::cout << "error: nsm.cpp: config: system('" << cmdStr << "') failed in " << quote(get_pwd()) << std::endl;
+                        return ret_val;
+                    }
                 }
             }
             else if(str == "user.name")
             {
                 if(noParams == 3)
-                    trash = system("git config --global user.name");
+                {
+                    ret_val = system("git config --global user.name");
+                    if(ret_val)
+                    {
+                        std::cout << "error: nsm.cpp: config: system('git config --global user.name') failed in " << quote(get_pwd()) << std::endl;
+                        return ret_val;
+                    }
+                }
                 else
                 {
                     std::string cmdStr = "git config --global user.name \"" + std::string(argv[4]) + "\" --replace-all";
-                    trash = system(cmdStr.c_str());
+                    ret_val = system(cmdStr.c_str());
+                    if(ret_val)
+                    {
+                        std::cout << "error: nsm.cpp: config: system('" << cmdStr << "') failed in " << quote(get_pwd()) << std::endl;
+                        return ret_val;
+                    }
                 }
             }
             else
@@ -816,54 +887,96 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        trash = system(cloneCmnd.c_str());
+        ret_val = system(cloneCmnd.c_str());
+        if(ret_val)
+        {
+            std::cout << "error: nsm.cpp: clone: system('" << cloneCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+            return ret_val;
+        }
 
-        trash = chdir(dirName.c_str());
+        ret_val = chdir(dirName.c_str());
+        if(ret_val)
+        {
+            std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(dirName) << " from " << quote(get_pwd()) << std::endl;
+            return ret_val;
+        }
 
-        trash = system("git checkout stage > /dev/null 2>&1 >nul 2>&1");
+        ret_val = system("git checkout stage > /dev/null 2>&1 >nul 2>&1");
         if(std::ifstream("./nul"))
             Path("./", "nul").removePath();
+        if(ret_val)
+        {
+            std::cout << "error: nsm.cpp: clone: system('git checkout stage > /dev/null 2>&1 >nul 2>&1') failed in " << quote(get_pwd()) << std::endl;
+            return ret_val;
+        }
 
         std::set<std::string> branches = get_git_branches();
 
+        if(branches.size() == 0)
+        {
+            std::cout << "error: nsm.cpp: clone: get_git_branches() failed in " << quote(get_pwd()) << std::endl;
+            return 0;
+        }
+
         if(branches.count("stage") && std::ifstream(".siteinfo/nsm.config"))
         {
-            trash = system("git checkout master > /dev/null 2>&1 >nul 2>&1");
+            ret_val = system("git checkout master > /dev/null 2>&1 >nul 2>&1");
             if(std::ifstream("./nul"))
                 Path("./", "nul").removePath();
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: clone: system('git checkout master > /dev/null 2>&1 >nul 2>&1') failed in " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
 
-            trash = chdir(parDir.c_str());
+            ret_val = chdir(parDir.c_str());
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
 
-            trash = system(("cp -r " + dirName + " .abcd143d > /dev/null 2>&1 >nul 2>&1").c_str());
-            trash = system(("echo d | xcopy " + dirName + " .abcd143d /E /H > /dev/null 2>&1 >nul 2>&1").c_str());
+            ret_val = cpDir(dirName, ".abcd143d");
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: clone: failed to copy directory " << quote(dirName) << " to '.abcd143d/' from " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
+
+            ret_val = chdir(dirName.c_str());
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(dirName) << " from " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
+
+            ret_val = system("git checkout stage > /dev/null 2>&1 >nul 2>&1");
             if(std::ifstream("./nul"))
                 Path("./", "nul").removePath();
-
-            /*this is an alternative to the above paragraph
-            #if defined _WIN32 || defined _WIN64 //note might be using cmd-prompt/git-bash/cygwin
-                cloneCmnd += " > /dev/null 2>&1 >nul 2>&1";
-                rename(dirName.c_str(), ".abcd143d");
-                trash = system(cloneCmnd.c_str());
-                if(std::ifstream("./nul"))
-                    Path("./", "nul").removePath();
-            #else  //osx/unix
-                trash = system(("cp -r " + dirName + " .abcd143d").c_str());
-            #endif*/
-
-            trash = chdir(dirName.c_str());
-
-            trash = system("git checkout stage > /dev/null 2>&1 >nul 2>&1");
-            if(std::ifstream("./nul"))
-                Path("./", "nul").removePath();
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: clone: system('git checkout stage > /dev/null 2>&1 >nul 2>&1') failed in " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
 
             SiteInfo site;
             if(site.open() > 0)
                 return 1;
 
-            //trash = rmdir(site.siteDir.c_str()); //doesn't work for non-empty directories
-            trash = delDir(site.siteDir);
+            ret_val = delDir(site.siteDir);
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: clone: failed to delete directory " << quote(site.siteDir) << " from " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
 
-            trash = chdir(parDir.c_str());
+            ret_val = chdir(parDir.c_str());
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
+
             rename(".abcd143d", (dirName + "/" + site.siteDir).c_str());
         }
 
@@ -917,7 +1030,12 @@ int main(int argc, char* argv[])
             prevPwd = pwd;
 
             //changes to parent directory
-            trash = chdir(parentDir.c_str());
+            ret_val = chdir(parentDir.c_str());
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: A: failed to change directory to " << quote(parentDir) << " from " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
 
             //gets new pwd
             pwd = get_pwd();
@@ -933,75 +1051,27 @@ int main(int argc, char* argv[])
         //ensures both pages.list and nsm.config exist
         if(!std::ifstream(".siteinfo/pages.list"))
         {
-            std::cout << "error: " << get_pwd() << "/.siteinfo/pages.list is missing" << std::endl;
+            std::cout << "error: '" << get_pwd() << "/.siteinfo/pages.list' is missing" << std::endl;
             return 1;
         }
 
         if(!std::ifstream(".siteinfo/nsm.config"))
         {
-            std::cout << "error: " << get_pwd() << "/.siteinfo/nsm.config is missing" << std::endl;
+            std::cout << "error: '" << get_pwd() << "/.siteinfo/nsm.config' is missing" << std::endl;
             return 1;
         }
 
-        //opens up site information
         SiteInfo site;
-        if(site.open() > 0)
-            return 1;
-
         if(cmd == "config")
         {
+            if(site.open_config())
+                return 1;
+
             std::cout << "contentDir: " << site.contentDir << std::endl;
             std::cout << "contentExt: " << site.contentExt << std::endl;
             std::cout << "siteDir: " << site.siteDir << std::endl;
             std::cout << "pageExt: " << site.pageExt << std::endl;
             std::cout << "defaultTemplate: " << site.defaultTemplate << std::endl;
-
-            return 0;
-        }
-        else if(cmd == "bcp") //build-updated commit push
-        {
-            //ensures correct number of parameters given
-            if(noParams != 2)
-            {
-                std::cout << "error: correct usage 'bcp \"commit message\"'" << std::endl;
-                return parError(noParams, argv, "2");
-            }
-
-            if(!is_git_configured())
-                return 1;
-
-            if(!is_git_remote_set())
-                return 1;
-
-            if(site.build_updated(std::cout))
-                return 1;
-
-            std::string commitCmnd = "git commit -m \"" + std::string(argv[2]) + "\"",
-                        pushCmnd,
-                        siteDirBranch,
-                        siteRootDirBranch = get_pb();
-            std::cout << commitCmnd << std::endl;
-
-            trash = chdir(site.siteDir.c_str());
-
-            siteDirBranch = get_pb();
-
-            if(siteDirBranch != siteRootDirBranch)
-            {
-                pushCmnd = "git push origin " + siteDirBranch;
-
-                trash = system("git add -A .");
-                trash = system(commitCmnd.c_str());
-                trash = system(pushCmnd.c_str());
-            }
-
-            trash = chdir(siteRootDir.c_str());
-
-            pushCmnd = "git push origin " + siteRootDirBranch;
-
-            trash = system("git add -A .");
-            trash = system(commitCmnd.c_str());
-            trash = system(pushCmnd.c_str());
 
             return 0;
         }
@@ -1026,12 +1096,22 @@ int main(int argc, char* argv[])
                 return 1;
             }
             else
-                trash = system(("git diff " + std::string(argv[2])).c_str());
+            {
+                ret_val = system(("git diff " + std::string(argv[2])).c_str());
+                if(ret_val)
+                {
+                    std::cout << "error: nsm.cpp: diff: system('git diff " << std::string(argv[2]) << "') failed in " << quote(get_pwd()) << std::endl;
+                    return ret_val;
+                }
+            }
 
             return 0;
         }
         else if(cmd =="pull")
         {
+            if(site.open_config())
+                return 1;
+
             //ensures correct number of parameters given
             if(noParams != 1)
                 return parError(noParams, argv, "1");
@@ -1050,23 +1130,171 @@ int main(int argc, char* argv[])
                         siteDirBranch,
                         siteRootDirBranch = get_pb();
 
-            trash = chdir(site.siteDir.c_str());
+            if(siteRootDirRemote == "##error##")
+            {
+                std::cout << "error: nsm.cpp: pull: get_remote() failed in " << quote(get_pwd()) << std::endl;
+                return 0;
+            }
+
+            if(siteRootDirBranch == "##error##")
+            {
+                std::cout << "error: nsm.cpp: pull: get_pb() failed in " << quote(get_pwd()) << std::endl;
+                return 0;
+            }
+
+            ret_val = chdir(site.siteDir.c_str());
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: pull: failed to change directory to " << quote(site.siteDir) << " from " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
 
             siteDirRemote = get_remote();
+
+            if(siteDirRemote == "##error##")
+            {
+                std::cout << "error: nsm.cpp: pull: get_remote() failed in " << quote(get_pwd()) << std::endl;
+                return 0;
+            }
+
             siteDirBranch = get_pb();
+
+            if(siteDirBranch == "##error##")
+            {
+                std::cout << "error: nsm.cpp: pull: get_pb() failed in " << quote(get_pwd()) << std::endl;
+                return 0;
+            }
 
             if(siteDirBranch != siteRootDirBranch)
             {
                 pullCmnd = "git pull " + siteDirRemote + " " + siteDirBranch;
 
-                trash = system(pullCmnd.c_str());
+                ret_val = system(pullCmnd.c_str());
+                if(ret_val)
+                {
+                    std::cout << "error: nsm.cpp: pull: system('" << pullCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+                    return ret_val;
+                }
             }
 
-            trash = chdir(siteRootDir.c_str());
+            ret_val = chdir(siteRootDir.c_str());
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: pull: failed to change directory to " << quote(siteRootDir) << " from " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
 
             pullCmnd = "git pull " + siteRootDirRemote + " " + siteRootDirBranch;
 
-            trash = system(pullCmnd.c_str());
+            ret_val = system(pullCmnd.c_str());
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: pull: system('" << pullCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
+
+            return 0;
+        }
+
+        //opens up nsm.config and pages.list files
+        if(site.open())
+            return 1;
+
+        if(cmd == "bcp") //build-updated commit push
+        {
+            //ensures correct number of parameters given
+            if(noParams != 2)
+            {
+                std::cout << "error: correct usage 'bcp \"commit message\"'" << std::endl;
+                return parError(noParams, argv, "2");
+            }
+
+            if(!is_git_configured())
+                return 1;
+
+            if(!is_git_remote_set())
+                return 1;
+
+            if(site.build_updated(std::cout))
+                return 1;
+
+            std::string commitCmnd = "git commit -m \"" + std::string(argv[2]) + "\"",
+                        pushCmnd,
+                        siteDirBranch,
+                        siteRootDirBranch = get_pb();
+
+            if(siteRootDirBranch == "##error##")
+            {
+                std::cout << "error: nsm.cpp: bcp: get_pb() failed in " << quote(get_pwd()) << std::endl;
+                return 0;
+            }
+
+            std::cout << commitCmnd << std::endl;
+
+            ret_val = chdir(site.siteDir.c_str());
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: bcp: failed to change directory to " << quote(site.siteDir) << " from " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
+
+            siteDirBranch = get_pb();
+
+            if(siteDirBranch == "##error##")
+            {
+                std::cout << "error: nsm.cpp: bcp: get_pb() failed in " << quote(get_pwd()) << std::endl;
+                return 0;
+            }
+
+            if(siteDirBranch != siteRootDirBranch)
+            {
+                pushCmnd = "git push origin " + siteDirBranch;
+
+                ret_val = system("git add -A .");
+                if(ret_val)
+                {
+                    std::cout << "error: nsm.cpp: bcp: system('git add -A .') failed in " << quote(get_pwd()) << std::endl;
+                    return ret_val;
+                }
+
+                ret_val = system(commitCmnd.c_str());
+                //can't handle error here incase we had to run bcp multiple times
+
+                ret_val = system(pushCmnd.c_str());
+                if(ret_val)
+                {
+                    std::cout << "error: nsm.cpp: bcp: system('" << pushCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+                    return ret_val;
+                }
+            }
+
+            ret_val = chdir(siteRootDir.c_str());
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: bcp: failed to change directory to " << quote(siteRootDir) << " from " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
+
+            pushCmnd = "git push origin " + siteRootDirBranch;
+
+            ret_val = system("git add -A .");
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: bcp: system('git add -A .') failed in " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
+
+            ret_val = system(commitCmnd.c_str());
+            //can't handle error here incase we had to run bcp multiple times
+
+            ret_val = system(pushCmnd.c_str());
+            if(ret_val)
+            {
+                std::cout << "error: nsm.cpp: bcp: system('" << pushCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+                return ret_val;
+            }
+
+            return 0;
         }
         else if(cmd == "status")
         {

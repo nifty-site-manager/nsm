@@ -1,6 +1,6 @@
 #basic makefile for nsm
-objects=nsm.o DateTimeInfo.o Directory.o Filename.o PageBuilder.o PageInfo.o Path.o Quoted.o SiteInfo.o Title.o
-cppfiles=nsm.cpp DateTimeInfo.cpp Directory.cpp Filename.cpp PageBuilder.cpp PageInfo.cpp Path.cpp Quoted.cpp SiteInfo.cpp Title.cpp
+objects=nsm.o DateTimeInfo.o Directory.o Filename.o FileSystem.o PageBuilder.o PageInfo.o Path.o Quoted.o SiteInfo.o Title.o
+cppfiles=nsm.cpp DateTimeInfo.cpp Directory.cpp Filename.cpp FileSystem.cpp PageBuilder.cpp PageInfo.cpp Path.cpp Quoted.cpp SiteInfo.cpp Title.cpp
 CXX?=g++
 LINK=-pthread
 CXXFLAGS+= -std=c++11 -Wall -Wextra -pedantic -O3
@@ -19,7 +19,10 @@ nsm: $(objects)
 nsm.o: nsm.cpp SiteInfo.o Timer.h
 	$(CXX) $(CXXFLAGS) -c -o $@ $< $(LINK)
 
-SiteInfo.o: SiteInfo.cpp SiteInfo.h PageBuilder.o
+SiteInfo.o: SiteInfo.cpp SiteInfo.h FileSystem.o PageBuilder.o
+	$(CXX) $(CXXFLAGS) -c -o $@ $< $(LINK)
+
+FileSystem.o: FileSystem.cpp FileSystem.h Path.o
 	$(CXX) $(CXXFLAGS) -c -o $@ $< $(LINK)
 
 PageBuilder.o: PageBuilder.cpp PageBuilder.h DateTimeInfo.o PageInfo.o

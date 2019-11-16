@@ -1,96 +1,5 @@
 #include "SiteInfo.h"
 
-std::string get_pwd()
-{
-    char * pwd_char = getcwd(NULL, 0);
-    std::string pwd = pwd_char;
-    free(pwd_char);
-    return pwd;
-}
-
-bool file_exists(const char *path, const std::string& file)
-{
-    bool exists = 0;
-    std::string cFile;
-    struct dirent *entry;
-    DIR *dir = opendir(path);
-    if(dir == NULL)
-        return "";
-
-    while((entry = readdir(dir)) != NULL)
-    {
-        cFile = entry->d_name;
-        if(cFile == file)
-        {
-            exists = 1;
-            break;
-        }
-    }
-
-    closedir(dir);
-
-    return exists;
-}
-
-std::string ls(const char *path)
-{
-    std::string lsStr;
-    struct dirent *entry;
-    DIR *dir = opendir(path);
-    if(dir == NULL)
-        return "";
-
-    while((entry = readdir(dir)) != NULL)
-    {
-        lsStr += entry->d_name;
-        lsStr += " ";
-    }
-
-    closedir(dir);
-
-    return lsStr;
-}
-
-std::vector<std::string> lsVec(const char *path)
-{
-    std::vector<std::string> ans;
-    struct dirent *entry;
-    DIR *dir = opendir(path);
-    if(dir == NULL)
-        return ans;
-
-    while((entry = readdir(dir)) != NULL)
-        if(std::string(entry->d_name) != "." && std::string(entry->d_name) != "..")
-            ans.push_back(entry->d_name);
-
-    closedir(dir);
-
-    return ans;
-}
-
-int delDir(std::string dir)
-{
-    std::string owd = get_pwd();
-    int trash = chdir(dir.c_str());
-    trash = trash + 1; //gets rid of stupid warning
-
-    std::vector<std::string> files = lsVec("./");
-    for(size_t f=0; f<files.size(); f++)
-    {
-        struct stat s;
-
-        if(stat(files[f].c_str(),&s) == 0 && s.st_mode & S_IFDIR)
-            trash = delDir(files[f]);
-        else
-            Path("./", files[f]).removePath();
-    }
-
-    trash = chdir(owd.c_str());
-    trash = rmdir(dir.c_str());
-
-    return 0;
-}
-
 int SiteInfo::open()
 {
     pages.clear();
@@ -98,14 +7,14 @@ int SiteInfo::open()
     if(!std::ifstream(".siteinfo/nsm.config"))
     {
         //this should never happen!
-        std::cout << "ERROR: SiteInfo.h: could not open Nift config file as .siteinfo/nsm.config does not exist" << std::endl;
+        std::cout << "error: SiteInfo.cpp: open(): could not open Nift config file as '" << get_pwd() <<  "/.siteinfo/nsm.config' does not exist" << std::endl;
         return 1;
     }
 
     if(!std::ifstream(".siteinfo/pages.list"))
     {
         //this should never happen!
-        std::cout << "ERROR: SiteInfo.h: could not open site information as .siteinfo/pages.list does not exist" << std::endl;
+        std::cout << "error: SiteInfo.cpp: open(): could not open site information as '" << get_pwd() << "/.siteinfo/pages.list' does not exist" << std::endl;
         return 1;
     }
 
@@ -219,6 +128,48 @@ int SiteInfo::open()
     }
 
     ifs.close();
+
+    return 0;
+}
+
+int SiteInfo::open_config()
+{
+    if(!std::ifstream(".siteinfo/nsm.config"))
+    {
+        //this should never happen!
+        std::cout << "error: SiteInfo.cpp: open_config(): could not open Nift config file as '" << get_pwd() <<  "/.siteinfo/nsm.config' does not exist" << std::endl;
+        return 1;
+    }
+
+    //reads Nift config file
+    std::ifstream ifs(".siteinfo/nsm.config");
+    std::string inType;
+    while(ifs >> inType)
+    {
+        if(inType == "contentDir")
+            read_quoted(ifs, contentDir);
+        else if(inType == "contentExt")
+            read_quoted(ifs, contentExt);
+        else if(inType == "siteDir")
+            read_quoted(ifs, siteDir);
+        else if(inType == "pageExt")
+            read_quoted(ifs, pageExt);
+        else if(inType == "defaultTemplate")
+            defaultTemplate.read_file_path_from(ifs);
+    }
+    ifs.close();
+
+    if(contentExt == "" || contentExt[0] != '.')
+    {
+        std::cout << "error: content extension must start with a fullstop" << std::endl;
+        return 1;
+    }
+
+    if(pageExt == "" || pageExt[0] != '.')
+    {
+        std::cout << "error: page extension must start with a fullstop" << std::endl;
+        return 1;
+    }
 
     return 0;
 }
@@ -744,15 +695,29 @@ int SiteInfo::new_site_dir(const Directory &newSiteDir)
         return 1;
     }
 
+    if(newSiteDir[newSiteDir.size()-1] != '/' && newSiteDir[newSiteDir.size()-1] != '\\')
+    {
+        std::cout << "error: new site directory should end in \\ or /" << std::endl;
+        return 1;
+    }
+
     if(newSiteDir == siteDir)
     {
         std::cout << "error: site directory is already " << quote(newSiteDir) << std::endl;
         return 1;
     }
 
-    if(std::ifstream(newSiteDir))
+    if(std::ifstream(newSiteDir) || std::ifstream(newSiteDir.substr(0, newSiteDir.size()-1)))
     {
-        std::cout << "error: new site directory " << quote(newSiteDir) << " already exists" << std::endl;
+        std::cout << "error: new site directory location " << quote(newSiteDir) << " already exists" << std::endl;
+        return 1;
+    }
+
+    std::string newInfoDir = ".siteinfo/" + newSiteDir;
+
+    if(std::ifstream(newInfoDir) || std::ifstream(newInfoDir.substr(0, newInfoDir.size()-1)))
+    {
+        std::cout << "error: new page info directory location " << quote(newInfoDir) << " already exists" << std::endl;
         return 1;
     }
 
@@ -761,50 +726,135 @@ int SiteInfo::new_site_dir(const Directory &newSiteDir)
                 siteRootDir = get_pwd(),
                 pwd = get_pwd();
 
-    int trash = chdir(siteDir.c_str());
-    trash = trash + 1; //gets rid of stupid warning
-    trash = chdir(parDir.c_str());
+    int ret_val = chdir(siteDir.c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(siteDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
+
+    ret_val = chdir(parDir.c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
+
     std::string delDir = get_pwd();
-    trash = chdir(siteRootDir.c_str());
+    ret_val = chdir(siteRootDir.c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(siteRootDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
+
+    //moves site directory to temp location
+    rename(siteDir.c_str(), ".temp_site_dir");
 
     //ensures new site directory exists
     Path(newSiteDir, Filename("")).ensurePathExists();
 
-    //moves site directory
-    rename(siteDir.c_str(), newSiteDir.c_str());
+    //moves site directory to final location
+    rename(".temp_site_dir", newSiteDir.c_str());
 
     //deletes any remaining empty directories
-    trash = chdir(delDir.c_str());
+    ret_val = chdir(delDir.c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(delDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
+
     size_t pos;
     while(ls("./") == ". .. ")
     {
         pwd = get_pwd();
-        trash = chdir(parDir.c_str());
+        ret_val = chdir(parDir.c_str());
+        if(ret_val)
+        {
+            std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+            return ret_val;
+        }
         pos = pwd.find_last_of('/');
-        trash = rmdir(pwd.substr(pos+1, pwd.size()-(pos+1)).c_str());
+        ret_val = rmdir(pwd.substr(pos+1, pwd.size()-(pos+1)).c_str());
+        if(ret_val)
+        {
+            std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to remove directory " << quote(pwd.substr(pos+1, pwd.size()-(pos+1))) << std::endl;
+            return ret_val;
+        }
     }
 
     //changes back to site root directory
-    trash = chdir(siteRootDir.c_str());
+    ret_val = chdir(siteRootDir.c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(siteRootDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
+
+    ret_val = chdir((".siteinfo/" + siteDir).c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(".siteinfo/" + siteDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
+
+    ret_val = chdir(parDir.c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
+
+    delDir = get_pwd();
+    ret_val = chdir(siteRootDir.c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(siteRootDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
+
+    //moves old info directory to temp location
+    rename((".siteinfo/" + siteDir).c_str(), ".temp_site_dir");
 
     //ensures new info directory exists
     Path(".siteinfo/" + newSiteDir, Filename("")).ensurePathExists();
 
-    //moves old info directory
-    rename((".siteinfo/" + siteDir).c_str(), (".siteinfo/" + newSiteDir).c_str());
+    //moves old info directory to final location
+    rename(".temp_site_dir", (".siteinfo/" + newSiteDir).c_str());
 
     //deletes any remaining empty directories
-    trash = chdir((".siteinfo/" + delDir).c_str());
+    ret_val = chdir(delDir.c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(delDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
     while(ls("./") == ". .. ")
     {
         pwd = get_pwd();
-        trash = chdir(parDir.c_str());
+        ret_val = chdir(parDir.c_str());
+        if(ret_val)
+        {
+            std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+            return ret_val;
+        }
         pos = pwd.find_last_of('/');
-        trash = rmdir(pwd.substr(pos+1, pwd.size()-(pos+1)).c_str());
+        ret_val = rmdir(pwd.substr(pos+1, pwd.size()-(pos+1)).c_str());
+        if(ret_val)
+        {
+            std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to remove directory " << quote(pwd.substr(pos+1, pwd.size()-(pos+1))) << std::endl;
+            return ret_val;
+        }
     }
 
     //changes back to site root directory
-    trash = chdir(siteRootDir.c_str());
+    ret_val = chdir(siteRootDir.c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(siteRootDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
 
     //sets new site directory
     siteDir = newSiteDir;
@@ -831,15 +881,21 @@ int SiteInfo::new_content_dir(const Directory &newContDir)
         return 1;
     }
 
+    if(newContDir[newContDir.size()-1] != '/' && newContDir[newContDir.size()-1] != '\\')
+    {
+        std::cout << "error: new site directory should end in \\ or /" << std::endl;
+        return 1;
+    }
+
     if(newContDir == contentDir)
     {
         std::cout << "error: content directory is already " << quote(newContDir) << std::endl;
         return 1;
     }
 
-    if(std::ifstream(newContDir))
+    if(std::ifstream(newContDir) || std::ifstream(newContDir.substr(0, newContDir.size()-1)))
     {
-        std::cout << "error: new content directory " << quote(newContDir) << " already exists" << std::endl;
+        std::cout << "error: new content directory location " << quote(newContDir) << " already exists" << std::endl;
         return 1;
     }
 
@@ -848,31 +904,70 @@ int SiteInfo::new_content_dir(const Directory &newContDir)
                 siteRootDir = get_pwd(),
                 pwd = get_pwd();
 
-    int trash = chdir(contentDir.c_str());
-    trash = trash + 1; //gets rid of stupid warning
-    trash = chdir(parDir.c_str());
+    int ret_val = chdir(contentDir.c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(contentDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
+
+    ret_val = chdir(parDir.c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
+
     std::string delDir = get_pwd();
-    trash = chdir(siteRootDir.c_str());
+    ret_val = chdir(siteRootDir.c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(siteRootDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
+
+    //moves content directory to temp location
+    rename(contentDir.c_str(), ".temp_cont_dir");
 
     //ensures new site directory exists
     Path(newContDir, Filename("")).ensurePathExists();
 
-    //moves content directory
-    rename(contentDir.c_str(), newContDir.c_str());
+    //moves content directory to final location
+    rename(".temp_cont_dir", newContDir.c_str());
 
     //deletes any remaining empty directories
-    trash = chdir(delDir.c_str());
+    ret_val = chdir(delDir.c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(delDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
     size_t pos;
     while(ls("./") == ". .. ")
     {
         pwd = get_pwd();
-        trash = chdir(parDir.c_str());
+        ret_val = chdir(parDir.c_str());
+        if(ret_val)
+        {
+            std::cout << "error: SiteInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+            return ret_val;
+        }
         pos = pwd.find_last_of('/');
-        trash = rmdir(pwd.substr(pos+1, pwd.size()-(pos+1)).c_str());
+        ret_val = rmdir(pwd.substr(pos+1, pwd.size()-(pos+1)).c_str());
+        if(ret_val)
+        {
+            std::cout << "error: SiteInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to remove directory " << quote(pwd.substr(pos+1, pwd.size()-(pos+1))) << std::endl;
+            return ret_val;
+        }
     }
 
     //changes back to site root directory
-    trash = chdir(siteRootDir.c_str());
+    ret_val = chdir(siteRootDir.c_str());
+    if(ret_val)
+    {
+        std::cout << "error: SiteInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(siteRootDir) << " from " << quote(get_pwd()) << std::endl;
+        return ret_val;
+    }
 
     //sets new site directory
     contentDir = newContDir;

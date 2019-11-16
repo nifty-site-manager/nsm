@@ -2,6 +2,12 @@
 Nift Release Notes
 ------------------
 
+Version 1.18 of Nift
+* added FileSystem.[h/cpp] to the project
+* added cpDir function to FileSystem.[h/cpp]
+* renamed trash to ret_val and handle more errors
+* fixed numerous minor bugs
+
 Version 1.17 of Nift
 * changed std::endl to "\n" when writing to file, 20% improvement in build-all time on some machines, no improvement on others
 * changed pages set to pointer in PageBuilder.h, significantly less memory consumption

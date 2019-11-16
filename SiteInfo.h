@@ -5,21 +5,11 @@
 #include <math.h>
 #include <mutex>
 #include <thread>
-#include <vector>
 
 #include <atomic>
-#include <unistd.h>
-#include <dirent.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 
+#include "FileSystem.h"
 #include "PageBuilder.h"
-
-std::string get_pwd();
-bool file_exists(const char *path, const std::string& file);
-std::string ls(const char *path);
-std::vector<std::string> lsVec(const char *path);
-int delDir(std::string dir);
 
 struct SiteInfo
 {
@@ -31,6 +21,7 @@ struct SiteInfo
     std::set<PageInfo> pages;
 
     int open();
+    int open_config();
     int save();
 
     PageInfo make_info(const Name &pageName);
