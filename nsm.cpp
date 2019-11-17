@@ -904,11 +904,7 @@ int main(int argc, char* argv[])
         ret_val = system("git checkout stage > /dev/null 2>&1 >nul 2>&1");
         if(std::ifstream("./nul"))
             Path("./", "nul").removePath();
-        if(ret_val)
-        {
-            std::cout << "error: nsm.cpp: clone: system('git checkout stage > /dev/null 2>&1 >nul 2>&1') failed in " << quote(get_pwd()) << std::endl;
-            return ret_val;
-        }
+        //can't handle error here incase stage branch doesn't exist
 
         std::set<std::string> branches = get_git_branches();
 
