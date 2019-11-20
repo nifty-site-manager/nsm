@@ -70,6 +70,8 @@ std::vector<std::string> lsVec(const char *path)
 
 int delDir(std::string dir)
 {
+	if(!std::ifstream(dir))
+		return 0;
     std::string owd = get_pwd();
     int ret_val = chdir(dir.c_str());
 

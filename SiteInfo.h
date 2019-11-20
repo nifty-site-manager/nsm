@@ -9,6 +9,7 @@
 #include <atomic>
 
 #include "FileSystem.h"
+#include "GitInfo.h"
 #include "PageBuilder.h"
 
 struct SiteInfo
@@ -16,13 +17,17 @@ struct SiteInfo
     Directory contentDir,
               siteDir;
     std::string contentExt,
-                pageExt;
+                pageExt,
+                rootBranch,
+                siteBranch;
     Path defaultTemplate;
     std::set<PageInfo> pages;
 
     int open();
     int open_config();
-    int save();
+    int open_pages();
+    int save_pages();
+    int save_config();
 
     PageInfo make_info(const Name &pageName);
     PageInfo make_info(const Name &pageName, const Title &pageTitle);

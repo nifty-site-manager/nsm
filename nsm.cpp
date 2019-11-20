@@ -10,502 +10,9 @@
     https://n-ham.com
 */
 
+#include "GitInfo.h"
 #include "SiteInfo.h"
 #include "Timer.h"
-
-bool is_git_configured()
-{
-    //checks that git is configured
-    std::string str;
-    int ret_val = system("git config --global user.email > .1223fsf23.txt");
-    if(ret_val)
-    {
-        std::cout << "error: nsm.cpp: is_git_configured(): system('git config --global user.email > .1223fsf23.txt') failed in " << quote(get_pwd()) << std::endl;
-        //Path("./", ".1223fsf23.txt").removePath();
-        return 0;
-    }
-    std::ifstream ifs(".1223fsf23.txt");
-    ifs >> str;
-    ifs.close();
-    Path("./", ".1223fsf23.txt").removePath();
-    if(str == "")
-    {
-        std::cout << "*** Please tell me who you are." << std::endl;
-        std::cout << std::endl;
-        std::cout << "Run" << std::endl;
-        std::cout << std::endl;
-        std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
-        std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
-        std::cout << std::endl;
-        std::cout << "to set your account's default identity." << std::endl;
-
-        return 0;
-    }
-    ret_val = system("git config --global user.name > .1223fsf23.txt");
-    if(ret_val)
-    {
-        std::cout << "error: nsm.cpp: is_git_configured(): system('git config --global user.name > .1223fsf23.txt') failed in " << quote(get_pwd()) << std::endl;
-        //Path("./", ".1223fsf23.txt").removePath();
-        return 0;
-    }
-    ifs.open(".1223fsf23.txt");
-    ifs >> str;
-    ifs.close();
-    Path("./", ".1223fsf23.txt").removePath();
-    if(str == "")
-    {
-        std::cout << "*** Please tell me who you are." << std::endl;
-        std::cout << std::endl;
-        std::cout << "Run" << std::endl;
-        std::cout << std::endl;
-        std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
-        std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
-        std::cout << std::endl;
-        std::cout << "to set your account's default identity." << std::endl;
-
-        return 0;
-    }
-
-    return 1;
-}
-
-bool is_git_remote_set()
-{
-    //checks that remote git url is set
-    int ret_val = system("git config --get remote.origin.url > .txt65232g42f.txt");
-    if(ret_val)
-    {
-        std::cout << "error: nsm.cpp: is_git_remote_set(): system('git config --get remote.origin.url > .txt65232g42f.txt') failed in " << quote(get_pwd()) << std::endl;
-        //Path("./", ".txt65232g42f.txt").removePath();
-        return 0;
-    }
-    std::ifstream ifs(".txt65232g42f.txt");
-    std::string str="";
-    ifs >> str;
-    ifs.close();
-    Path("./", ".txt65232g42f.txt").removePath();
-    if(str == "")
-    {
-        std::cout << "error: no remote git url set" << std::endl;
-        return 0;
-    }
-
-    return 1;
-}
-
-//get present git branch
-std::string get_pb()
-{
-    std::string branch = "";
-
-    int ret_val = system("git status > .f242tgg43.txt");
-    if(ret_val)
-    {
-        std::cout << "error: nsm.cpp: get_pb(): system('git status > .f242tgg43.txt') failed in " << quote(get_pwd()) << std::endl;
-        //Path("./", ".f242tgg43.txt").removePath();
-        return "##error##";
-    }
-
-    std::ifstream ifs(".f242tgg43.txt");
-
-    while(ifs >> branch)
-        if(branch == "branch")
-            break;
-    if(branch == "branch")
-        ifs >> branch;
-
-    ifs.close();
-    Path("./", ".f242tgg43.txt").removePath();
-
-    return branch;
-}
-
-//get present git remote
-std::string get_remote()
-{
-    std::string remote = "";
-
-    int ret_val = system("git remote > .f242tgg43.txt");
-    if(ret_val)
-    {
-        std::cout << "error: nsm.cpp: get_remote(): system('git remote > .f242tgg43.txt') failed in " << quote(get_pwd()) << std::endl;
-        //Path("./", ".f242tgg43.txt").removePath();
-        return "##error##";
-    }
-
-    std::ifstream ifs(".f242tgg43.txt");
-
-    ifs >> remote;
-
-    ifs.close();
-    Path("./", ".f242tgg43.txt").removePath();
-
-    return remote;
-}
-
-//get set of git branches
-std::set<std::string> get_git_branches()
-{
-    std::set<std::string> branches;
-    std::string branch = "";
-
-    int ret_val = system("git branch > .f242tgg43.txt");
-    if(ret_val)
-    {
-        std::cout << "error: nsm.cpp: get_git_branches(): system('git branch > .f242tgg43.txt') failed in " << quote(get_pwd()) << std::endl;
-        //Path("./", ".f242tgg43.txt").removePath();
-        return branches;
-    }
-
-    std::ifstream ifs(".f242tgg43.txt");
-
-    while(ifs >> branch)
-        if(branch != "*")
-            branches.insert(branch);
-
-    ifs.close();
-
-    Path("./", ".f242tgg43.txt").removePath();
-
-    return branches;
-}
-
-bool run_prebuild_scripts(std::ostream &os)
-{
-    std::string prebuildPath = "pre-build.bat";
-    if(std::ifstream(prebuildPath))
-    {
-        //checks whether we're running from flatpak
-        if(std::ifstream("/.flatpak-info"))
-        {
-            int result = system(("flatpak-spawn --host bash -c " + prebuildPath + " > out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: pre build script " << prebuildPath << " failed" << std::endl;
-                return 1;
-            }
-        }
-        else
-        {
-            int result = system((prebuildPath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: pre build script " << prebuildPath << " failed" << std::endl;
-                return 1;
-            }
-        }
-    }
-    prebuildPath = "./pre-build.sh";
-    if(std::ifstream(prebuildPath))
-    {
-        //checks whether we're running from flatpak
-        if(std::ifstream("/.flatpak-info"))
-        {
-            int result = system(("flatpak-spawn --host bash -c " + prebuildPath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: pre build script " << prebuildPath << " failed" << std::endl;
-                return 1;
-            }
-        }
-        else
-        {
-            int result = system((prebuildPath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: pre build script " << prebuildPath << " failed" << std::endl;
-                return 1;
-            }
-        }
-    }
-
-    return 0;
-}
-
-bool run_postbuild_scripts(std::ostream &os)
-{
-    //checks for post-build scripts
-    std::string postbuildPath = "post-build.bat";
-    if(std::ifstream(postbuildPath))
-    {
-        //checks whether we're running from flatpak
-        if(std::ifstream("/.flatpak-info"))
-        {
-            int result = system(("flatpak-spawn --host bash -c " + postbuildPath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: post build script " << postbuildPath << " failed" << std::endl;
-                return 1;
-            }
-        }
-        else
-        {
-            int result = system((postbuildPath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: post build script " << postbuildPath << " failed" << std::endl;
-                return 1;
-            }
-        }
-    }
-    postbuildPath = "./post-build.sh";
-    if(std::ifstream(postbuildPath))
-    {
-        //checks whether we're running from flatpak
-        if(std::ifstream("/.flatpak-info"))
-        {
-            int result = system(("flatpak-spawn --host bash -c " + postbuildPath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: post build script " << postbuildPath << " failed" << std::endl;
-                return 1;
-            }
-        }
-        else
-        {
-            int result = system((postbuildPath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: post build script " << postbuildPath << " failed" << std::endl;
-                return 1;
-            }
-        }
-    }
-
-    return 0;
-}
-
-bool run_preserve_scripts(std::ostream &os)
-{
-    std::string preservePath = "pre-serve.bat";
-    if(std::ifstream(preservePath))
-    {
-        //checks whether we're running from flatpak
-        if(std::ifstream("/.flatpak-info"))
-        {
-            int result = system(("flatpak-spawn --host bash -c " + preservePath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: pre serve script " << preservePath << " failed" << std::endl;
-                return 1;
-            }
-        }
-        else
-        {
-            int result = system((preservePath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: pre serve script " << preservePath << " failed" << std::endl;
-                return 1;
-            }
-        }
-    }
-    preservePath = "./pre-serve.sh";
-    if(std::ifstream(preservePath))
-    {
-        //checks whether we're running from flatpak
-        if(std::ifstream("/.flatpak-info"))
-        {
-            int result = system(("flatpak-spawn --host bash -c " + preservePath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: pre serve script " << preservePath << " failed" << std::endl;
-                return 1;
-            }
-        }
-        else
-        {
-            int result = system((preservePath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: pre serve script " << preservePath << " failed" << std::endl;
-                return 1;
-            }
-        }
-    }
-
-    return 0;
-}
-
-bool run_postserve_scripts(std::ostream &os)
-{
-    std::string postservePath = "post-serve.bat";
-    if(std::ifstream(postservePath))
-    {
-        //checks whether we're running from flatpak
-        if(std::ifstream("/.flatpak-info"))
-        {
-            int result = system(("flatpak-spawn --host bash -c " + postservePath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: post serve script " << postservePath << " failed" << std::endl;
-                return 1;
-            }
-        }
-        else
-        {
-            int result = system((postservePath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: post serve script " << postservePath << " failed" << std::endl;
-                return 1;
-            }
-        }
-    }
-    postservePath = "./post-serve.sh";
-    if(std::ifstream(postservePath))
-    {
-        //checks whether we're running from flatpak
-        if(std::ifstream("/.flatpak-info"))
-        {
-            int result = system(("flatpak-spawn --host bash -c " + postservePath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: post serve script " << postservePath << " failed" << std::endl;
-                return 1;
-            }
-        }
-        else
-        {
-            int result = system((postservePath + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            while(getline(ifs, str))
-                os << str << std::endl;
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os << "error: post serve script " << postservePath << " failed" << std::endl;
-                return 1;
-            }
-        }
-    }
-
-    return 0;
-}
 
 std::atomic<bool> serving;
 
@@ -546,10 +53,10 @@ int serve()
 
         ofs.open(".serve-build-log.txt");
 
-        if(!run_prebuild_scripts(ofs))
+        if(!run_scripts(ofs, "pre-build.scripts"))
             site.build_updated(ofs);
 
-        run_postbuild_scripts(ofs);
+        run_scripts(ofs, "post-build.scripts");
 
         ofs.close();
 
@@ -600,7 +107,7 @@ int main(int argc, char* argv[])
 
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.18" << std::endl;
+        std::cout << "Nift (aka nsm) v1.19" << std::endl;
 
         return 0;
     }
@@ -733,7 +240,9 @@ int main(int argc, char* argv[])
         ofs << "contentExt .content" << std::endl;
         ofs << "siteDir site/" << std::endl;
         ofs << "pageExt .html" << std::endl;
-        ofs << "defaultTemplate template/page.template" << std::endl;
+        ofs << "defaultTemplate template/page.template" << std::endl << std::endl;
+        ofs << "rootBranch ##unset##" << std::endl;
+        ofs << "siteBranch ##unset##" << std::endl;
         ofs.close();
 
         pagesListPath = Path("template/", "page.template");
@@ -901,79 +410,142 @@ int main(int argc, char* argv[])
             return ret_val;
         }
 
-        ret_val = system("git checkout stage > /dev/null 2>&1 >nul 2>&1");
-        if(std::ifstream("./nul"))
-            Path("./", "nul").removePath();
-        //can't handle error here incase stage branch doesn't exist
-
+        std::string obranch = get_pb();
         std::set<std::string> branches = get_git_branches();
 
         if(branches.size() == 0)
         {
-            std::cout << "error: nsm.cpp: clone: get_git_branches() failed in " << quote(get_pwd()) << std::endl;
+            //std::cout << "error: nsm.cpp: clone: get_git_branches() failed in " << quote(get_pwd()) << std::endl;
+            std::cout << "no branches found, cloning finished" << std::endl;
             return 0;
         }
 
-        if(branches.count("stage") && std::ifstream(".siteinfo/nsm.config"))
+        //looks for root branch
+        std::string checkoutCmnd;
+        for(auto branch=branches.begin(); branch!=branches.end(); branch++)
         {
-            ret_val = system("git checkout master > /dev/null 2>&1 >nul 2>&1");
+            checkoutCmnd = "git checkout " + *branch + " > /dev/null 2>&1 >nul 2>&1";
+            ret_val = system(checkoutCmnd.c_str());
             if(std::ifstream("./nul"))
                 Path("./", "nul").removePath();
             if(ret_val)
             {
-                std::cout << "error: nsm.cpp: clone: system('git checkout master > /dev/null 2>&1 >nul 2>&1') failed in " << quote(get_pwd()) << std::endl;
+                std::cout << "error: nsm.cpp: clone: system('" << checkoutCmnd << "') failed in " << quote(get_pwd()) << std::endl;
                 return ret_val;
             }
 
-            ret_val = chdir(parDir.c_str());
-            if(ret_val)
+            if(std::ifstream(".siteinfo/nsm.config")) //found root branch
             {
-                std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
-                return ret_val;
+                SiteInfo site;
+                if(site.open())
+                    return 1;
+
+                if(!branches.count(site.rootBranch))
+                {
+                    std::cout << "error: nsm.cpp: clone: rootBranch " << quote(site.rootBranch) << " is not present in the git repository" << std::endl;
+                    return 1;
+                }
+                else if(!branches.count(site.siteBranch))
+                {
+                    std::cout << "error: nsm.cpp: clone: siteBranch " << quote(site.siteBranch) << " is not present in the git repository" << std::endl;
+                    return 1;
+                }
+
+                if(site.siteBranch != site.rootBranch)
+                {
+                    ret_val = chdir(parDir.c_str());
+                    if(ret_val)
+                    {
+                        std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+                        return ret_val;
+                    }
+
+                    ret_val = cpDir(dirName, ".abcd143d");
+                    if(ret_val)
+                    {
+                        std::cout << "error: nsm.cpp: clone: failed to copy directory " << quote(dirName) << " to '.abcd143d/' from " << quote(get_pwd()) << std::endl;
+                        return ret_val;
+                    }
+
+                    ret_val = chdir(".abcd143d");
+                    if(ret_val)
+                    {
+                        std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(dirName) << " from " << quote(get_pwd()) << std::endl;
+                        return ret_val;
+                    }
+
+                    ret_val = system("git checkout -- . > /dev/null 2>&1 >nul 2>&1");
+                    if(std::ifstream("./nul"))
+                        Path("./", "nul").removePath();
+                    if(ret_val)
+                    {
+                        std::cout << "error: nsm.cpp: clone: system('git checkout -- .') failed in " << quote(get_pwd()) << std::endl;
+                        return ret_val;
+                    }
+
+                    checkoutCmnd = "git checkout " + site.siteBranch + " > /dev/null 2>&1 >nul 2>&1";
+                    ret_val = system(checkoutCmnd.c_str());
+                    if(std::ifstream("./nul"))
+                        Path("./", "nul").removePath();
+                    if(ret_val)
+                    {
+                        std::cout << "error: nsm.cpp: clone: system('" << checkoutCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+                        return ret_val;
+                    }
+
+                    ret_val = chdir((parDir + dirName).c_str());
+                    if(ret_val)
+                    {
+                        std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(parDir + dirName) << " from " << quote(get_pwd()) << std::endl;
+                        return ret_val;
+                    }
+
+                    ret_val = delDir(site.siteDir);
+                    if(ret_val)
+                    {
+                        std::cout << "error: nsm.cpp: clone: failed to delete directory " << quote(site.siteDir) << " from " << quote(get_pwd()) << std::endl;
+                        return ret_val;
+                    }
+
+                    ret_val = chdir(parDir.c_str());
+                    if(ret_val)
+                    {
+                        std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+                        return ret_val;
+                    }
+
+                    //moves site dir/branch in two steps here in case site dir/branch isn't located inside stage/root dir/branch
+                    rename(".abcd143d", (dirName + "/.abcd143d").c_str());
+
+                    ret_val = chdir(dirName.c_str());
+                    if(ret_val)
+                    {
+                        std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(parDir + dirName) << " from " << quote(get_pwd()) << std::endl;
+                        return ret_val;
+                    }
+
+                    rename(".abcd143d", site.siteDir.c_str());
+
+                    ret_val = chdir(parDir.c_str());
+                    if(ret_val)
+                    {
+                        std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+                        return ret_val;
+                    }
+
+                    return 0;
+                }
             }
-
-            ret_val = cpDir(dirName, ".abcd143d");
-            if(ret_val)
-            {
-                std::cout << "error: nsm.cpp: clone: failed to copy directory " << quote(dirName) << " to '.abcd143d/' from " << quote(get_pwd()) << std::endl;
-                return ret_val;
-            }
-
-            ret_val = chdir(dirName.c_str());
-            if(ret_val)
-            {
-                std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(dirName) << " from " << quote(get_pwd()) << std::endl;
-                return ret_val;
-            }
-
-            ret_val = system("git checkout stage > /dev/null 2>&1 >nul 2>&1");
-            if(std::ifstream("./nul"))
-                Path("./", "nul").removePath();
-            if(ret_val)
-            {
-                std::cout << "error: nsm.cpp: clone: system('git checkout stage > /dev/null 2>&1 >nul 2>&1') failed in " << quote(get_pwd()) << std::endl;
-                return ret_val;
-            }
-
-            SiteInfo site;
-            if(site.open() > 0)
-                return 1;
-
-            ret_val = delDir(site.siteDir);
-            if(ret_val)
-            {
-                std::cout << "error: nsm.cpp: clone: failed to delete directory " << quote(site.siteDir) << " from " << quote(get_pwd()) << std::endl;
-                return ret_val;
-            }
-
-            ret_val = chdir(parDir.c_str());
-            if(ret_val)
-            {
-                std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
-                return ret_val;
-            }
-
-            rename(".abcd143d", (dirName + "/" + site.siteDir).c_str());
+        }
+        //switches back to original branch
+        checkoutCmnd = "git checkout " + obranch + " > /dev/null 2>&1 >nul 2>&1";
+        ret_val = system(checkoutCmnd.c_str());
+        if(std::ifstream("./nul"))
+            Path("./", "nul").removePath();
+        if(ret_val)
+        {
+            std::cout << "error: nsm.cpp: clone: system('" << checkoutCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+            return ret_val;
         }
 
         return 0;
@@ -1067,7 +639,9 @@ int main(int argc, char* argv[])
             std::cout << "contentExt: " << site.contentExt << std::endl;
             std::cout << "siteDir: " << site.siteDir << std::endl;
             std::cout << "pageExt: " << site.pageExt << std::endl;
-            std::cout << "defaultTemplate: " << site.defaultTemplate << std::endl;
+            std::cout << "defaultTemplate: " << site.defaultTemplate << std::endl << std::endl;
+            std::cout << "rootBranch: " << site.rootBranch << std::endl;
+            std::cout << "siteBranch: " << site.siteBranch << std::endl;
 
             return 0;
         }
@@ -1129,13 +703,19 @@ int main(int argc, char* argv[])
             if(siteRootDirRemote == "##error##")
             {
                 std::cout << "error: nsm.cpp: pull: get_remote() failed in " << quote(get_pwd()) << std::endl;
-                return 0;
+                return 1;
             }
 
             if(siteRootDirBranch == "##error##")
             {
                 std::cout << "error: nsm.cpp: pull: get_pb() failed in " << quote(get_pwd()) << std::endl;
-                return 0;
+                return 1;
+            }
+
+            if(siteRootDirBranch != site.rootBranch)
+            {
+                std::cout << "error: nsm.cpp: pull: root dir branch " << quote(siteRootDirBranch) << " is not the same as rootBranch " << quote(site.rootBranch) << " in .siteinfo/nsm.config" << std::endl;
+                return 1;
             }
 
             ret_val = chdir(site.siteDir.c_str());
@@ -1159,6 +739,12 @@ int main(int argc, char* argv[])
             {
                 std::cout << "error: nsm.cpp: pull: get_pb() failed in " << quote(get_pwd()) << std::endl;
                 return 0;
+            }
+
+            if(siteDirBranch != site.siteBranch)
+            {
+                std::cout << "error: nsm.cpp: pull: site dir branch " << quote(siteDirBranch) << " is not the same as siteBranch " << quote(site.siteBranch) << " in .siteinfo/nsm.config" << std::endl;
+                return 1;
             }
 
             if(siteDirBranch != siteRootDirBranch)
@@ -1225,6 +811,12 @@ int main(int argc, char* argv[])
                 return 0;
             }
 
+            if(siteRootDirBranch != site.rootBranch)
+            {
+                std::cout << "error: nsm.cpp: bcp: root dir branch " << quote(siteRootDirBranch) << " is not the same as rootBranch " << quote(site.rootBranch) << " in .siteinfo/nsm.config" << std::endl;
+                return 1;
+            }
+
             std::cout << commitCmnd << std::endl;
 
             ret_val = chdir(site.siteDir.c_str());
@@ -1240,6 +832,12 @@ int main(int argc, char* argv[])
             {
                 std::cout << "error: nsm.cpp: bcp: get_pb() failed in " << quote(get_pwd()) << std::endl;
                 return 0;
+            }
+
+            if(siteDirBranch != site.siteBranch)
+            {
+                std::cout << "error: nsm.cpp: pull: site dir branch " << quote(siteDirBranch) << " is not the same as siteBranch " << quote(site.siteBranch) << " in .siteinfo/nsm.config" << std::endl;
+                return 1;
             }
 
             if(siteDirBranch != siteRootDirBranch)
@@ -1503,13 +1101,21 @@ int main(int argc, char* argv[])
                 return parError(noParams, argv, "1");
 
             //checks for pre-build scripts
-            if(run_prebuild_scripts(std::cout))
+            if(run_scripts(std::cout, "pre-build.scripts"))
+                return 1;
+
+            //checks for pre-build-updated scripts
+            if(run_scripts(std::cout, "pre-build-updated.scripts"))
                 return 1;
 
             int result = site.build_updated(std::cout);
 
             //checks for post-build scripts
-            if(run_postbuild_scripts(std::cout))
+            if(run_scripts(std::cout, "post-build.scripts"))
+                return 1;
+
+            //checks for post-build-updated scripts
+            if(run_scripts(std::cout, "post-build-updated.scripts"))
                 return 1;
 
             std::cout.precision(4);
@@ -1524,7 +1130,7 @@ int main(int argc, char* argv[])
                 return parError(noParams, argv, ">1");
 
             //checks for pre-build scripts
-            if(run_prebuild_scripts(std::cout))
+            if(run_scripts(std::cout, "pre-build.scripts"))
                 return 1;
 
             std::vector<Name> pageNamesToBuild;
@@ -1536,7 +1142,7 @@ int main(int argc, char* argv[])
             int result = site.build(pageNamesToBuild);
 
             //checks for post-build scripts
-            if(run_postbuild_scripts(std::cout))
+            if(run_scripts(std::cout, "post-build.scripts"))
                 return 1;
 
             std::cout.precision(4);
@@ -1551,13 +1157,21 @@ int main(int argc, char* argv[])
                 return parError(noParams, argv, "1");
 
             //checks for pre-build scripts
-            if(run_prebuild_scripts(std::cout))
+            if(run_scripts(std::cout, "pre-build.scripts"))
+                return 1;
+
+            //checks for pre-build-all scripts
+            if(run_scripts(std::cout, "pre-build-all.scripts"))
                 return 1;
 
             int result = site.build_all();
 
             //checks for post-build scripts
-            if(run_postbuild_scripts(std::cout))
+            if(run_scripts(std::cout, "post-build.scripts"))
+                return 1;
+
+            //checks for post-build-all scripts
+            if(run_scripts(std::cout, "post-build-all.scripts"))
                 return 1;
 
             std::cout.precision(4);
@@ -1578,7 +1192,7 @@ int main(int argc, char* argv[])
             }
 
             //checks for pre-serve scripts
-            if(run_preserve_scripts(std::cout))
+            if(run_scripts(std::cout, "pre-serve.scripts"))
                 return 1;
 
             serving = 1;
@@ -1592,7 +1206,7 @@ int main(int argc, char* argv[])
             serve_thread.join();
 
             //checks for post-serve scripts
-            if(run_postserve_scripts(std::cout))
+            if(run_scripts(std::cout, "post-serve.scripts"))
                 return 1;
         }
         else

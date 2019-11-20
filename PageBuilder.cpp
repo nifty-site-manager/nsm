@@ -1,216 +1,105 @@
 #include "PageBuilder.h"
 
+std::atomic<long long int> sys_counter;
+
+bool is_whitespace(const std::string& str)
+{
+    for(size_t i=0; i<str.size(); i++)
+        if(str[i] != ' ' && str[i] != '\t')
+            return 0;
+
+    return 1;
+}
+
+bool run_scripts(std::ostream &os, const std::string& scriptsPath)
+{
+    sys_counter = sys_counter%1000000000000000000;
+
+    std::string scriptPath,
+                output_filename;
+
+    int lineNo = 0;
+
+    if(std::ifstream(scriptsPath))
+    {
+        std::ifstream ifs(scriptsPath);
+
+        while(getline(ifs, scriptPath))
+        {
+            lineNo++;
+
+            if(!scriptPath.size() || scriptPath[0] == '#' || is_whitespace(scriptPath))
+                continue;
+
+            /*
+                If we do the following can't do eg.
+                    ./script.ext input-params
+                    python program.py
+                    etc.
+            */
+            /*if(!std::ifstream(scriptPath))
+            {
+                std::cout << "error: nsm.cpp: " << scriptsPath << ": script " << scriptPath << " does not exist" << std::endl;
+                return 1;
+            }*/
+
+            #if defined _WIN32 || defined _WIN64
+                if(unquote(scriptPath).substr(0, 2) == "./")
+                    scriptPath = unquote(scriptPath).substr(2, unquote(scriptPath).size()-2);
+            #else  //unix
+                //scriptPath = "./" + scriptPath;
+            #endif
+
+            output_filename = scriptsPath + ".out" + std::to_string(sys_counter++);
+
+            //checks whether we're running from flatpak
+            if(std::ifstream("/.flatpak-info"))
+            {
+                int result = system(("flatpak-spawn --host bash -c " + quote(scriptPath) + " > " + output_filename).c_str());
+
+                std::ifstream ifxs(output_filename);
+                std::string str;
+                while(getline(ifxs, str))
+                    os << str << std::endl;
+                ifxs.close();
+                Path("./", output_filename).removePath();
+
+                if(result)
+                {
+                    os << "error: nsm.cpp: " << scriptsPath << ": line " << lineNo << ": '" << unquote(scriptPath) << "' failed" << std::endl;
+                    return 1;
+                }
+            }
+            else
+            {
+                int result = system((scriptPath + " > " + output_filename).c_str());
+
+                std::ifstream ifxs(output_filename);
+                std::string str;
+                while(getline(ifxs, str))
+                    os << str << std::endl;
+                ifxs.close();
+                Path("./", output_filename).removePath();
+
+                if(result)
+                {
+                    os << "error: nsm.cpp: " << scriptsPath << ": line " << lineNo << ": '" << unquote(scriptPath) << "' failed" << std::endl;
+                    return 1;
+                }
+            }
+        }
+
+        ifs.close();
+    }
+
+    return 0;
+}
+
 PageBuilder::PageBuilder(std::set<PageInfo>* Pages)
 {
+    sys_counter = 0;
     pages = Pages;
 }
-
-bool PageBuilder::run_page_prebuild_scripts(std::ostream& os)
-{
-    Path prebuildPath = pageToBuild.contentPath;
-    prebuildPath.file = prebuildPath.file.substr(0, prebuildPath.file.find_first_of('.')) + ".pre-build.bat";
-    if(std::ifstream(prebuildPath.str()))
-    {
-        //checks whether we're running from flatpak
-        if(std::ifstream("/.flatpak-info"))
-        {
-            int result = system(("flatpak-spawn --host bash -c \"'" + prebuildPath.str() + "'\" > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            os_mtx.lock();
-            while(getline(ifs, str))
-                os << str << std::endl;
-            os_mtx.unlock();
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os_mtx.lock();
-                os << "error: pre build script " << quote(prebuildPath.str()) << " failed" << std::endl;
-                os_mtx.unlock();
-                return 1;
-            }
-        }
-        else //prebuildPath.str() needs to be quoted for page names with spaces
-        {
-            int result = system((quote(prebuildPath.str()) + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            os_mtx.lock();
-            while(getline(ifs, str))
-                os << str << std::endl;
-            os_mtx.unlock();
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os_mtx.lock();
-                os << "error: pre build script " << quote(prebuildPath.str()) << " failed" << std::endl;
-                os_mtx.unlock();
-                return 1;
-            }
-        }
-    }
-    prebuildPath = pageToBuild.contentPath;
-    prebuildPath.file = prebuildPath.file.substr(0, prebuildPath.file.find_first_of('.')) + ".pre-build.sh";
-    if(std::ifstream(prebuildPath.str()))
-    {
-        //checks whether we're running from flatpak
-        if(std::ifstream("/.flatpak-info"))
-        {
-            int result = system(("flatpak-spawn --host bash -c \"'" + prebuildPath.str() + "'\" > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            os_mtx.lock();
-            while(getline(ifs, str))
-                os << str << std::endl;
-            os_mtx.unlock();
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os_mtx.lock();
-                os << "error: pre build script " << quote(prebuildPath.str()) << " failed" << std::endl;
-                os_mtx.unlock();
-                return 1;
-            }
-        }
-        else //prebuildPath.str() needs to be quoted for page names with spaces
-        {
-            int result = system((quote(prebuildPath.str()) + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            os_mtx.lock();
-            while(getline(ifs, str))
-                os << str << std::endl;
-            os_mtx.unlock();
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os_mtx.lock();
-                os << "error: pre build script " << quote(prebuildPath.str()) << " failed" << std::endl;
-                os_mtx.unlock();
-                return 1;
-            }
-        }
-    }
-
-    return 0;
-}
-
-bool PageBuilder::run_page_postbuild_scripts(std::ostream& os)
-{
-    Path postbuildPath = pageToBuild.contentPath;
-    postbuildPath.file = postbuildPath.file.substr(0, postbuildPath.file.find_first_of('.')) + ".post-build.bat";
-    if(std::ifstream(postbuildPath.str()))
-    {
-        //checks whether we're running from flatpak
-        if(std::ifstream("/.flatpak-info"))
-        {
-            int result = system(("flatpak-spawn --host bash -c \"'" + postbuildPath.str() + "'\" > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            os_mtx.lock();
-            while(getline(ifs, str))
-                os << str << std::endl;
-            os_mtx.unlock();
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os_mtx.lock();
-                os << "error: post build script " << quote(postbuildPath.str()) << " failed" << std::endl;
-                os_mtx.unlock();
-                return 1;
-            }
-        }
-        else //postbuildPath.str() needs to be quoted for page names with spaces
-        {
-            int result = system((quote(postbuildPath.str()) + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            os_mtx.lock();
-            while(getline(ifs, str))
-                os << str << std::endl;
-            os_mtx.unlock();
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os_mtx.lock();
-                os << "error: post build script " << quote(postbuildPath.str()) << " failed" << std::endl;
-                os_mtx.unlock();
-                return 1;
-            }
-        }
-    }
-    postbuildPath = pageToBuild.contentPath;
-    postbuildPath.file = postbuildPath.file.substr(0, postbuildPath.file.find_first_of('.')) + ".post-build.sh";
-    if(std::ifstream(postbuildPath.str()))
-    {
-        //checks whether we're running from flatpak
-        if(std::ifstream("/.flatpak-info"))
-        {
-            int result = system(("flatpak-spawn --host bash -c \"'" + postbuildPath.str() + "'\" > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            os_mtx.lock();
-            while(getline(ifs, str))
-                os << str << std::endl;
-            os_mtx.unlock();
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os_mtx.lock();
-                os << "error: post build script " << quote(postbuildPath.str()) << " failed" << std::endl;
-                os_mtx.unlock();
-                return 1;
-            }
-        }
-        else //postbuildPath.str() needs to be quoted for page names with spaces
-        {
-            int result = system((quote(postbuildPath.str()) + " > .out.txt").c_str());
-
-            std::ifstream ifs(".out.txt");
-            std::string str;
-            os_mtx.lock();
-            while(getline(ifs, str))
-                os << str << std::endl;
-            os_mtx.unlock();
-            ifs.close();
-            Path("./", ".out.txt").removePath();
-
-            if(result)
-            {
-                os_mtx.lock();
-                os << "error: post build script " << quote(postbuildPath.str()) << " failed" << std::endl;
-                os_mtx.unlock();
-                return 1;
-            }
-        }
-    }
-
-    return 0;
-}
-
-std::atomic<long long int> sys_counter;
-//might be nice if we set above to 0 somwhere
 
 int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
 {
@@ -238,7 +127,9 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
     }
 
     //checks for pre-build scripts
-    if(this->run_page_prebuild_scripts(os))
+    Path prebuildScripts = pageToBuild.contentPath;
+    prebuildScripts.file = prebuildScripts.file.substr(0, prebuildScripts.file.find_first_of('.')) + ".pre-build.scripts";
+    if(run_scripts(os, prebuildScripts.str()))
         return 1;
 
     //os_mtx.lock();
@@ -252,6 +143,7 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
     processedPage.clear();
     processedPage.str(std::string());
     pageDeps.clear();
+    strings.clear();
     contentAdded = 0;
 
     //adds content and template paths to dependencies
@@ -315,8 +207,10 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
     }
 
     //checks for post-build scripts
-    if(this->run_page_postbuild_scripts(os))
-        return 1;
+    Path postbuildScripts = pageToBuild.contentPath;
+    postbuildScripts.file = postbuildScripts.file.substr(0, postbuildScripts.file.find_first_of('.')) + ".post-build.scripts";
+    if(run_scripts(os, postbuildScripts.str()))
+        return 0; //should a page be listed as failing to build if the post-build script fails?
 
     return result;
 }
@@ -565,11 +459,20 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@script()", os) > 0)
                         return 1;
 
+                    #if defined _WIN32 || defined _WIN64
+                        if(unquote(sys_call).substr(0, 2) == "./")
+                            sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
+                    #else  //unix
+                    #endif
+
                     Path scriptPath;
-                    scriptPath.set_file_path_from(sys_call);
+                    if(unquote(sys_call).substr(0, 2) == "./")
+                        scriptPath.set_file_path_from(unquote(unquote(sys_call).substr(2, unquote(sys_call).size()-2)));
+                    else
+                        scriptPath.set_file_path_from(unquote(sys_call));
                     pageDeps.insert(scriptPath);
 
-                    if(!std::ifstream(sys_call))
+                    if(!std::ifstream(scriptPath.str()))
                     {
                         os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": @script(" << quote(sys_call) << ") failed as script does not exist" << std::endl;
@@ -580,7 +483,8 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //checks whether we're running from flatpak
                     if(std::ifstream("/.flatpak-info"))
                     {
-                        int result = system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > " + output_filename).c_str());
+                        int result = system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str());
+                        //int result = system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > " + output_filename).c_str()); //doesn't work on windows
 
                         std::ifstream ifs(output_filename);
                         std::string str;
@@ -600,9 +504,10 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                             return 1;
                         }
                     }
-                    else //sys_call has to be quoted for script paths containing spaces
+                    else //sys_call has to be quoted for script paths containing spaces //doesn't work on windows!!
                     {
-                        int result = system((quote(sys_call) + " > " + output_filename).c_str());
+                        int result = system((sys_call + " > " + output_filename).c_str());
+                        //int result = system((quote(sys_call) + " > " + output_filename).c_str()); //doesn't work on windows!!
 
                         std::ifstream ifs(output_filename);
                         std::string str;
@@ -631,11 +536,20 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@scriptoutput()", os) > 0)
                         return 1;
 
+                    #if defined _WIN32 || defined _WIN64
+                        if(unquote(sys_call).substr(0, 2) == "./")
+                            sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
+                    #else  //unix
+                    #endif
+
                     Path scriptPath;
-                    scriptPath.set_file_path_from(sys_call);
+                    if(unquote(sys_call).substr(0, 2) == "./")
+                        scriptPath.set_file_path_from(unquote(unquote(sys_call).substr(2, unquote(sys_call).size()-2)));
+                    else
+                        scriptPath.set_file_path_from(unquote(sys_call));
                     pageDeps.insert(scriptPath);
 
-                    if(!std::ifstream(sys_call))
+                    if(!std::ifstream(scriptPath.str()))
                     {
                         os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(sys_call) << ") failed as script does not exist" << std::endl;
@@ -646,8 +560,9 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     //checks whether we're running from flatpak
                     if(std::ifstream("/.flatpak-info"))
                     {
-                        //need sys_call quoted weirdly here for script paths containing spaces
-                        if(system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > " + output_filename).c_str()))
+                        //need sys_call quoted weirdly here for script paths containing spaces (doesn't work on windows!!)
+                        //if(system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > " + output_filename).c_str()))
+                        if(system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str()))
                         {
                             os_mtx.lock();
                             os << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(sys_call) << ") failed" << std::endl;
@@ -656,7 +571,8 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                             return 1;
                         }
                     }
-                    else if(system((quote(sys_call) + " > " + output_filename).c_str())) //sys_call has to be quoted for script paths containing spaces
+                    //else if(system((quote(sys_call) + " > " + output_filename).c_str())) //sys_call has to be quoted for script paths containing spaces //doesn't work on windows!!
+                    else if(system((sys_call + " > " + output_filename).c_str()))
                     {
                         os_mtx.lock();
                         os << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(sys_call) << ") failed" << std::endl;
@@ -685,6 +601,12 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
 
                     if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@system()", os) > 0)
                         return 1;
+
+                    #if defined _WIN32 || defined _WIN64
+                        if(unquote(sys_call).substr(0, 2) == "./")
+                            sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
+                    #else  //unix
+                    #endif
 
                     //checks whether we're running from flatpak
                     if(std::ifstream("/.flatpak-info"))
@@ -740,6 +662,12 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@systemoutput()", os) > 0)
                         return 1;
 
+                    #if defined _WIN32 || defined _WIN64
+                        if(unquote(sys_call).substr(0, 2) == "./")
+                            sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
+                    #else  //unix
+                    #endif
+
                     //checks whether we're running from flatpak
                     if(std::ifstream("/.flatpak-info"))
                     {
@@ -783,6 +711,12 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@systemcontent()", os) > 0)
                         return 1;
 
+                    #if defined _WIN32 || defined _WIN64
+                        if(unquote(sys_call).substr(0, 2) == "./")
+                            sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
+                    #else  //unix
+                    #endif
+
                     contentAdded = 1;
                     sys_call += " " + quote(pageToBuild.contentPath.str());
 
@@ -819,6 +753,47 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
                     }
 
                     Path("./", output_filename).removePath();
+                }
+                else if(inLine.substr(linePos,11) == "@stringdef(")
+                {
+                    linePos+=std::string("@stringdef(").length();
+
+                    std::string varName, varVal;
+
+                    if(read_stringdef(varName, varVal, linePos, inLine, readPath, lineNo, "@stringdef()", os))
+                        return 1;
+
+                    if(strings.count(varName))
+                    {
+                        os_mtx.lock();
+                        os << "error: " << readPath << ": line " << lineNo << ": redeclaration of string('" << varName << "')" << std::endl;
+                        os_mtx.unlock();
+                        return 1;
+                    }
+                    else
+                        strings[varName] = varVal;
+                }
+                else if(inLine.substr(linePos, 8) == "@string(")
+                {
+                    linePos+=std::string("@string(").length();
+
+                    std::string varName;
+
+                    if(read_var(varName, linePos, inLine, readPath, lineNo, "@string()", os))
+                        return 1;
+
+                    if(strings.count(varName))
+                    {
+                        processedPage << strings[varName];
+                        indentAmount += strings[varName].length();
+                    }
+                    else
+                    {
+                        os_mtx.lock();
+                        os << "error: " << readPath << ": line " << lineNo << ": string('" << varName << "') was not declared in this scope" << std::endl;
+                        os_mtx.unlock();
+                        return 1;
+                    }
                 }
                 else if(inLine.substr(linePos, 8) == "@pathto(")
                 {
@@ -1196,7 +1171,7 @@ int PageBuilder::read_and_process(const Path &readPath, std::set<Path> antiDepsO
     return 0;
 }
 
-int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::string &inLine, const Path &readPath, const int &lineNo, const std::string &callType, std::ostream& os)
+int PageBuilder::read_path(std::string& pathRead, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os)
 {
     pathRead = "";
 
@@ -1235,8 +1210,6 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
                 os_mtx.unlock();
                 return 1;
             }
-            else if(inLine[linePos] == '\'')
-                break;
             pathRead += inLine[linePos];
         }
         ++linePos;
@@ -1244,7 +1217,7 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
     else if(inLine[linePos] == '"')
     {
         ++linePos;
-        for(;; ++linePos)
+        for(; inLine[linePos] != '"'; ++linePos)
         {
             if(linePos == inLine.size())
             {
@@ -1253,41 +1226,17 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
                 os_mtx.unlock();
                 return 1;
             }
-            else if(inLine[linePos] == '"')
-                break;
             pathRead += inLine[linePos];
         }
         ++linePos;
     }
     else
     {
-        for(; inLine[linePos] != ')'; ++linePos)
+        //reads path value
+        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
         {
             if(linePos == inLine.size())
             {
-                os_mtx.lock();
-                os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
-                os_mtx.unlock();
-                return 1;
-            }
-            else if(inLine[linePos] == ' ' || inLine[linePos] == '\t')
-            {
-                for(;linePos < inLine.size(); ++linePos)
-                {
-                    if(inLine[linePos] == ')')
-                    {
-                        ++linePos;
-                        return 0;
-                    }
-                    else if(inLine[linePos] != ' ' && inLine[linePos] != '\t')
-                    {
-                        os_mtx.lock();
-                        os << "error: " << readPath << ": line " << lineNo << ": unquoted path inside " << callType << " call contains whitespace" << std::endl << std::endl;
-                        os_mtx.unlock();
-                        return 1;
-                    }
-                }
-
                 os_mtx.lock();
                 os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
                 os_mtx.unlock();
@@ -1324,7 +1273,7 @@ int PageBuilder::read_path(std::string &pathRead, size_t &linePos, const std::st
     return 0;
 }
 
-int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std::string &inLine, const Path &readPath, const int &lineNo, const std::string &callType, std::ostream& os)
+int PageBuilder::read_sys_call(std::string& sys_call, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os)
 {
     sys_call = "";
 
@@ -1354,7 +1303,7 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
     if(inLine[linePos] == '\'')
     {
         ++linePos;
-        for(;; ++linePos)
+        for(; inLine[linePos] != '\''; ++linePos)
         {
             if(linePos == inLine.size())
             {
@@ -1363,8 +1312,6 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
                 os_mtx.unlock();
                 return 1;
             }
-            else if(inLine[linePos] == '\'')
-                break;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
@@ -1376,7 +1323,7 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
     else if(inLine[linePos] == '"')
     {
         ++linePos;
-        for(;; ++linePos)
+        for(; inLine[linePos] != '"'; ++linePos)
         {
             if(linePos == inLine.size())
             {
@@ -1385,8 +1332,6 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
                 os_mtx.unlock();
                 return 1;
             }
-            else if(inLine[linePos] == '"')
-                break;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
@@ -1397,7 +1342,7 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
     }
     else
     {
-        for(; inLine[linePos] != ')'; ++linePos)
+        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
         {
             if(linePos == inLine.size())
             {
@@ -1412,8 +1357,6 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
                 linePos++;
             sys_call += inLine[linePos];
         }
-
-        //could strip trailing whitespace here
     }
 
     //skips over hopefully trailing whitespace
@@ -1434,6 +1377,222 @@ int PageBuilder::read_sys_call(std::string &sys_call, size_t &linePos, const std
     {
         os_mtx.lock();
         os << "error: " << readPath << ": line " << lineNo << ": invalid system call inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
+        return 1;
+    }
+
+    ++linePos;
+
+    return 0;
+}
+
+int PageBuilder::read_stringdef(std::string& varName, std::string& varVal, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os)
+{
+    varName = varVal = "";
+
+    //skips over leading whitespace
+    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+        ++linePos;
+
+    //throws error if either no closing bracket or a newline or no variable definition
+    if(linePos == inLine.size() || inLine[linePos] == ')')
+    {
+        os_mtx.lock();
+        os << "error: " << readPath << ": line " << lineNo << ": no variable definition provided inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
+        return 1;
+    }
+
+    //reads variable name
+    for(; inLine[linePos] != ')' && inLine[linePos] != '=' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+    {
+        if(linePos == inLine.size())
+        {
+            os_mtx.lock();
+            os << "error: " << readPath << ": line " << lineNo << ": variable definition has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+            os_mtx.unlock();
+            return 1;
+        }
+        else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+            linePos++;
+        else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+            linePos++;
+        varName += inLine[linePos];
+    }
+
+    //skips over whitespace
+    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+        ++linePos;
+
+    if(linePos == inLine.size() || inLine[linePos] == ')')
+    {
+        os_mtx.lock();
+        os << "error: " << readPath << ": line " << lineNo << ": incomplete variable definition inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
+        return 1;
+    }
+    else if(inLine[linePos] != '=')
+    {
+        os_mtx.lock();
+        os << "error: " << readPath << ": line " << lineNo << ": variable definition has no = between variable name and value inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
+        return 1;
+    }
+
+    linePos++;
+
+    //skips over whitespace
+    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+        ++linePos;
+
+    if(linePos == inLine.size() || inLine[linePos] == ')')
+    {
+        os_mtx.lock();
+        os << "error: " << readPath << ": line " << lineNo << ": incomplete variable definition inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
+        return 1;
+    }
+
+    //reads the variable value
+    if(inLine[linePos] == '\'')
+    {
+        ++linePos;
+        for(; inLine[linePos] != '\''; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os_mtx.lock();
+                os << "error: " << readPath << ": line " << lineNo << ": variable definition has no closing single quote or newline inside " << callType << " call" << std::endl << std::endl;
+                os_mtx.unlock();
+                return 1;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
+            varVal += inLine[linePos];
+        }
+        ++linePos;
+    }
+    else if(inLine[linePos] == '"')
+    {
+        ++linePos;
+        for(; inLine[linePos] != '"'; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os_mtx.lock();
+                os << "error: " << readPath << ": line " << lineNo << ": variable definition has no closing double quote \" or newline inside " << callType << " call" << std::endl << std::endl;
+                os_mtx.unlock();
+                return 1;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
+            varVal += inLine[linePos];
+        }
+        ++linePos;
+    }
+    else
+    {
+        //reads variable value
+        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os_mtx.lock();
+                os << "error: " << readPath << ": line " << lineNo << ": variable definition has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+                os_mtx.unlock();
+                return 1;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
+            varVal += inLine[linePos];
+        }
+    }
+
+    //skips over hopefully trailing whitespace
+    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+        ++linePos;
+
+    //throws error if new line is between the variable definition and close bracket
+    if(linePos == inLine.size())
+    {
+        os_mtx.lock();
+        os << "error: " << readPath << ": line " << lineNo << ": variable definition has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
+        return 1;
+    }
+
+    //throws error if the variable definition is invalid
+    if(inLine[linePos] != ')')
+    {
+        os_mtx.lock();
+        os << "error: " << readPath << ": line " << lineNo << ": invalid variable definition inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
+        return 1;
+    }
+
+    ++linePos;
+
+    return 0;
+}
+
+int PageBuilder::read_var(std::string& varName, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os)
+{
+    varName = "";
+
+    //skips over leading whitespace
+    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+        ++linePos;
+
+    //throws error if either no closing bracket or a newline or no variable name
+    if(linePos == inLine.size() || inLine[linePos] == ')')
+    {
+        os_mtx.lock();
+        os << "error: " << readPath << ": line " << lineNo << ": no variable name provided inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
+        return 1;
+    }
+
+    //reads variable name
+    for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+    {
+        if(linePos == inLine.size())
+        {
+            os_mtx.lock();
+            os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+            os_mtx.unlock();
+            return 1;
+        }
+        else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+            linePos++;
+        else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+            linePos++;
+        varName += inLine[linePos];
+    }
+
+    //skips over hopefully trailing whitespace
+    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+        ++linePos;
+
+    //throws error if new line is between the variable name and close bracket
+    if(linePos == inLine.size())
+    {
+        os_mtx.lock();
+        os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing bracket ) or newline inside " << callType << " call" << std::endl << std::endl;
+        os_mtx.unlock();
+        return 1;
+    }
+
+    //throws error if the variable name is invalid
+    if(inLine[linePos] != ')')
+    {
+        os_mtx.lock();
+        os << "error: " << readPath << ": line " << lineNo << ": invalid variable name inside " << callType << " call" << std::endl << std::endl;
         os_mtx.unlock();
         return 1;
     }

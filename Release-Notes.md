@@ -2,6 +2,14 @@
 Nift Release Notes
 ------------------
 
+Version 1.19 of Nift
+* added more error handling
+* added string variables
+* added rootBranch and siteBranch to config files
+* changed/improved/finalised how pre/post build/serve scripts are done
+* fixed @script[output] and @system[output/content]
+* added pre/post build-[all/updated] script support
+
 Version 1.18 of Nift
 * added FileSystem.[h/cpp] to the project
 * added cpDir function to FileSystem.[h/cpp]

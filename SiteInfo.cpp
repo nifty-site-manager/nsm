@@ -2,21 +2,27 @@
 
 int SiteInfo::open()
 {
-    pages.clear();
+    if(open_config())
+        return 1;
+    if(open_pages())
+        return 1;
 
+    return 0;
+}
+
+int SiteInfo::open_config()
+{
     if(!std::ifstream(".siteinfo/nsm.config"))
     {
         //this should never happen!
-        std::cout << "error: SiteInfo.cpp: open(): could not open Nift config file as '" << get_pwd() <<  "/.siteinfo/nsm.config' does not exist" << std::endl;
+        std::cout << "error: SiteInfo.cpp: open_config(): could not open Nift config file as '" << get_pwd() <<  "/.siteinfo/nsm.config' does not exist" << std::endl;
         return 1;
     }
 
-    if(!std::ifstream(".siteinfo/pages.list"))
-    {
-        //this should never happen!
-        std::cout << "error: SiteInfo.cpp: open(): could not open site information as '" << get_pwd() << "/.siteinfo/pages.list' does not exist" << std::endl;
-        return 1;
-    }
+    contentDir = siteDir = "";
+    contentExt = pageExt = rootBranch = siteBranch = "";
+    defaultTemplate = Path("", "");
+
 
     //reads Nift config file
     std::ifstream ifs(".siteinfo/nsm.config");
@@ -33,23 +39,74 @@ int SiteInfo::open()
             read_quoted(ifs, pageExt);
         else if(inType == "defaultTemplate")
             defaultTemplate.read_file_path_from(ifs);
+        else if(inType == "rootBranch")
+            read_quoted(ifs, rootBranch);
+        else if(inType == "siteBranch")
+            read_quoted(ifs, siteBranch);
     }
     ifs.close();
 
     if(contentExt == "" || contentExt[0] != '.')
     {
-        std::cout << "error: content extension must start with a fullstop" << std::endl;
+        std::cout << "error: .siteinfo/nsm.config: content extension must start with a fullstop" << std::endl;
         return 1;
     }
 
     if(pageExt == "" || pageExt[0] != '.')
     {
-        std::cout << "error: page extension must start with a fullstop" << std::endl;
+        std::cout << "error: .siteinfo/nsm.config: page extension must start with a fullstop" << std::endl;
+        return 1;
+    }
+
+    if(contentDir == "")
+    {
+        std::cout << "error: .siteinfo/nsm.config: content directory not specified" << std::endl;
+        return 1;
+    }
+
+    if(siteDir == "")
+    {
+        std::cout << "error: .siteinfo/nsm.config: site directory not specified" << std::endl;
+        return 1;
+    }
+
+    //temporary code to figure out rootBranch and siteBranch if not present
+    if(rootBranch == "" || siteBranch == "")
+    {
+        if(std::ifstream(".git"))
+        {
+            std::set<std::string> branches = get_git_branches();
+
+            if(branches.count("stage"))
+            {
+                rootBranch = "stage";
+                siteBranch = "master";
+            }
+            else
+                rootBranch = siteBranch = "master";
+        }
+        else
+            rootBranch = siteBranch = "##unset##";
+
+        save_config();
+    }
+
+    return 0;
+}
+
+int SiteInfo::open_pages()
+{
+    pages.clear();
+
+    if(!std::ifstream(".siteinfo/pages.list"))
+    {
+        //this should never happen!
+        std::cout << "error: SiteInfo.cpp: open(): could not open site information as '" << get_pwd() << "/.siteinfo/pages.list' does not exist" << std::endl;
         return 1;
     }
 
     //reads page list file
-    ifs.open(".siteinfo/pages.list");
+    std::ifstream ifs(".siteinfo/pages.list");
     Name inName;
     Title inTitle;
     Path inTemplatePath;
@@ -132,49 +189,22 @@ int SiteInfo::open()
     return 0;
 }
 
-int SiteInfo::open_config()
+int SiteInfo::save_config()
 {
-    if(!std::ifstream(".siteinfo/nsm.config"))
-    {
-        //this should never happen!
-        std::cout << "error: SiteInfo.cpp: open_config(): could not open Nift config file as '" << get_pwd() <<  "/.siteinfo/nsm.config' does not exist" << std::endl;
-        return 1;
-    }
-
-    //reads Nift config file
-    std::ifstream ifs(".siteinfo/nsm.config");
-    std::string inType;
-    while(ifs >> inType)
-    {
-        if(inType == "contentDir")
-            read_quoted(ifs, contentDir);
-        else if(inType == "contentExt")
-            read_quoted(ifs, contentExt);
-        else if(inType == "siteDir")
-            read_quoted(ifs, siteDir);
-        else if(inType == "pageExt")
-            read_quoted(ifs, pageExt);
-        else if(inType == "defaultTemplate")
-            defaultTemplate.read_file_path_from(ifs);
-    }
-    ifs.close();
-
-    if(contentExt == "" || contentExt[0] != '.')
-    {
-        std::cout << "error: content extension must start with a fullstop" << std::endl;
-        return 1;
-    }
-
-    if(pageExt == "" || pageExt[0] != '.')
-    {
-        std::cout << "error: page extension must start with a fullstop" << std::endl;
-        return 1;
-    }
+    std::ofstream ofs(".siteinfo/nsm.config");
+    ofs << "contentDir " << quote(contentDir) << "\n";
+    ofs << "contentExt " << quote(contentExt) << "\n";
+    ofs << "siteDir " << quote(siteDir) << "\n";
+    ofs << "pageExt " << quote(pageExt) << "\n";
+    ofs << "defaultTemplate " << defaultTemplate << "\n\n";
+    ofs << "rootBranch " << quote(rootBranch) << "\n";
+    ofs << "siteBranch " << quote(siteBranch) << "\n";
+    ofs.close();
 
     return 0;
 }
 
-int SiteInfo::save()
+int SiteInfo::save_pages()
 {
     std::ofstream ofs(".siteinfo/pages.list");
 
@@ -336,6 +366,26 @@ bool SiteInfo::tracking(const Name &pageName)
 
 int SiteInfo::track(const Name &name, const Title &title, const Path &templatePath)
 {
+    if(name.find('.') != std::string::npos)
+    {
+        std::cout << "error: page names cannot contain '.'" << std::endl;
+        return 1;
+    }
+    else if(name == "" || title.str == "" || templatePath == Path("", ""))
+    {
+        std::cout << "error: page name, title and template path must all be non-empty strings" << std::endl;
+        return 1;
+    }
+    else if(
+                (unquote(name).find('"') != std::string::npos && unquote(name).find('\'') != std::string::npos) ||
+                (unquote(title.str).find('"') != std::string::npos && unquote(title.str).find('\'') != std::string::npos) ||
+                (unquote(templatePath.str()).find('"') != std::string::npos && unquote(templatePath.str()).find('\'') != std::string::npos)
+            )
+    {
+        std::cout << "error: page name, title and template path cannot contain both single and double quotes" << std::endl;
+        return 1;
+    }
+
     PageInfo newPage = make_info(name, title, templatePath);
 
     if(newPage.contentPath == newPage.templatePath)
@@ -419,7 +469,7 @@ int SiteInfo::untrack(const Name &pageNameToUntrack)
     pages.erase(pageToErase);
 
     //saves new set of pages to pages.list
-    save();
+    save_pages();
 
     //informs user that page was successfully untracked
     std::cout << std::endl;
@@ -462,7 +512,7 @@ int SiteInfo::rm(const Name &pageNameToRemove)
     pages.erase(pageToErase);
 
     //saves new set of pages to pages.list
-    save();
+    save_pages();
 
     //informs user that page was successfully removed
     std::cout << std::endl;
@@ -473,7 +523,22 @@ int SiteInfo::rm(const Name &pageNameToRemove)
 
 int SiteInfo::mv(const Name &oldPageName, const Name &newPageName)
 {
-    if(!tracking(oldPageName)) //checks old page is being tracked
+    if(newPageName.find('.') != std::string::npos)
+    {
+        std::cout << "error: new page name cannot contain '.'" << std::endl;
+        return 1;
+    }
+    else if(newPageName == "")
+    {
+        std::cout << "error: new page name must be a non-empty string" << std::endl;
+        return 1;
+    }
+    else if(unquote(newPageName).find('"') != std::string::npos && unquote(newPageName).find('\'') != std::string::npos)
+    {
+        std::cout << "error: new page name cannot contain both single and double quotes" << std::endl;
+        return 1;
+    }
+    else if(!tracking(oldPageName)) //checks old page is being tracked
     {
         std::cout << std::endl;
         std::cout << "error: Nift is not tracking " << oldPageName << std::endl;
@@ -533,7 +598,7 @@ int SiteInfo::mv(const Name &oldPageName, const Name &newPageName)
     pages.insert(newPageInfo);
 
     //saves new set of pages to pages.list
-    save();
+    save_pages();
 
     //informs user that page was successfully moved
     std::cout << std::endl;
@@ -544,7 +609,22 @@ int SiteInfo::mv(const Name &oldPageName, const Name &newPageName)
 
 int SiteInfo::cp(const Name &trackedPageName, const Name &newPageName)
 {
-    if(!tracking(trackedPageName)) //checks old page is being tracked
+    if(newPageName.find('.') != std::string::npos)
+    {
+        std::cout << "error: new page name cannot contain '.'" << std::endl;
+        return 1;
+    }
+    else if(newPageName == "")
+    {
+        std::cout << "error: new page name must be a non-empty string" << std::endl;
+        return 1;
+    }
+    else if(unquote(newPageName).find('"') != std::string::npos && unquote(newPageName).find('\'') != std::string::npos)
+    {
+        std::cout << "error: new page name cannot contain both single and double quotes" << std::endl;
+        return 1;
+    }
+    else if(!tracking(trackedPageName)) //checks old page is being tracked
     {
         std::cout << std::endl;
         std::cout << "error: Nift is not tracking " << trackedPageName << std::endl;
@@ -584,7 +664,7 @@ int SiteInfo::cp(const Name &trackedPageName, const Name &newPageName)
     pages.insert(newPageInfo);
 
     //saves new set of pages to pages.list
-    save();
+    save_pages();
 
     //informs user that page was successfully moved
     std::cout << std::endl;
@@ -595,6 +675,17 @@ int SiteInfo::cp(const Name &trackedPageName, const Name &newPageName)
 
 int SiteInfo::new_title(const Name &pageName, const Title &newTitle)
 {
+    if(newTitle.str == "")
+    {
+        std::cout << "error: new title must be a non-empty string" << std::endl;
+        return 1;
+    }
+    else if(unquote(newTitle.str).find('"') != std::string::npos && unquote(newTitle.str).find('\'') != std::string::npos)
+    {
+        std::cout << "error: new title cannot contain both single and double quotes" << std::endl;
+        return 1;
+    }
+
     PageInfo pageInfo;
     pageInfo.pageName = pageName;
     if(pages.count(pageInfo))
@@ -603,7 +694,7 @@ int SiteInfo::new_title(const Name &pageName, const Title &newTitle)
         pages.erase(pageInfo);
         pageInfo.pageTitle = newTitle;
         pages.insert(pageInfo);
-        save();
+        save_pages();
 
         //informs user that page title was successfully changed
         std::cout << "successfully changed page title to " << newTitle << std::endl;
@@ -619,6 +710,17 @@ int SiteInfo::new_title(const Name &pageName, const Title &newTitle)
 
 int SiteInfo::new_template(const Path &newTemplatePath)
 {
+    if(newTemplatePath == Path("", ""))
+    {
+        std::cout << "error: new template path must be a non-empty string" << std::endl;
+        return 1;
+    }
+    else if(unquote(newTemplatePath.str()).find('"') != std::string::npos && unquote(newTemplatePath.str()).find('\'') != std::string::npos)
+    {
+        std::cout << "error: new template path cannot contain both single and double quotes" << std::endl;
+        return 1;
+    }
+
     Name pageName;
     Title pageTitle;
     Path pageTemplatePath;
@@ -645,13 +747,7 @@ int SiteInfo::new_template(const Path &newTemplatePath)
     defaultTemplate = newTemplatePath;
 
     //saves new default template to Nift config file
-    ofs.open(".siteinfo/nsm.config");
-    ofs << "contentDir " << quote(contentDir) << "\n";
-    ofs << "contentExt " << quote(contentExt) << "\n";
-    ofs << "siteDir " << quote(siteDir) << "\n";
-    ofs << "pageExt " << quote(pageExt) << "\n";
-    ofs << "defaultTemplate " << defaultTemplate << "\n";
-    ofs.close();
+    save_config();
 
     //warns user if new template path doesn't exist
     if(!std::ifstream(newTemplatePath.str()))
@@ -664,6 +760,17 @@ int SiteInfo::new_template(const Path &newTemplatePath)
 
 int SiteInfo::new_template(const Name &pageName, const Path &newTemplatePath)
 {
+    if(newTemplatePath == Path("", ""))
+    {
+        std::cout << "error: new template path must be a non-empty string" << std::endl;
+        return 1;
+    }
+    else if(unquote(newTemplatePath.str()).find('"') != std::string::npos && unquote(newTemplatePath.str()).find('\'') != std::string::npos)
+    {
+        std::cout << "error: new template path cannot contain both single and double quotes" << std::endl;
+        return 1;
+    }
+
     PageInfo pageInfo;
     pageInfo.pageName = pageName;
     if(pages.count(pageInfo))
@@ -672,7 +779,7 @@ int SiteInfo::new_template(const Name &pageName, const Path &newTemplatePath)
         pages.erase(pageInfo);
         pageInfo.templatePath = newTemplatePath;
         pages.insert(pageInfo);
-        save();
+        save_pages();
 
         //warns user if new template path doesn't exist
         if(!std::ifstream(newTemplatePath.str()))
@@ -692,6 +799,11 @@ int SiteInfo::new_site_dir(const Directory &newSiteDir)
     if(newSiteDir == "")
     {
         std::cout << "error: new site directory cannot be the empty string" << std::endl;
+        return 1;
+    }
+    else if(unquote(newSiteDir).find('"') != std::string::npos && unquote(newSiteDir).find('\'') != std::string::npos)
+    {
+        std::cout << "error: new site directory cannot contain both single and double quotes" << std::endl;
         return 1;
     }
 
@@ -860,13 +972,7 @@ int SiteInfo::new_site_dir(const Directory &newSiteDir)
     siteDir = newSiteDir;
 
     //saves new site directory to Nift config file
-    std::ofstream ofs(".siteinfo/nsm.config");
-    ofs << "contentDir " << quote(contentDir) << "\n";
-    ofs << "contentExt " << quote(contentExt) << "\n";
-    ofs << "siteDir " << quote(siteDir) << "\n";
-    ofs << "pageExt " << quote(pageExt) << "\n";
-    ofs << "defaultTemplate " << defaultTemplate << "\n";
-    ofs.close();
+    save_config();
 
     std::cout << "successfully changed site directory to " << quote(newSiteDir) << std::endl;
 
@@ -878,6 +984,11 @@ int SiteInfo::new_content_dir(const Directory &newContDir)
     if(newContDir == "")
     {
         std::cout << "error: new content directory cannot be the empty string" << std::endl;
+        return 1;
+    }
+    else if(unquote(newContDir).find('"') != std::string::npos && unquote(newContDir).find('\'') != std::string::npos)
+    {
+        std::cout << "error: new content directory cannot contain both single and double quotes" << std::endl;
         return 1;
     }
 
@@ -973,13 +1084,7 @@ int SiteInfo::new_content_dir(const Directory &newContDir)
     contentDir = newContDir;
 
     //saves new site directory to Nift config file
-    std::ofstream ofs(".siteinfo/nsm.config");
-    ofs << "contentDir " << quote(contentDir) << "\n";
-    ofs << "contentExt " << quote(contentExt) << "\n";
-    ofs << "siteDir " << quote(siteDir) << "\n";
-    ofs << "pageExt " << quote(pageExt) << "\n";
-    ofs << "defaultTemplate " << defaultTemplate << "\n";
-    ofs.close();
+    save_config();
 
     std::cout << "successfully changed content directory to " << quote(newContDir) << std::endl;
 
@@ -996,13 +1101,7 @@ int SiteInfo::new_content_ext(const std::string &newExt)
 
     contentExt = newExt;
 
-    std::ofstream ofs(".siteinfo/nsm.config");
-    ofs << "contentDir " << quote(contentDir) << "\n";
-    ofs << "contentExt " << quote(contentExt) << "\n";
-    ofs << "siteDir " << quote(siteDir) << "\n";
-    ofs << "pageExt " << quote(pageExt) << "\n";
-    ofs << "defaultTemplate " << defaultTemplate << "\n";
-    ofs.close();
+    save_config();
 
     for(auto page=pages.begin(); page!=pages.end(); page++)
     {
@@ -1098,13 +1197,7 @@ int SiteInfo::new_page_ext(const std::string &newExt)
 
     pageExt = newExt;
 
-    std::ofstream ofs(".siteinfo/nsm.config");
-    ofs << "contentDir " << quote(contentDir) << "\n";
-    ofs << "contentExt " << quote(contentExt) << "\n";
-    ofs << "siteDir " << quote(siteDir) << "\n";
-    ofs << "pageExt " << quote(pageExt) << "\n";
-    ofs << "defaultTemplate " << defaultTemplate << "\n";
-    ofs.close();
+    save_config();
 
     for(auto page=pages.begin(); page!=pages.end(); page++)
     {

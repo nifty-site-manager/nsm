@@ -1,6 +1,6 @@
 #basic makefile for nsm
-objects=nsm.o DateTimeInfo.o Directory.o Filename.o FileSystem.o PageBuilder.o PageInfo.o Path.o Quoted.o SiteInfo.o Title.o
-cppfiles=nsm.cpp DateTimeInfo.cpp Directory.cpp Filename.cpp FileSystem.cpp PageBuilder.cpp PageInfo.cpp Path.cpp Quoted.cpp SiteInfo.cpp Title.cpp
+objects=nsm.o DateTimeInfo.o Directory.o Filename.o FileSystem.o GitInfo.o PageBuilder.o PageInfo.o Path.o Quoted.o SiteInfo.o Title.o
+cppfiles=nsm.cpp DateTimeInfo.cpp Directory.cpp Filename.cpp FileSystem.cpp GitInfo.cpp PageBuilder.cpp PageInfo.cpp Path.cpp Quoted.cpp SiteInfo.cpp Title.cpp
 CXX?=g++
 LINK=-pthread
 CXXFLAGS+= -std=c++11 -Wall -Wextra -pedantic -O3
@@ -16,14 +16,17 @@ nsm: $(objects)
 	$(CXX) $(CXXFLAGS) $(cppfiles) -o nsm $(LINK)
 	$(CXX) $(CXXFLAGS) $(cppfiles) -o nift $(LINK)
 
-nsm.o: nsm.cpp SiteInfo.o Timer.h
+nsm.o: nsm.cpp GitInfo.o SiteInfo.o Timer.h
 	$(CXX) $(CXXFLAGS) -c -o $@ $< $(LINK)
 
-SiteInfo.o: SiteInfo.cpp SiteInfo.h FileSystem.o PageBuilder.o
+SiteInfo.o: SiteInfo.cpp SiteInfo.h GitInfo.o FileSystem.o PageBuilder.o
 	$(CXX) $(CXXFLAGS) -c -o $@ $< $(LINK)
+
+GitInfo.o: GitInfo.cpp GitInfo.h FileSystem.o Path.o
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 FileSystem.o: FileSystem.cpp FileSystem.h Path.o
-	$(CXX) $(CXXFLAGS) -c -o $@ $< $(LINK)
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 PageBuilder.o: PageBuilder.cpp PageBuilder.h DateTimeInfo.o PageInfo.o
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
