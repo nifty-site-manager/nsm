@@ -1283,9 +1283,11 @@ int SiteInfo::new_page_ext(const Name &pageName, const std::string &newExt)
     return 0;
 }
 
+std::mutex os_mtx;
+
 int SiteInfo::build(const std::vector<Name>& pageNamesToBuild)
 {
-    PageBuilder pageBuilder(&pages);
+    PageBuilder pageBuilder(&pages, &os_mtx, contentDir, siteDir, contentExt, pageExt, defaultTemplate);
     std::set<Name> untrackedPages, failedPages;
 
     for(auto pageName=pageNamesToBuild.begin(); pageName != pageNamesToBuild.end(); pageName++)
@@ -1330,9 +1332,9 @@ std::set<PageInfo>::iterator cPage;
 
 std::atomic<int> counter;
 
-void build_thread(std::ostream& os, std::set<PageInfo>* pages, const int& no_pages)
+void build_thread(std::ostream& os, std::set<PageInfo>* pages, const int& no_pages, const Directory& ContentDir, const Directory& SiteDir, const std::string& ContentExt, const std::string& PageExt, const Path& DefaultTemplate)
 {
-    PageBuilder pageBuilder(pages);
+    PageBuilder pageBuilder(pages, &os_mtx, ContentDir, SiteDir, ContentExt, PageExt, DefaultTemplate);
     std::set<PageInfo>::iterator pageInfo;
 
     while(counter < no_pages)
@@ -1373,7 +1375,7 @@ int SiteInfo::build_all()
 
 	std::vector<std::thread> threads;
 	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(build_thread, std::ref(std::cout), &pages, pages.size()));
+		threads.push_back(std::thread(build_thread, std::ref(std::cout), &pages, pages.size(), contentDir, siteDir, contentExt, pageExt, defaultTemplate));
 
 	for(int i=0; i<no_threads; i++)
 		threads[i].join();
@@ -1510,7 +1512,7 @@ int SiteInfo::build_all()
     return 0;
 }*/
 
-std::mutex problem_mtx, updated_mtx, modified_mtx, removed_mtx, os_mtx;
+std::mutex problem_mtx, updated_mtx, modified_mtx, removed_mtx;
 std::set<PageInfo> updatedPages;
 std::set<Path> modifiedFiles,
     removedFiles,
@@ -1786,7 +1788,7 @@ int SiteInfo::build_updated(std::ostream& os)
 
 	threads.clear();
 	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(build_thread, std::ref(os), &pages, updatedPages.size()));
+		threads.push_back(std::thread(build_thread, std::ref(os), &pages, updatedPages.size(), contentDir, siteDir, contentExt, pageExt, defaultTemplate));
 
 	for(int i=0; i<no_threads; i++)
 		threads[i].join();

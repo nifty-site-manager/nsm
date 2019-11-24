@@ -37,6 +37,17 @@ int read_serve_commands()
     return 0;
 }
 
+int sleepTime = 500000; //default value: 0.5 seconds
+
+bool isNum(const std::string& str)
+{
+    for(size_t i=0; i<str.size(); i++)
+        if(!std::isdigit(str[i]))
+            return 0;
+
+    return 1;
+}
+
 int serve()
 {
     std::ofstream ofs;
@@ -60,7 +71,7 @@ int serve()
 
         ofs.close();
 
-        usleep(500000);
+        usleep(sleepTime);
     }
 
     Path("./", ".serve-build-log.txt").removePath();
@@ -107,7 +118,7 @@ int main(int argc, char* argv[])
 
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.19" << std::endl;
+        std::cout << "Nift (aka nsm) v1.20" << std::endl;
 
         return 0;
     }
@@ -1184,6 +1195,13 @@ int main(int argc, char* argv[])
             //ensures correct number of parameters given
             if(noParams > 2)
                 return parError(noParams, argv, "1 or 2");
+
+            if(noParams == 2 && isNum(std::string(argv[2])))
+            {
+                sleepTime = std::stoi(std::string(argv[2]))*1000;
+                noParams = 1;
+                std::cout << "sleep time " << sleepTime << std::endl;
+            }
 
             if(noParams == 2 && std::string(argv[2]) != "-s")
             {

@@ -4,6 +4,8 @@ cppfiles=nsm.cpp DateTimeInfo.cpp Directory.cpp Filename.cpp FileSystem.cpp GitI
 CXX?=g++
 LINK=-pthread
 CXXFLAGS+= -std=c++11 -Wall -Wextra -pedantic -O3
+#flags to use when compiling for Netlify
+#CXXFLAGS+= -std=c++11 -Wall -Wextra -pedantic -O3 -static-libgcc -static-libstdc++
 #Flags to use when compiling for Chocolatey
 #CXXFLAGS=-std=c++11 -Wall -Wextra -pedantic -O3 -static -static-libgcc -static-libstdc++
 DESTDIR?=
