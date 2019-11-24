@@ -706,7 +706,7 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                     }
 
                     #if defined _WIN32 || defined _WIN64
-                        if(unquote(sys_call).substr(0, 2) == "./")
+                        if(unquote(scriptPathStr).substr(0, 2) == "./")
                             scriptPathStr = unquote(scriptPathStr).substr(2, unquote(scriptPathStr).size()-2);
                     #else  //unix
                     #endif
