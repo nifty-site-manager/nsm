@@ -20,9 +20,8 @@ int SiteInfo::open_config()
     }
 
     contentDir = siteDir = "";
-    contentExt = pageExt = rootBranch = siteBranch = "";
+    contentExt = pageExt = unixTextEditor = winTextEditor = rootBranch = siteBranch = "";
     defaultTemplate = Path("", "");
-
 
     //reads Nift config file
     std::ifstream ifs(".siteinfo/nsm.config");
@@ -39,6 +38,10 @@ int SiteInfo::open_config()
             read_quoted(ifs, pageExt);
         else if(inType == "defaultTemplate")
             defaultTemplate.read_file_path_from(ifs);
+        else if(inType == "unixTextEditor")
+            read_quoted(ifs, unixTextEditor);
+        else if(inType == "winTextEditor")
+            read_quoted(ifs, winTextEditor);
         else if(inType == "rootBranch")
             read_quoted(ifs, rootBranch);
         else if(inType == "siteBranch")
@@ -58,6 +61,12 @@ int SiteInfo::open_config()
         return 1;
     }
 
+    if(defaultTemplate == Path("", ""))
+    {
+        std::cout << "error: .siteinfo/nsm.config: default template is not specified" << std::endl;
+        return 1;
+    }
+
     if(contentDir == "")
     {
         std::cout << "error: .siteinfo/nsm.config: content directory not specified" << std::endl;
@@ -70,7 +79,25 @@ int SiteInfo::open_config()
         return 1;
     }
 
-    //temporary code to figure out rootBranch and siteBranch if not present
+    bool configChanged = 0;
+
+    //code to set unixTextEditor if not present
+    if(unixTextEditor == "")
+    {
+        unixTextEditor = "nano";
+
+        configChanged = 1;
+    }
+
+    //code to set winTextEditor if not present
+    if(winTextEditor == "")
+    {
+        winTextEditor = "notepad";
+
+        configChanged = 1;
+    }
+
+    //code to figure out rootBranch and siteBranch if not present
     if(rootBranch == "" || siteBranch == "")
     {
         if(std::ifstream(".git"))
@@ -88,8 +115,11 @@ int SiteInfo::open_config()
         else
             rootBranch = siteBranch = "##unset##";
 
-        save_config();
+        configChanged = 1;
     }
+
+    if(configChanged)
+        save_config();
 
     return 0;
 }
@@ -197,6 +227,8 @@ int SiteInfo::save_config()
     ofs << "siteDir " << quote(siteDir) << "\n";
     ofs << "pageExt " << quote(pageExt) << "\n";
     ofs << "defaultTemplate " << defaultTemplate << "\n\n";
+    ofs << "unixTextEditor " << quote(unixTextEditor) << "\n";
+    ofs << "winTextEditor " << quote(winTextEditor) << "\n\n";
     ofs << "rootBranch " << quote(rootBranch) << "\n";
     ofs << "siteBranch " << quote(siteBranch) << "\n";
     ofs.close();
@@ -1099,6 +1131,12 @@ int SiteInfo::new_content_ext(const std::string &newExt)
         return 1;
     }
 
+    if(newExt == contentExt)
+    {
+        std::cout << "error: content extension is already " << contentExt << std::endl;
+        return 1;
+    }
+
     contentExt = newExt;
 
     save_config();
@@ -1117,15 +1155,24 @@ int SiteInfo::new_content_ext(const std::string &newExt)
             read_quoted(ifs, oldExt);
             ifs.close();
 
-            if(oldExt != newExt)
-                continue;
+            if(oldExt == newExt)
+                extPath.removePath();
         }
-
-        new_content_ext(page->pageName, newExt);
+        else
+        {
+            //moves the content file
+            if(std::ifstream(page->contentPath.str()))
+            {
+                Path newContPath = page->contentPath;
+                newContPath.file = newContPath.file.substr(0, newContPath.file.find_first_of('.')) + newExt;
+                if(newContPath.str() != page->contentPath.str())
+                    rename(page->contentPath.str().c_str(), newContPath.str().c_str());
+            }
+        }
     }
 
     //informs user that page extension was successfully changed
-    std::cout << "successfully changed page extention to " << newExt << std::endl;
+    std::cout << "successfully changed content extension to " << newExt << std::endl;
 
     return 0;
 }
@@ -1145,6 +1192,22 @@ int SiteInfo::new_content_ext(const Name &pageName, const std::string &newExt)
         Path extPath = pageInfo.pagePath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
 
+        std::string oldExt;
+        if(std::ifstream(extPath.str()))
+        {
+            std::ifstream ifs(extPath.str());
+            getline(ifs, oldExt);
+            ifs.close();
+        }
+        else
+            oldExt = contentExt;
+
+        if(oldExt == newExt)
+        {
+            std::cout << "error: content extension for " << pageName << " is already " << oldExt << std::endl;
+            return 1;
+        }
+
         //makes sure we can write to ext file
         chmod(extPath.str().c_str(), 0644);
 
@@ -1161,21 +1224,12 @@ int SiteInfo::new_content_ext(const Name &pageName, const std::string &newExt)
             extPath.removePath();
 
         //moves the content file
-        if(std::ifstream(pageInfo.pagePath.str()))
+        if(std::ifstream(pageInfo.contentPath.str()))
         {
             Path newContPath = pageInfo.contentPath;
             newContPath.file = newContPath.file.substr(0, newContPath.file.find_first_of('.')) + newExt;
             if(newContPath.str() != pageInfo.contentPath.str())
-            {
-                std::ifstream ifs(pageInfo.contentPath.str());
-                std::ofstream ofs(newContPath.str());
-                std::string str;
-                while(getline(ifs, str))
-                    ofs << str << "\n";
-                ofs.close();
-                ifs.close();
-                pageInfo.contentPath.removePath();
-            }
+                rename(pageInfo.contentPath.str().c_str(), newContPath.str().c_str());
         }
     }
     else
@@ -1192,6 +1246,12 @@ int SiteInfo::new_page_ext(const std::string &newExt)
     if(newExt == "" || newExt[0] != '.')
     {
         std::cout << "error: page extension must start with a fullstop" << std::endl;
+        return 1;
+    }
+
+    if(newExt == pageExt)
+    {
+        std::cout << "error: page extension is already " << pageExt << std::endl;
         return 1;
     }
 
@@ -1213,15 +1273,24 @@ int SiteInfo::new_page_ext(const std::string &newExt)
             read_quoted(ifs, oldExt);
             ifs.close();
 
-            if(oldExt != newExt)
-                continue;
+            if(oldExt == newExt)
+                extPath.removePath();
         }
-
-        new_page_ext(page->pageName, newExt);
+        else
+        {
+            //moves the built page
+            if(std::ifstream(page->pagePath.str()))
+            {
+                Path newPagePath = page->pagePath;
+                newPagePath.file = newPagePath.file.substr(0, newPagePath.file.find_first_of('.')) + newExt;
+                if(newPagePath.str() != page->pagePath.str())
+                    rename(page->pagePath.str().c_str(), newPagePath.str().c_str());
+            }
+        }
     }
 
     //informs user that page extension was successfully changed
-    std::cout << "successfully changed page extention to " << newExt << std::endl;
+    std::cout << "successfully changed page extension to " << newExt << std::endl;
 
     return 0;
 }
@@ -1240,6 +1309,22 @@ int SiteInfo::new_page_ext(const Name &pageName, const std::string &newExt)
         //checks for non-default page extension
         Path extPath = pageInfo.pagePath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+
+        std::string oldExt;
+        if(std::ifstream(extPath.str()))
+        {
+            std::ifstream ifs(extPath.str());
+            getline(ifs, oldExt);
+            ifs.close();
+        }
+        else
+            oldExt = pageExt;
+
+        if(oldExt == newExt)
+        {
+            std::cout << "error: page extension for " << pageName << " is already " << oldExt << std::endl;
+            return 1;
+        }
 
         //makes sure we can write to ext file
         chmod(extPath.str().c_str(), 0644);
@@ -1262,16 +1347,7 @@ int SiteInfo::new_page_ext(const Name &pageName, const std::string &newExt)
             Path newPagePath = pageInfo.pagePath;
             newPagePath.file = newPagePath.file.substr(0, newPagePath.file.find_first_of('.')) + newExt;
             if(newPagePath.str() != pageInfo.pagePath.str())
-            {
-                std::ifstream ifs(pageInfo.pagePath.str());
-                std::ofstream ofs(newPagePath.str());
-                std::string str;
-                while(getline(ifs, str))
-                    ofs << str << "\n";
-                ofs.close();
-                ifs.close();
-                pageInfo.pagePath.removePath();
-            }
+                rename(pageInfo.pagePath.str().c_str(), newPagePath.str().c_str());
         }
     }
     else
@@ -1287,7 +1363,7 @@ std::mutex os_mtx;
 
 int SiteInfo::build(const std::vector<Name>& pageNamesToBuild)
 {
-    PageBuilder pageBuilder(&pages, &os_mtx, contentDir, siteDir, contentExt, pageExt, defaultTemplate);
+    PageBuilder pageBuilder(&pages, &os_mtx, contentDir, siteDir, contentExt, pageExt, defaultTemplate, unixTextEditor, winTextEditor);
     std::set<Name> untrackedPages, failedPages;
 
     for(auto pageName=pageNamesToBuild.begin(); pageName != pageNamesToBuild.end(); pageName++)
@@ -1332,9 +1408,9 @@ std::set<PageInfo>::iterator cPage;
 
 std::atomic<int> counter;
 
-void build_thread(std::ostream& os, std::set<PageInfo>* pages, const int& no_pages, const Directory& ContentDir, const Directory& SiteDir, const std::string& ContentExt, const std::string& PageExt, const Path& DefaultTemplate)
+void build_thread(std::ostream& os, std::set<PageInfo>* pages, const int& no_pages, const Directory& ContentDir, const Directory& SiteDir, const std::string& ContentExt, const std::string& PageExt, const Path& DefaultTemplate, const std::string& UnixTextEditor, const std::string& WinTextEditor)
 {
-    PageBuilder pageBuilder(pages, &os_mtx, ContentDir, SiteDir, ContentExt, PageExt, DefaultTemplate);
+    PageBuilder pageBuilder(pages, &os_mtx, ContentDir, SiteDir, ContentExt, PageExt, DefaultTemplate, UnixTextEditor, WinTextEditor);
     std::set<PageInfo>::iterator pageInfo;
 
     while(counter < no_pages)
@@ -1375,7 +1451,7 @@ int SiteInfo::build_all()
 
 	std::vector<std::thread> threads;
 	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(build_thread, std::ref(std::cout), &pages, pages.size(), contentDir, siteDir, contentExt, pageExt, defaultTemplate));
+		threads.push_back(std::thread(build_thread, std::ref(std::cout), &pages, pages.size(), contentDir, siteDir, contentExt, pageExt, defaultTemplate, unixTextEditor, winTextEditor));
 
 	for(int i=0; i<no_threads; i++)
 		threads[i].join();
@@ -1417,100 +1493,6 @@ int SiteInfo::build_all()
 
     return 0;
 }
-
-/*int SiteInfo::build_all_old()
-{
-    std::set<Name> untrackedPages;
-    std::set<PageInfo> pages1, pages2, pages3, pages4;
-
-    int s = pages.size(),
-        n1 = pages.size()/4,
-        n2 = 2*n1,
-        n3 = 3*n1;
-
-    int i = 0;
-    for(auto page=pages.begin(); i < s; ++page, ++i)
-    {
-        if(!tracking(page->pageName))
-            untrackedPages.insert(page->pageName);
-        else if(i < n1)
-            pages1.insert(*page);
-        else if(i < n2)
-            pages2.insert(*page);
-        else if(i < n3)
-            pages3.insert(*page);
-        else
-            pages4.insert(*page);
-    }
-
-    std::thread thread1(build_thread, pages, pages1),
-                thread2(build_thread, pages, pages2),
-                thread3(build_thread, pages, pages3),
-                thread4(build_thread, pages, pages4);
-
-    thread1.join();
-    thread2.join();
-    thread3.join();
-    thread4.join();
-
-    if(failedPages.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "---- following pages failed to build ----" << std::endl;
-        for(auto fName=failedPages.begin(); fName != failedPages.end(); fName++)
-            std::cout << " " << *fName << std::endl;
-        std::cout << "-----------------------------------------" << std::endl;
-    }
-    if(untrackedPages.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "---- Nift not tracking following pages ----" << std::endl;
-        for(auto uName=untrackedPages.begin(); uName != untrackedPages.end(); uName++)
-            std::cout << " " << *uName << std::endl;
-        std::cout << "-------------------------------------------" << std::endl;
-    }
-    if(failedPages.size() == 0 && untrackedPages.size() == 0)
-    {
-        std::cout << std::endl;
-        std::cout << "all " << pages.size() << " pages built successfully" << std::endl;
-    }
-
-    return 0;
-}*/
-
-/*int SiteInfo::build_all_oldest()
-{
-    PageBuilder pageBuilder(pages);
-
-    if(pages.size() == 0)
-    {
-        std::cout << std::endl;
-        std::cout << "Nift is not tracking any pages, nothing to build" << std::endl;
-        return 0;
-    }
-
-    std::set<Path> failedPages;
-
-    for(auto page=pages.begin(); page != pages.end(); page++)
-        if(pageBuilder.build(*page) > 0)
-            failedPages.insert(page->pagePath);
-
-    if(failedPages.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "---- following pages failed to build ----" << std::endl;
-        for(auto fPath=failedPages.begin(); fPath != failedPages.end(); fPath++)
-            std::cout << " " << *fPath << std::endl;
-        std::cout << "-----------------------------------------" << std::endl;
-    }
-    else
-    {
-        std::cout << std::endl;
-        std::cout << "all pages built successfully" << std::endl;
-    }
-
-    return 0;
-}*/
 
 std::mutex problem_mtx, updated_mtx, modified_mtx, removed_mtx;
 std::set<PageInfo> updatedPages;
@@ -1788,7 +1770,7 @@ int SiteInfo::build_updated(std::ostream& os)
 
 	threads.clear();
 	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(build_thread, std::ref(os), &pages, updatedPages.size(), contentDir, siteDir, contentExt, pageExt, defaultTemplate));
+		threads.push_back(std::thread(build_thread, std::ref(os), &pages, updatedPages.size(), contentDir, siteDir, contentExt, pageExt, defaultTemplate, unixTextEditor, winTextEditor));
 
 	for(int i=0; i<no_threads; i++)
 		threads[i].join();
@@ -1838,174 +1820,6 @@ int SiteInfo::build_updated(std::ostream& os)
 
     return 0;
 }
-
-/*int SiteInfo::build_updated_old()
-{
-    PageBuilder pageBuilder(pages);
-    std::set<PageInfo> updatedPages;
-    std::set<Path> modifiedFiles,
-        removedFiles,
-        problemPages,
-        builtPages,
-        failedPages;
-
-    std::cout << std::endl;
-    for(auto page=pages.begin(); page != pages.end(); page++)
-    {
-        //checks whether content and template files exist
-        if(!std::ifstream(page->contentPath.str()))
-        {
-            std::cout << page->pagePath << ": content file " << page->contentPath << " does not exist" << std::endl;
-            problemPages.insert(page->pagePath);
-            continue;
-        }
-        if(!std::ifstream(page->templatePath.str()))
-        {
-            std::cout << page->pagePath << ": template file " << page->templatePath << " does not exist" << std::endl;
-            problemPages.insert(page->pagePath);
-            continue;
-        }
-
-        //gets path of pages information from last time page was built
-        Path pageInfoPath = page->pagePath.getInfoPath();
-
-        //checks whether info path exists
-        if(!std::ifstream(pageInfoPath.str()))
-        {
-            std::cout << page->pagePath << ": yet to be built" << std::endl;
-            updatedPages.insert(*page);
-            continue;
-        }
-        else
-        {
-            std::ifstream infoStream(pageInfoPath.str());
-            std::string timeDateLine;
-            Name prevName;
-            Title prevTitle;
-            Path prevTemplatePath;
-
-            getline(infoStream, timeDateLine);
-            read_quoted(infoStream, prevName);
-            prevTitle.read_quoted_from(infoStream);
-            prevTemplatePath.read_file_path_from(infoStream);
-
-            //probably don't even need this
-            PageInfo prevPageInfo = make_info(prevName, prevTitle, prevTemplatePath);
-
-            if(page->pageName != prevPageInfo.pageName)
-            {
-                std::cout << page->pagePath << ": page name changed to " << page->pageName << " from " << prevPageInfo.pageName << std::endl;
-                updatedPages.insert(*page);
-                continue;
-            }
-
-            if(page->pageTitle != prevPageInfo.pageTitle)
-            {
-                std::cout << page->pagePath << ": title changed to " << page->pageTitle << " from " << prevPageInfo.pageTitle << std::endl;
-                updatedPages.insert(*page);
-                continue;
-            }
-
-            if(page->templatePath != prevPageInfo.templatePath)
-            {
-                std::cout << page->pagePath << ": template path changed to " << page->templatePath << " from " << prevPageInfo.templatePath << std::endl;
-                updatedPages.insert(*page);
-                continue;
-            }
-
-            Path dep;
-            while(dep.read_file_path_from(infoStream))
-            {
-                if(!std::ifstream(dep.str()))
-                {
-                    std::cout << page->pagePath << ": dep path " << dep << " removed since last build" << std::endl;
-                    removedFiles.insert(dep);
-                    updatedPages.insert(*page);
-                    break;
-                }
-                else if(dep.modified_after(pageInfoPath))
-                {
-                    std::cout << page->pagePath << ": dep path " << dep << " modified since last build" << std::endl;
-                    modifiedFiles.insert(dep);
-                    updatedPages.insert(*page);
-                    break;
-                }
-            }
-
-			infoStream.close();
-        }
-    }
-
-    if(removedFiles.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "---- removed content files ----" << std::endl;
-        for(auto rFile=removedFiles.begin(); rFile != removedFiles.end(); rFile++)
-            std::cout << " " << *rFile << std::endl;
-        std::cout << "-------------------------------" << std::endl;
-    }
-
-    if(modifiedFiles.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "------- updated content files ------" << std::endl;
-        for(auto uFile=modifiedFiles.begin(); uFile != modifiedFiles.end(); uFile++)
-            std::cout << " " << *uFile << std::endl;
-        std::cout << "------------------------------------" << std::endl;
-    }
-
-    if(updatedPages.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "----- pages that need building -----" << std::endl;
-        for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
-            std::cout << " " << uPage->pagePath << std::endl;
-        std::cout << "------------------------------------" << std::endl;
-    }
-
-    if(problemPages.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "----- pages with missing content or template file -----" << std::endl;
-        for(auto pPage=problemPages.begin(); pPage != problemPages.end(); pPage++)
-            std::cout << " " << *pPage << std::endl;
-        std::cout << "-------------------------------------------------------" << std::endl;
-    }
-
-    for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
-    {
-        if(pageBuilder.build(*uPage, std::cout) > 0)
-            failedPages.insert(uPage->pagePath);
-        else
-            builtPages.insert(uPage->pagePath);
-    }
-
-    if(builtPages.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "----- pages successfully built -----" << std::endl;
-        for(auto bPage=builtPages.begin(); bPage != builtPages.end(); bPage++)
-            std::cout << " " << *bPage << std::endl;
-        std::cout << "------------------------------------" << std::endl;
-    }
-
-    if(failedPages.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "----- pages that failed to build -----" << std::endl;
-        for(auto pPage=failedPages.begin(); pPage != failedPages.end(); pPage++)
-            std::cout << " " << *pPage << std::endl;
-        std::cout << "--------------------------------------" << std::endl;
-    }
-
-    if(updatedPages.size() == 0 && problemPages.size() == 0 && failedPages.size() == 0)
-    {
-        //std::cout << std::endl;
-        std::cout << "all pages are already up to date" << std::endl;
-    }
-
-    return 0;
-}*/
 
 int SiteInfo::status()
 {

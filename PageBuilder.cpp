@@ -54,7 +54,7 @@ bool run_scripts(std::ostream &os, const std::string& scriptsPath)
             */
             /*if(!std::ifstream(scriptPath))
             {
-                std::cout << "error: nsm.cpp: " << scriptsPath << ": script " << scriptPath << " does not exist" << std::endl;
+                os << "error: nsm.cpp: " << scriptsPath << ": script " << scriptPath << " does not exist" << std::endl;
                 return 1;
             }*/
 
@@ -110,7 +110,7 @@ bool run_scripts(std::ostream &os, const std::string& scriptsPath)
     return 0;
 }
 
-PageBuilder::PageBuilder(std::set<PageInfo>* Pages, std::mutex* OS_mtx, const Directory& ContentDir, const Directory& SiteDir, const std::string& ContentExt, const std::string& PageExt, const Path& DefaultTemplate)
+PageBuilder::PageBuilder(std::set<PageInfo>* Pages, std::mutex* OS_mtx, const Directory& ContentDir, const Directory& SiteDir, const std::string& ContentExt, const std::string& PageExt, const Path& DefaultTemplate, const std::string& UnixTextEditor, const std::string& WinTextEditor)
 {
     sys_counter = 0;
     pages = Pages;
@@ -120,6 +120,8 @@ PageBuilder::PageBuilder(std::set<PageInfo>* Pages, std::mutex* OS_mtx, const Di
     contentExt = ContentExt;
     pageExt = PageExt;
     defaultTemplate = DefaultTemplate;
+    unixTextEditor = UnixTextEditor;
+    winTextEditor = WinTextEditor;
 }
 
 int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
@@ -422,6 +424,12 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         indentAmount += " ";
                     linePos++;
                 }
+                else if(inLine.substr(linePos, 11) == "@rawcontent")
+                {
+                    contentAdded = 1;
+                    std::string replaceText = "@inputraw(" + quote(pageToBuild.contentPath.str()) + ")";
+                    inLine.replace(linePos, 11, replaceText);
+                }
                 else if(inLine.substr(linePos, 13) == "@inputcontent")
                 {
                     contentAdded = 1;
@@ -439,6 +447,250 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                     }
                     else
                         inLine.replace(linePos, 10, "");
+                }
+                else if(inLine.substr(linePos, 7) == "@userin")
+                {
+                    linePos+=std::string("@userin").length();
+                    std::string userInput, inputMsg = "";
+
+                    if(inLine[linePos] == '*')
+                    {
+                        parseParams = 1;
+                        linePos++;
+                    }
+                    else
+                        parseParams = 0;
+
+                    linePos++;
+
+                    if(read_msg(inputMsg, linePos, inLine, readPath, lineNo, "@userin()", eos) > 0)
+                        return 1;
+
+                    if(parseParams)
+                    {
+                        std::istringstream iss(inputMsg);
+                        oss.str("");
+                        oss.clear();
+
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
+                        if(read_and_process(0, iss, Path("", "user input message"), antiDepsOfReadPath, oss, eos) > 0)
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
+
+                        inputMsg = oss.str();
+
+                        indentAmount = oldIndent;
+                    }
+
+                    os_mtx->lock();
+                    std::cout << inputMsg << std::endl;
+                    getline(std::cin, userInput);
+                    os_mtx->unlock();
+
+                    std::istringstream iss(userInput);
+                    oss.str("");
+                    oss.clear();
+
+                    if(read_and_process(0, iss, Path("", "user input"), antiDepsOfReadPath, oss, eos) > 0)
+                    {
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+
+                    userInput = oss.str();
+
+                    os << userInput;
+                    indentAmount += into_whitespace(userInput);
+                }
+                else if(inLine.substr(linePos, 11) == "@userfilein")
+                {
+                    linePos+=std::string("@userfilein").length();
+                    std::string userInput, inputMsg = "";
+
+                    if(inLine[linePos] == '*')
+                    {
+                        parseParams = 1;
+                        linePos++;
+                    }
+                    else
+                        parseParams = 0;
+
+                    linePos++;
+
+                    if(read_msg(inputMsg, linePos, inLine, readPath, lineNo, "@userfilein()", eos) > 0)
+                        return 1;
+
+                    if(parseParams)
+                    {
+                        std::istringstream iss(inputMsg);
+                        oss.str("");
+                        oss.clear();
+
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
+                        if(read_and_process(0, iss, Path("", "user file input message"), antiDepsOfReadPath, oss, eos) > 0)
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
+
+                        inputMsg = oss.str();
+
+                        indentAmount = oldIndent;
+                    }
+
+                    std::string output_filename = ".@userfilein" + std::to_string(sys_counter++);
+                    int result;
+
+                    std::string contExtPath = ".siteinfo/" + siteDir + pageToBuild.pageName + ".ext";
+
+                    if(std::ifstream(contExtPath))
+                    {
+                        std::string ext;
+                        std::ifstream ifs(contExtPath);
+                        getline(ifs, ext);
+                        ifs.close();
+                        contExtPath += ext;
+                    }
+                    else
+                        output_filename += contentExt;
+
+                    os_mtx->lock();
+                    std::ofstream ofs(output_filename);
+                    ofs << inputMsg;
+                    ofs.close();
+
+                    #if defined _WIN32 || defined _WIN64
+                        result = system((winTextEditor + " " + output_filename).c_str());
+                    #else  //unix
+                        result = system((unixTextEditor + " " + output_filename).c_str());
+                    #endif
+                    os_mtx->unlock();
+
+                    if(result)
+                    {
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": line " << lineNo << ": @userfinput(): text editor system call failed" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+
+                    if(!std::ifstream(output_filename))
+                    {
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": line " << lineNo << ": @userfinput(): user did not save file" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+
+                    Path inputPath;
+                    inputPath.set_file_path_from(output_filename);
+                    //ensures insert file isn't an anti dep of read path
+                    if(antiDepsOfReadPath.count(inputPath))
+                    {
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": line " << lineNo << ": inputting file " << inputPath << " would result in an input loop" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+
+                    std::ifstream ifs(inputPath.str());
+
+                    //adds insert file
+                    if(read_and_process(1, ifs, inputPath, antiDepsOfReadPath, os, eos) > 0)
+                    {
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+                    //indent amount updated inside read_and_process
+
+                    ifs.close();
+
+                    Path("", output_filename).removePath();
+                }
+                else if(inLine.substr(linePos, 10) == "@inputraw(" || inLine.substr(linePos, 11) == "@inputraw*(")
+                {
+                    linePos+=std::string("@inputraw").length();
+                    std::string inputPathStr;
+
+                    if(inLine[linePos] == '*')
+                    {
+                        parseParams = 1;
+                        linePos++;
+                    }
+                    else
+                        parseParams = 0;
+
+                    linePos++;
+
+                    if(read_path(inputPathStr, linePos, inLine, readPath, lineNo, "@input()", eos) > 0)
+                        return 1;
+
+                    if(parseParams)
+                    {
+                        std::istringstream iss(inputPathStr);
+                        oss.str("");
+                        oss.clear();
+
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
+                        if(read_and_process(0, iss, Path("", "input path"), antiDepsOfReadPath, oss, eos) > 0)
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
+
+                        inputPathStr = oss.str();
+
+                        indentAmount = oldIndent;
+                    }
+
+                    Path inputPath;
+                    inputPath.set_file_path_from(inputPathStr);
+                    pageDeps.insert(inputPath);
+
+                    if(inputPath == pageToBuild.contentPath)
+                        contentAdded = 1;
+
+                    //ensures insert file exists
+                    if(!std::ifstream(inputPathStr))
+                    {
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": line " << lineNo << ": inputting file " << inputPath << " failed as path does not exist" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+
+                    std::ifstream ifs(inputPath.str());
+                    std::string fileLine, oldLine;
+                    int fileLineNo = 0;
+
+                    while(getline(ifs, fileLine))
+                    {
+                        if(0 < fileLineNo++)
+                            os << "\n" << indentAmount;
+                        oldLine = fileLine;
+                        os << fileLine;
+                    }
+                    indentAmount += into_whitespace(oldLine);
+
+                    ifs.close();
                 }
                 else if(inLine.substr(linePos, 7) == "@input(" || inLine.substr(linePos, 8) == "@input*(")
                 {
@@ -464,6 +716,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "input path"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -473,6 +728,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         inputPathStr = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     Path inputPath;
@@ -537,6 +794,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "dependency path"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -546,6 +806,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         depPathStr = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     Path depPath;
@@ -588,6 +850,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "script path"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -597,6 +862,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         scriptPathStr = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     #if defined _WIN32 || defined _WIN64
@@ -636,7 +903,6 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
 
                         Path("./", output_filename).removePath();
 
-                        //need sys_call quoted weirdly here for script paths containing spaces
                         if(result)
                         {
                             os_mtx->lock();
@@ -669,6 +935,114 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
                     }
                 }
+                else if(inLine.substr(linePos, 11) == "@scriptraw(" || inLine.substr(linePos, 12) == "@scriptraw*(")
+                {
+                    linePos+=std::string("@scriptraw").length();
+                    std::string scriptPathStr;
+                    std::string output_filename = ".@scriptoutput" + std::to_string(sys_counter++);
+
+                    if(inLine[linePos] == '*')
+                    {
+                        parseParams = 1;
+                        linePos++;
+                    }
+                    else
+                        parseParams = 0;
+
+                    linePos++;
+
+                    if(read_path(scriptPathStr, linePos, inLine, readPath, lineNo, "@scriptoutput()", eos) > 0)
+                        return 1;
+
+                    if(parseParams)
+                    {
+                        std::istringstream iss(scriptPathStr);
+                        oss.str("");
+                        oss.clear();
+
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
+                        if(read_and_process(0, iss, Path("", "script path"), antiDepsOfReadPath, oss, eos) > 0)
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
+
+                        scriptPathStr = oss.str();
+
+                        indentAmount = oldIndent;
+                    }
+
+                    #if defined _WIN32 || defined _WIN64
+                        if(unquote(scriptPathStr).substr(0, 2) == "./")
+                            scriptPathStr = unquote(scriptPathStr).substr(2, unquote(scriptPathStr).size()-2);
+                    #else  //unix
+                    #endif
+
+                    Path scriptPath;
+                    if(unquote(scriptPathStr).substr(0, 2) == "./")
+                        scriptPath.set_file_path_from(unquote(unquote(scriptPathStr).substr(2, unquote(scriptPathStr).size()-2)));
+                    else
+                        scriptPath.set_file_path_from(unquote(scriptPathStr));
+                    pageDeps.insert(scriptPath);
+
+                    if(scriptPath == pageToBuild.contentPath)
+                        contentAdded = 1;
+
+                    if(!std::ifstream(scriptPath.str()))
+                    {
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(scriptPathStr) << ") failed as script does not exist" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+
+                    //checks whether we're running from flatpak
+                    if(std::ifstream("/.flatpak-info"))
+                    {
+                        //need sys_call quoted weirdly here for script paths containing spaces (doesn't work on windows!!)
+                        //if(system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > " + output_filename).c_str()))
+                        if(system(("flatpak-spawn --host bash -c " + quote(scriptPathStr) + " > " + output_filename).c_str()))
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(scriptPathStr) << ") failed" << std::endl;
+                            eos << "       see " << quote(output_filename) << " for pre-error script output" << std::endl;
+                            os_mtx->unlock();
+                            //Path("./", output_filename).removePath();
+                            return 1;
+                        }
+                    }
+                    //else if(system((quote(sys_call) + " > " + output_filename).c_str())) //sys_call has to be quoted for script paths containing spaces //doesn't work on windows!!
+                    else if(system((scriptPathStr + " > " + output_filename).c_str()))
+                    {
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(scriptPathStr) << ") failed" << std::endl;
+                        eos << "       see " << quote(output_filename) << " for pre-error script output" << std::endl;
+                        os_mtx->unlock();
+                        //Path("./", output_filename).removePath();
+                        return 1;
+                    }
+
+                    std::ifstream ifs(output_filename);
+                    std::string fileLine, oldLine;
+                    int fileLineNo = 0;
+
+                    while(getline(ifs, fileLine))
+                    {
+                        if(0 < fileLineNo++)
+                            os << "\n" << indentAmount;
+                        oldLine = fileLine;
+                        os << fileLine;
+                    }
+                    indentAmount += into_whitespace(oldLine);
+
+                    ifs.close();
+
+                    Path("./", output_filename).removePath();
+                }
                 else if(inLine.substr(linePos, 14) == "@scriptoutput(" || inLine.substr(linePos, 15) == "@scriptoutput*(")
                 {
                     linePos+=std::string("@scriptoutput").length();
@@ -694,6 +1068,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "script path"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -703,6 +1080,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         scriptPathStr = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     #if defined _WIN32 || defined _WIN64
@@ -796,6 +1175,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "system call"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -805,6 +1187,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         sys_call = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     #if defined _WIN32 || defined _WIN64
@@ -860,6 +1244,94 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
                     }
                 }
+                else if(inLine.substr(linePos, 11) == "@systemraw(" || inLine.substr(linePos, 12) == "@systemraw*(")
+                {
+                    linePos+=std::string("@systemraw").length();
+                    std::string sys_call;
+                    std::string output_filename = ".@systemoutput" + std::to_string(sys_counter++);
+
+                    if(inLine[linePos] == '*')
+                    {
+                        parseParams = 1;
+                        linePos++;
+                    }
+                    else
+                        parseParams = 0;
+
+                    linePos++;
+
+                    if(read_sys_call(sys_call, linePos, inLine, readPath, lineNo, "@systemoutput()", eos) > 0)
+                        return 1;
+
+                    if(parseParams)
+                    {
+                        std::istringstream iss(sys_call);
+                        oss.str("");
+                        oss.clear();
+
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
+                        if(read_and_process(0, iss, Path("", "system call"), antiDepsOfReadPath, oss, eos) > 0)
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
+
+                        sys_call = oss.str();
+
+                        indentAmount = oldIndent;
+                    }
+
+                    #if defined _WIN32 || defined _WIN64
+                        if(unquote(sys_call).substr(0, 2) == "./")
+                            sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
+                    #else  //unix
+                    #endif
+
+                    //checks whether we're running from flatpak
+                    if(std::ifstream("/.flatpak-info"))
+                    {
+                        //need sys_call quoted here for cURL to work
+                        if(system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str()))
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
+                            eos << "       see " << quote(output_filename) << " for pre-error system output" << std::endl;
+                            os_mtx->unlock();
+                            //Path("./", output_filename).removePath();
+                            return 1;
+                        }
+                    }
+                    else if(system((sys_call + " > " + output_filename).c_str())) //sys_call has to be unquoted for cURL to work
+                    {
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
+                        eos << "       see " << quote(output_filename) << " for pre-error system output" << std::endl;
+                        os_mtx->unlock();
+                        //Path("./", output_filename).removePath();
+                        return 1;
+                    }
+
+                    std::ifstream ifs(output_filename);
+                    std::string fileLine, oldLine;
+                    int fileLineNo = 0;
+
+                    while(getline(ifs, fileLine))
+                    {
+                        if(0 < fileLineNo++)
+                            os << "\n" << indentAmount;
+                        oldLine = fileLine;
+                        os << fileLine;
+                    }
+                    indentAmount += into_whitespace(oldLine);
+
+                    ifs.close();
+
+                    Path("./", output_filename).removePath();
+                }
                 else if(inLine.substr(linePos, 14) == "@systemoutput(" || inLine.substr(linePos, 15) == "@systemoutput*(")
                 {
                     linePos+=std::string("@systemoutput").length();
@@ -885,6 +1357,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "system call"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -894,6 +1369,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         sys_call = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     #if defined _WIN32 || defined _WIN64
@@ -967,6 +1444,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "system content call"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -976,6 +1456,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         sys_call = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     #if defined _WIN32 || defined _WIN64
@@ -1051,6 +1533,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "variable name"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -1065,6 +1550,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "variable value"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -1074,6 +1561,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         varVal = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     if(strings.count(varName))
@@ -1110,6 +1599,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "variable name"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -1119,13 +1611,29 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         varName = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     if(strings.count(varName))
                     {
-                        os << strings[varName];
+                        std::istringstream iss(strings[varName]);
+                        std::string ssLine, oldLine;
+                        int ssLineNo = 0;
+
+                        while(getline(iss, ssLine))
+                        {
+                            if(0 < ssLineNo++)
+                                os << "\n" << indentAmount;
+                            oldLine = ssLine;
+                            os << ssLine;
+                        }
+                        indentAmount += into_whitespace(oldLine);
+
+
+                        /*os << strings[varName];
                         if(indent)
-                            indentAmount += into_whitespace(strings[varName]);
+                            indentAmount += into_whitespace(strings[varName]);*/
                     }
                     else
                     {
@@ -1159,6 +1667,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "@pathto path"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -1168,6 +1679,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         targetPageName = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     //throws error if target targetPageName isn't being tracked by Nift
@@ -1216,6 +1729,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "@pathtopage path"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -1225,6 +1741,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         targetPageName = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     //throws error if target targetPageName isn't being tracked by Nift
@@ -1273,6 +1791,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "@pathtofile path"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -1282,6 +1803,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         targetFilePath = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     //throws error if targetFilePath doesn't exist
@@ -1344,14 +1867,39 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         indentAmount += into_whitespace(pageToBuild.templatePath.str());
                     linePos += std::string("@templatepath").length();
                 }
-                else if(inLine.substr(linePos, 13) == "@contentdir")
+                else if(inLine.substr(linePos, 11) == "@contentdir")
                 {
-                    os << contentDir;
-                    if(indent)
-                        indentAmount += into_whitespace(contentDir);
+                    if(contentDir.size() && (contentDir[contentDir.size()-1] == '/' || contentDir[contentDir.size()-1] == '\\'))
+                    {
+                        os << contentDir.substr(0, contentDir.size()-1);
+                        if(indent)
+                            indentAmount += into_whitespace(contentDir.substr(0, contentDir.size()-1));
+                    }
+                    else
+                    {
+                        os << contentDir;
+                        if(indent)
+                            indentAmount += into_whitespace(contentDir);
+                    }
                     linePos += std::string("@contentdir").length();
                 }
-                else if(inLine.substr(linePos, 13) == "@contentext")
+                else if(inLine.substr(linePos, 8) == "@sitedir")
+                {
+                    if(siteDir.size() && (siteDir[siteDir.size()-1] == '/' || siteDir[siteDir.size()-1] == '\\'))
+                    {
+                        os << siteDir.substr(0, siteDir.size()-1);
+                        if(indent)
+                            indentAmount += into_whitespace(siteDir.substr(0, siteDir.size()-1));
+                    }
+                    else
+                    {
+                        os << siteDir;
+                        if(indent)
+                            indentAmount += into_whitespace(siteDir);
+                    }
+                    linePos += std::string("@sitedir").length();
+                }
+                else if(inLine.substr(linePos, 11) == "@contentext")
                 {
                     os << contentExt;
                     if(indent)
@@ -1371,13 +1919,6 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                     if(indent)
                         indentAmount += into_whitespace(defaultTemplate.str());
                     linePos += std::string("@defaulttemplate").length();
-                }
-                else if(inLine.substr(linePos, 13) == "@sitedir")
-                {
-                    os << siteDir;
-                    if(indent)
-                        indentAmount += into_whitespace(siteDir);
-                    linePos += std::string("@sitedir").length();
                 }
                 else if(inLine.substr(linePos, 14) == "@buildtimezone")
                 {
@@ -1564,6 +2105,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "favicon path"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -1573,6 +2117,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         faviconPathStr = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     //warns user if favicon file doesn't exist
@@ -1620,6 +2166,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "css file path"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -1629,6 +2178,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         cssPathStr = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     //warns user if css file doesn't exist
@@ -1676,6 +2227,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "image file path"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -1685,6 +2239,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         imgPathStr = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     //warns user if img file doesn't exist
@@ -1730,6 +2286,9 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         oss.str("");
                         oss.clear();
 
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
                         if(read_and_process(0, iss, Path("", "javascript file path"), antiDepsOfReadPath, oss, eos) > 0)
                         {
                             os_mtx->lock();
@@ -1739,6 +2298,8 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         }
 
                         jsPathStr = oss.str();
+
+                        indentAmount = oldIndent;
                     }
 
                     //warns user if js file doesn't exist
@@ -1890,6 +2451,120 @@ int PageBuilder::read_path(std::string& pathRead, size_t& linePos, const std::st
     {
         os_mtx->lock();
         os << "error: " << readPath << ": line " << lineNo << ": invalid path inside " << callType << " call" << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
+
+    ++linePos;
+
+    return 0;
+}
+
+int PageBuilder::read_msg(std::string& msgRead, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os)
+{
+    msgRead = "";
+
+    //skips over leading whitespace
+    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+        ++linePos;
+
+    //throws error if either no closing bracket or a newline
+    if(linePos == inLine.size())
+    {
+        os_mtx->lock();
+        os << "error: " << readPath << ": line " << lineNo << ": user input message has no closing bracket ) or newline inside " << callType << " call" << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
+
+    //throws error if no path provided
+    if(inLine[linePos] == ')')
+    {
+        os_mtx->lock();
+        os << "error: " << readPath << ": line " << lineNo << ": no user input message provided inside " << callType << " call" << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
+
+    //reads the input path
+    if(inLine[linePos] == '\'')
+    {
+        ++linePos;
+        for(; inLine[linePos] != '\''; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os_mtx->lock();
+                os << "error: " << readPath << ": line " << lineNo << ": user input message has no closing single quote or newline inside " << callType << " call" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                msgRead += '\n';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
+            msgRead += inLine[linePos];
+        }
+        ++linePos;
+    }
+    else if(inLine[linePos] == '"')
+    {
+        ++linePos;
+        for(; inLine[linePos] != '"'; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os_mtx->lock();
+                os << "error: " << readPath << ": line " << lineNo << ": user input message has no closing double quote \" or newline inside " << callType << " call" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                msgRead += '\n';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
+            msgRead += inLine[linePos];
+        }
+        ++linePos;
+    }
+    else
+    {
+        os_mtx->lock();
+        os << "error: " << readPath << ": line " << lineNo << ": user input message should be quoted inside " << callType << " call" << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
+
+    //skips over hopefully trailing whitespace
+    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+        ++linePos;
+
+    //throws error if new line is between the path and close bracket
+    if(linePos == inLine.size())
+    {
+        os_mtx->lock();
+        os << "error: " << readPath << ": line " << lineNo << ": user input message has no closing bracket ) or newline inside " << callType << " call" << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
+
+    //throws error if the path is invalid
+    if(inLine[linePos] != ')')
+    {
+        os_mtx->lock();
+        os << "error: " << readPath << ": line " << lineNo << ": invalid user input message inside " << callType << " call" << std::endl;
         os_mtx->unlock();
         return 1;
     }
@@ -2092,6 +2767,12 @@ int PageBuilder::read_stringdef(std::string& varName, std::string& varVal, size_
                 os_mtx->unlock();
                 return 1;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                varVal += '\n';
+                linePos++;
+                continue;
+            }
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
@@ -2112,6 +2793,12 @@ int PageBuilder::read_stringdef(std::string& varName, std::string& varVal, size_
                 os_mtx->unlock();
                 return 1;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                varVal += '\n';
+                linePos++;
+                continue;
+            }
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
@@ -2131,6 +2818,12 @@ int PageBuilder::read_stringdef(std::string& varName, std::string& varVal, size_
                 os << "error: " << readPath << ": line " << lineNo << ": variable definition has no closing bracket ) or newline inside " << callType << " call" << std::endl;
                 os_mtx->unlock();
                 return 1;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                varVal += '\n';
+                linePos++;
+                continue;
             }
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;

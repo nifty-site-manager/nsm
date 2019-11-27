@@ -2,12 +2,20 @@
 Nift Release Notes
 ------------------
 
+Version 1.21 of Nift
+* removed trailing '/' or '\' from @contentdir and @sitedir output
+* fixed bugs with @contentdir, @sitedir, @contentext syntax
+* fixed indenting when parsing parameters
+* added more error handling with Nift commands new-[cont/page]-ext 
+* added file input syntax @rawcontent, @inputraw, @scriptraw, @systemraw to template language
+* added user input syntax @userin, @userfilein to template language
+
 Version 1.20 of Nift
 * made template language available with input parameters
 * added paginfo syntax @pagename, @pagepath, @contentpath, @templatepath to template language
 * added siteinfo syntax @contentdir, @sitedir, @contentext, @pageext, @defaulttemplate to template language
 * fixed indenting bugs
-* fixed ox_mtx functionality
+* fixed os_mtx functionality
 * added optional sleepTime parameter for Nift serve command
 
 Version 1.19 of Nift

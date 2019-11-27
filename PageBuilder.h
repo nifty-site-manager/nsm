@@ -33,15 +33,18 @@ struct PageBuilder
     Directory contentDir,
               siteDir;
     std::string contentExt,
-                pageExt;
+                pageExt,
+                unixTextEditor,
+                winTextEditor;
     Path defaultTemplate;
 
-    PageBuilder(std::set<PageInfo>* Pages, std::mutex* OS_mtx, const Directory& ContentDir, const Directory& SiteDir, const std::string& ContentExt, const std::string& PageExt, const Path& DefaultTemplate);
+    PageBuilder(std::set<PageInfo>* Pages, std::mutex* OS_mtx, const Directory& ContentDir, const Directory& SiteDir, const std::string& ContentExt, const std::string& PageExt, const Path& DefaultTemplate, const std::string& UnixTextEditor, const std::string& WinTextEditor);
 
     int build(const PageInfo& PageToBuild, std::ostream& os);
     int read_and_process(const bool& indent, std::istream& is, const Path& readPath, std::set<Path> antiDepsOfReadPath, std::ostream& os, std::ostream& eos);
     //int read_and_process(const Path& readPath, std::set<Path> antiDepsOfReadPath, std::ostream& os);
     int read_path(std::string& pathRead, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os);
+    int read_msg(std::string& msgRead, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os);
 	int read_sys_call(std::string& sys_call, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os);
     int read_stringdef(std::string& varName, std::string& varVal, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os);
     int read_var(std::string& varName, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os);

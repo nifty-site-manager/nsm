@@ -118,7 +118,7 @@ int main(int argc, char* argv[])
 
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.20" << std::endl;
+        std::cout << "Nift (aka nsm) v1.21" << std::endl;
 
         return 0;
     }
@@ -1080,7 +1080,7 @@ int main(int argc, char* argv[])
                 int return_val = site.new_content_ext(pageName, argv[3]);
 
                 if(!return_val) //informs user that page extension was successfully changed
-                    std::cout << "successfully changed page extention for " << pageName << " to " << argv[3] << std::endl;
+                    std::cout << "successfully changed content extention for " << pageName << " to " << argv[3] << std::endl;
 
                 return return_val;
             }

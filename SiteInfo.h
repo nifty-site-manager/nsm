@@ -18,6 +18,8 @@ struct SiteInfo
               siteDir;
     std::string contentExt,
                 pageExt,
+                unixTextEditor,
+                winTextEditor,
                 rootBranch,
                 siteBranch;
     Path defaultTemplate;
