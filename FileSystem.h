@@ -15,5 +15,6 @@ std::string ls(const char *path);
 std::vector<std::string> lsVec(const char *path);
 int delDir(std::string dir);
 int cpDir(const std::string& sourceDir, const std::string& targetDir);
+int cpFile(const std::string& sourceFile, const std::string& targetFile);
 
 #endif //FILE_SYSTEM_H_

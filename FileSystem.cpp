@@ -122,3 +122,27 @@ int cpDir(const std::string& sourceDir, const std::string& targetDir)
         std::cout << "error: FileSystem.cpp: cpDir(" << quote(sourceDir) << ", " << quote(targetDir) << "): copy failed" << std::endl;
     return ret_val;
 }
+
+int cpFile(const std::string& sourceFile, const std::string& targetFile)
+{
+	if(!std::ifstream(sourceFile))
+	{
+		std::cout << "error: cannot copy '" << sourceFile << "' as file does not exist" << std::endl;
+		return 1;
+	}
+	else if(std::ifstream(targetFile))
+	{
+		std::cout << "error: will not copy '" << sourceFile << "' to '" << targetFile << "' as target file already exists" << std::endl;
+		return 1;
+	}
+
+	std::ifstream ifs(sourceFile);
+	std::ofstream ofs(targetFile);
+
+	ofs << ifs.rdbuf();
+
+	ofs.close();
+	ifs.close();
+
+	return 0;
+}

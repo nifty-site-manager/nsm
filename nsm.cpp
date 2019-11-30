@@ -15,6 +15,7 @@
 #include "Timer.h"
 
 std::atomic<bool> serving;
+std::mutex os_mtx2;
 
 int read_serve_commands()
 {
@@ -41,7 +42,10 @@ int sleepTime = 500000; //default value: 0.5 seconds
 
 bool isNum(const std::string& str)
 {
-    for(size_t i=0; i<str.size(); i++)
+    if(str.size() && str[0] != '-' && !std::isdigit(str[0]))
+        return 0;
+
+    for(size_t i=1; i<str.size(); i++)
         if(!std::isdigit(str[i]))
             return 0;
 
@@ -64,10 +68,11 @@ int serve()
 
         ofs.open(".serve-build-log.txt");
 
-        if(!run_scripts(ofs, "pre-build.scripts"))
-            site.build_updated(ofs);
-
-        run_scripts(ofs, "post-build.scripts");
+        if(!run_script(ofs, "pre-build" + site.scriptExt, &os_mtx2))
+            if(!run_script(ofs, "pre-build-updated" + site.scriptExt, &os_mtx2))
+                if(!site.build_updated(ofs))
+                    if(!run_script(ofs, "post-build" + site.scriptExt, &os_mtx2))
+                        run_script(ofs, "post-build-updated" + site.scriptExt, &os_mtx2);
 
         ofs.close();
 
@@ -116,9 +121,10 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    //Nift commands that can run from anywhere
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.21" << std::endl;
+        std::cout << "Nift (aka nsm) v1.22" << std::endl;
 
         return 0;
     }
@@ -151,6 +157,8 @@ int main(int argc, char* argv[])
         std::cout << "| new-cont-dir   | input: dir-path                                 |" << std::endl;
         std::cout << "| new-cont-ext   | input: (page-name) content-extension            |" << std::endl;
         std::cout << "| new-page-ext   | input: (page-name) page-extension               |" << std::endl;
+        std::cout << "| new-script-ext | input: (page-name) script-extension             |" << std::endl;
+        std::cout << "| no-build-thrds | input: (no-threads) [-n == n*cores]             |" << std::endl;
         std::cout << "+------------------------------------------------------------------+" << std::endl;
 
         return 0;
@@ -247,13 +255,17 @@ int main(int argc, char* argv[])
         #endif
 
         std::ofstream ofs(".siteinfo/nsm.config");
-        ofs << "contentDir content/" << std::endl;
-        ofs << "contentExt .content" << std::endl;
-        ofs << "siteDir site/" << std::endl;
-        ofs << "pageExt .html" << std::endl;
-        ofs << "defaultTemplate template/page.template" << std::endl << std::endl;
-        ofs << "rootBranch ##unset##" << std::endl;
-        ofs << "siteBranch ##unset##" << std::endl;
+        ofs << "contentDir 'content/'" << std::endl;
+        ofs << "contentExt '.content'" << std::endl;
+        ofs << "siteDir 'site/'" << std::endl;
+        ofs << "pageExt '.html'" << std::endl;
+        ofs << "scriptExt '.py'" << std::endl;
+        ofs << "defaultTemplate 'template/page.template'" << std::endl << std::endl;
+        ofs << "buildThreads -1" << std::endl << std::endl;
+        ofs << "unixTextEditor nano" << std::endl;
+        ofs << "winTextEditor notepad" << std::endl << std::endl;
+        ofs << "rootBranch '##unset##'" << std::endl;
+        ofs << "siteBranch '##unset##'" << std::endl;
         ofs.close();
 
         pagesListPath = Path("template/", "page.template");
@@ -586,6 +598,8 @@ int main(int argc, char* argv[])
            cmd != "new-cont-dir" &&
            cmd != "new-cont-ext" &&
            cmd != "new-page-ext" &&
+           cmd != "new-script-ext" &&
+           cmd != "no-build-thrds" &&
            cmd != "build-updated" &&
            cmd != "build" &&
            cmd != "build-all" &&
@@ -640,23 +654,8 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        SiteInfo site;
-        if(cmd == "config")
-        {
-            if(site.open_config())
-                return 1;
-
-            std::cout << "contentDir: " << site.contentDir << std::endl;
-            std::cout << "contentExt: " << site.contentExt << std::endl;
-            std::cout << "siteDir: " << site.siteDir << std::endl;
-            std::cout << "pageExt: " << site.pageExt << std::endl;
-            std::cout << "defaultTemplate: " << site.defaultTemplate << std::endl << std::endl;
-            std::cout << "rootBranch: " << site.rootBranch << std::endl;
-            std::cout << "siteBranch: " << site.siteBranch << std::endl;
-
-            return 0;
-        }
-        else if(cmd == "diff") //diff of file
+        //Nift commands that just need to know it is a site directory
+        if(cmd == "diff") //diff of file
         {
             //ensures correct number of parameters given
             if(noParams != 2)
@@ -688,11 +687,33 @@ int main(int argc, char* argv[])
 
             return 0;
         }
+
+        SiteInfo site;
+        if(site.open_config())
+            return 1;
+
+        //Nift commands that need site information file open
+        if(cmd == "config")
+        {
+            if(site.buildThreads < 0)
+                site.buildThreads = -site.buildThreads*std::thread::hardware_concurrency();
+
+            std::cout << "contentDir: " << quote(site.contentDir) << std::endl;
+            std::cout << "contentExt: " << quote(site.contentExt) << std::endl;
+            std::cout << "siteDir: " << quote(site.siteDir) << std::endl;
+            std::cout << "pageExt: " << quote(site.pageExt) << std::endl;
+            std::cout << "scriptExt: " << quote(site.scriptExt) << std::endl;
+            std::cout << "defaultTemplate: " << site.defaultTemplate << std::endl << std::endl;
+            std::cout << "buildThreads: " << site.buildThreads << std::endl << std::endl;
+            std::cout << "unixTextEditor: " << quote(site.unixTextEditor) << std::endl;
+            std::cout << "winTextEditor: " << quote(site.winTextEditor) << std::endl << std::endl;
+            std::cout << "rootBranch: " << quote(site.rootBranch) << std::endl;
+            std::cout << "siteBranch: " << quote(site.siteBranch) << std::endl;
+
+            return 0;
+        }
         else if(cmd =="pull")
         {
-            if(site.open_config())
-                return 1;
-
             //ensures correct number of parameters given
             if(noParams != 1)
                 return parError(noParams, argv, "1");
@@ -788,11 +809,32 @@ int main(int argc, char* argv[])
 
             return 0;
         }
+        if(cmd == "no-build-thrds")
+        {
+            //ensures correct number of parameters given
+            if(noParams != 1 && noParams != 2)
+                return parError(noParams, argv, "1 or 2");
 
-        //opens up nsm.config and pages.list files
-        if(site.open())
+            if(noParams == 1)
+                std::cout << site.buildThreads << std::endl;
+            else
+            {
+                if(!isNum(std::string(argv[2])))
+                {
+                    std::cout << "error: number of build threads should be a non-zero integer (use negative numbers for a multiple of the number of cores on the machine)" << std::endl;
+                    return 1;
+                }
+                return site.no_build_threads(std::stoi(std::string(argv[2])));
+            }
+
+            return 0;
+        }
+
+        //opens up pages.list file
+        if(site.open_pages())
             return 1;
 
+        //Nift commands that need pages list file open
         if(cmd == "bcp") //build-updated commit push
         {
             //ensures correct number of parameters given
@@ -1105,6 +1147,26 @@ int main(int argc, char* argv[])
                 return return_val;
             }
         }
+        else if(cmd == "new-script-ext")
+        {
+            //ensures correct number of parameters given
+            if(noParams != 2 && noParams != 3)
+                return parError(noParams, argv, "2 or 3");
+
+            if(noParams == 2)
+                return site.new_script_ext(argv[2]);
+            else
+            {
+                Name pageName = argv[2];
+
+                int return_val = site.new_script_ext(pageName, argv[3]);
+
+                if(!return_val) //informs user that script extension was successfully changed
+                    std::cout << "successfully changed script extention for " << quote(pageName) << " to " << quote(argv[3]) << std::endl;
+
+                return return_val;
+            }
+        }
         else if(cmd == "build-updated")
         {
             //ensures correct number of parameters given
@@ -1112,21 +1174,21 @@ int main(int argc, char* argv[])
                 return parError(noParams, argv, "1");
 
             //checks for pre-build scripts
-            if(run_scripts(std::cout, "pre-build.scripts"))
+            if(run_script(std::cout, "pre-build" + site.scriptExt, &os_mtx2))
                 return 1;
 
             //checks for pre-build-updated scripts
-            if(run_scripts(std::cout, "pre-build-updated.scripts"))
+            if(run_script(std::cout, "pre-build-updated" + site.scriptExt, &os_mtx2))
                 return 1;
 
             int result = site.build_updated(std::cout);
 
             //checks for post-build scripts
-            if(run_scripts(std::cout, "post-build.scripts"))
+            if(run_script(std::cout, "post-build" + site.scriptExt, &os_mtx2))
                 return 1;
 
             //checks for post-build-updated scripts
-            if(run_scripts(std::cout, "post-build-updated.scripts"))
+            if(run_script(std::cout, "post-build-updated" + site.scriptExt, &os_mtx2))
                 return 1;
 
             std::cout.precision(4);
@@ -1141,7 +1203,7 @@ int main(int argc, char* argv[])
                 return parError(noParams, argv, ">1");
 
             //checks for pre-build scripts
-            if(run_scripts(std::cout, "pre-build.scripts"))
+            if(run_script(std::cout, "pre-build" + site.scriptExt, &os_mtx2))
                 return 1;
 
             std::vector<Name> pageNamesToBuild;
@@ -1153,7 +1215,7 @@ int main(int argc, char* argv[])
             int result = site.build(pageNamesToBuild);
 
             //checks for post-build scripts
-            if(run_scripts(std::cout, "post-build.scripts"))
+            if(run_script(std::cout, "post-build" + site.scriptExt, &os_mtx2))
                 return 1;
 
             std::cout.precision(4);
@@ -1168,21 +1230,21 @@ int main(int argc, char* argv[])
                 return parError(noParams, argv, "1");
 
             //checks for pre-build scripts
-            if(run_scripts(std::cout, "pre-build.scripts"))
+            if(run_script(std::cout, "pre-build" + site.scriptExt, &os_mtx2))
                 return 1;
 
             //checks for pre-build-all scripts
-            if(run_scripts(std::cout, "pre-build-all.scripts"))
+            if(run_script(std::cout, "pre-build-all" + site.scriptExt, &os_mtx2))
                 return 1;
 
             int result = site.build_all();
 
             //checks for post-build scripts
-            if(run_scripts(std::cout, "post-build.scripts"))
+            if(run_script(std::cout, "post-build" + site.scriptExt, &os_mtx2))
                 return 1;
 
             //checks for post-build-all scripts
-            if(run_scripts(std::cout, "post-build-all.scripts"))
+            if(run_script(std::cout, "post-build-all" + site.scriptExt, &os_mtx2))
                 return 1;
 
             std::cout.precision(4);
@@ -1210,7 +1272,7 @@ int main(int argc, char* argv[])
             }
 
             //checks for pre-serve scripts
-            if(run_scripts(std::cout, "pre-serve.scripts"))
+            if(run_script(std::cout, "pre-serve" + site.scriptExt, &os_mtx2))
                 return 1;
 
             serving = 1;
@@ -1224,7 +1286,7 @@ int main(int argc, char* argv[])
             serve_thread.join();
 
             //checks for post-serve scripts
-            if(run_scripts(std::cout, "post-serve.scripts"))
+            if(run_script(std::cout, "post-serve" + site.scriptExt, &os_mtx2))
                 return 1;
         }
         else

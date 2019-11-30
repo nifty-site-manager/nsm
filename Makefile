@@ -21,16 +21,16 @@ nsm: $(objects)
 nsm.o: nsm.cpp GitInfo.o SiteInfo.o Timer.h
 	$(CXX) $(CXXFLAGS) -c -o $@ $< $(LINK)
 
-SiteInfo.o: SiteInfo.cpp SiteInfo.h GitInfo.o FileSystem.o PageBuilder.o
+SiteInfo.o: SiteInfo.cpp SiteInfo.h GitInfo.o PageBuilder.o
 	$(CXX) $(CXXFLAGS) -c -o $@ $< $(LINK)
 
 GitInfo.o: GitInfo.cpp GitInfo.h FileSystem.o Path.o
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
-FileSystem.o: FileSystem.cpp FileSystem.h Path.o
+PageBuilder.o: PageBuilder.cpp PageBuilder.h DateTimeInfo.o FileSystem.o PageInfo.o
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
-PageBuilder.o: PageBuilder.cpp PageBuilder.h DateTimeInfo.o PageInfo.o
+FileSystem.o: FileSystem.cpp FileSystem.h Path.o
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 DateTimeInfo.o: DateTimeInfo.cpp DateTimeInfo.h

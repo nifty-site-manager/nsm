@@ -2,6 +2,31 @@
 Nift Release Notes
 ------------------
 
+Version 1.23 of Nift
+* [todo] improved filenames for temporary files
+* [todo] added syntax @txt to template language
+* [todo] added syntax @scriptcontent, @systemtofile, @scripttofile to template language
+* [todo] added in Nift comments:
+	- <@-- .. --@>   (raw multi line comment)
+	- @/*  .. @*/    (parsed multi line comment)
+	- @--- .. @---   (parsed special multi line comment)
+	- @#             (raw single line comment)
+	- @//            (parsed single line comment)
+	- @\n            (parsed special single line comment))
+	- @comment\*(..) (raw and parsed mid line comment)
+
+Version 1.22 of Nift
+* added in scriptExt to config files, better way to do pre/post build/serve scripts
+* added command `new-script-ext (page-name) scriptExt`
+* changed/improved how pre/post build/serve scripts are done
+* hopefully fixed bugs with @script, @scriptoutput, @scriptraw functions
+* added optional parameter string parameter to @script, @scriptoutput, @scriptraw functions
+* updated Nift info commands with additional page information
+* added pageinfo syntax @pagecontentext, @pagepageext, @pagescriptext to template language
+* added siteinfo syntax @scriptext to template language
+* added in buildThreads to config files
+* added command `no-build-thrds (no-threads)`
+
 Version 1.21 of Nift
 * removed trailing '/' or '\' from @contentdir and @sitedir output
 * fixed bugs with @contentdir, @sitedir, @contentext syntax
@@ -12,7 +37,7 @@ Version 1.21 of Nift
 
 Version 1.20 of Nift
 * made template language available with input parameters
-* added paginfo syntax @pagename, @pagepath, @contentpath, @templatepath to template language
+* added pageinfo syntax @pagename, @pagepath, @contentpath, @templatepath to template language
 * added siteinfo syntax @contentdir, @sitedir, @contentext, @pageext, @defaulttemplate to template language
 * fixed indenting bugs
 * fixed os_mtx functionality

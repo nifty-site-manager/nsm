@@ -8,7 +8,6 @@
 
 #include <atomic>
 
-#include "FileSystem.h"
 #include "GitInfo.h"
 #include "PageBuilder.h"
 
@@ -16,8 +15,10 @@ struct SiteInfo
 {
     Directory contentDir,
               siteDir;
+    int buildThreads;
     std::string contentExt,
                 pageExt,
+                scriptExt,
                 unixTextEditor,
                 winTextEditor,
                 rootBranch,
@@ -39,6 +40,11 @@ struct SiteInfo
     int info_all();
     int info_names();
 
+    std::string get_ext(const PageInfo& page, const std::string& extType);
+    std::string get_cont_ext(const PageInfo& page);
+    std::string get_page_ext(const PageInfo& page);
+    std::string get_script_ext(const PageInfo& page);
+
     bool tracking(const PageInfo &page);
     bool tracking(const Name &pageName);
     int track(const Name &name, const Title &title, const Path &templatePath);
@@ -56,6 +62,10 @@ struct SiteInfo
     int new_content_ext(const Name &pageName, const std::string &newExt);
     int new_page_ext(const std::string &newExt);
     int new_page_ext(const Name &pageName, const std::string &newExt);
+    int new_script_ext(const std::string &newExt);
+    int new_script_ext(const Name &pageName, const std::string &newExt);
+
+    int no_build_threads(int noThreads);
 
     int build(const std::vector<Name>& pageNamesToBuild);
     int build_all();

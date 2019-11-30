@@ -38,8 +38,10 @@ bool read_quoted(std::istream &ifs, std::string &s)
 //outputting a string with quotes surrounded if it contains space(s)
 std::string quote(const std::string &unquoted)
 {
+	if(unquoted == "")
+		return "''";
     //checks if already quoted
-    if((unquoted.size() > 1 && unquoted[0] == '"' && unquoted[unquoted.size()-1] == '"') ||
+    else if((unquoted.size() > 1 && unquoted[0] == '"' && unquoted[unquoted.size()-1] == '"') ||
        (unquoted.size() > 1 && unquoted[0] == '\'' && unquoted[unquoted.size()-1] == '\''))
         return unquoted;
     else if(unquoted.find(' ') == std::string::npos)

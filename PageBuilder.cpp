@@ -26,99 +26,82 @@ std::string into_whitespace(const std::string& str)
     return whitespace;
 }
 
-bool run_scripts(std::ostream &os, const std::string& scriptsPath)
+bool run_script(std::ostream& os, std::string scriptPath, std::mutex* os_mtx)
 {
-    sys_counter = sys_counter%1000000000000000000;
-
-    std::string scriptPath,
-                output_filename;
-
-    int lineNo = 0;
-
-    if(std::ifstream(scriptsPath))
+    if(std::ifstream(scriptPath))
     {
-        std::ifstream ifs(scriptsPath);
+        size_t pos = scriptPath.substr(1, scriptPath.size()-1).find_first_of('.');
+        std::string scriptExt = "";
+        if(pos != std::string::npos)
+            scriptExt = scriptPath.substr(pos+1, scriptPath.size()-pos-1);
+        std::string execPath = "./.script" + std::to_string(sys_counter++) + scriptExt;
+        std::string output_filename = ".script.out" + std::to_string(sys_counter++);
+        //std::string output_filename = scriptPath + ".out" + std::to_string(sys_counter++);
+        int result;
 
-        while(getline(ifs, scriptPath))
+        #if defined _WIN32 || defined _WIN64
+            if(unquote(execPath).substr(0, 2) == "./")
+                execPath = unquote(execPath).substr(2, unquote(execPath).size()-2);
+        #else  //unix
+        #endif
+
+        //copies script to backup location
+        cpFile(scriptPath, scriptPath + ".backup");
+
+        //moves script to main directory
+        //note if just copy original script get 'Text File Busy' errors
+        rename(scriptPath.c_str(), execPath.c_str());
+
+        //checks whether we're running from flatpak
+        if(std::ifstream("/.flatpak-info"))
+            result = system(("flatpak-spawn --host bash -c " + quote(execPath) + " > " + output_filename).c_str());
+        else
+            result = system((execPath + " > " + output_filename).c_str());
+
+        //moves script back to its original location
+        rename(execPath.c_str(), scriptPath.c_str());
+        Path("", scriptPath + ".backup").removePath();
+
+        std::ifstream ifxs(output_filename);
+        std::string str;
+        os_mtx->lock();
+        while(getline(ifxs, str))
+            os << str << std::endl;
+        os_mtx->unlock();
+        ifxs.close();
+        Path("./", output_filename).removePath();
+
+        if(result)
         {
-            lineNo++;
-
-            if(!scriptPath.size() || scriptPath[0] == '#' || is_whitespace(scriptPath))
-                continue;
-
-            /*
-                If we do the following can't do eg.
-                    ./script.ext input-params
-                    python program.py
-                    etc.
-            */
-            /*if(!std::ifstream(scriptPath))
-            {
-                os << "error: nsm.cpp: " << scriptsPath << ": script " << scriptPath << " does not exist" << std::endl;
-                return 1;
-            }*/
-
-            #if defined _WIN32 || defined _WIN64
-                if(unquote(scriptPath).substr(0, 2) == "./")
-                    scriptPath = unquote(scriptPath).substr(2, unquote(scriptPath).size()-2);
-            #else  //unix
-                //scriptPath = "./" + scriptPath;
-            #endif
-
-            output_filename = scriptsPath + ".out" + std::to_string(sys_counter++);
-
-            //checks whether we're running from flatpak
-            if(std::ifstream("/.flatpak-info"))
-            {
-                int result = system(("flatpak-spawn --host bash -c " + quote(scriptPath) + " > " + output_filename).c_str());
-
-                std::ifstream ifxs(output_filename);
-                std::string str;
-                while(getline(ifxs, str))
-                    os << str << std::endl;
-                ifxs.close();
-                Path("./", output_filename).removePath();
-
-                if(result)
-                {
-                    os << "error: nsm.cpp: " << scriptsPath << ": line " << lineNo << ": '" << unquote(scriptPath) << "' failed" << std::endl;
-                    return 1;
-                }
-            }
-            else
-            {
-                int result = system((scriptPath + " > " + output_filename).c_str());
-
-                std::ifstream ifxs(output_filename);
-                std::string str;
-                while(getline(ifxs, str))
-                    os << str << std::endl;
-                ifxs.close();
-                Path("./", output_filename).removePath();
-
-                if(result)
-                {
-                    os << "error: nsm.cpp: " << scriptsPath << ": line " << lineNo << ": '" << unquote(scriptPath) << "' failed" << std::endl;
-                    return 1;
-                }
-            }
+            os_mtx->lock();
+            os << "error: PageBuilder.cpp: run_script(" << quote(scriptPath) << "): script failed" << std::endl;
+            os_mtx->unlock();
+            return 1;
         }
-
-        ifs.close();
     }
 
     return 0;
 }
 
-PageBuilder::PageBuilder(std::set<PageInfo>* Pages, std::mutex* OS_mtx, const Directory& ContentDir, const Directory& SiteDir, const std::string& ContentExt, const std::string& PageExt, const Path& DefaultTemplate, const std::string& UnixTextEditor, const std::string& WinTextEditor)
+PageBuilder::PageBuilder(std::set<PageInfo>* Pages,
+                         std::mutex* OS_mtx,
+                         const Directory& ContentDir,
+                         const Directory& SiteDir,
+                         const std::string& ContentExt,
+                         const std::string& PageExt,
+                         const std::string& ScriptExt,
+                         const Path& DefaultTemplate,
+                         const std::string& UnixTextEditor,
+                         const std::string& WinTextEditor)
 {
-    sys_counter = 0;
+    //sys_counter = 0;
     pages = Pages;
     os_mtx = OS_mtx;
     contentDir = ContentDir;
     siteDir = SiteDir;
     contentExt = ContentExt;
     pageExt = PageExt;
+    scriptExt = ScriptExt;
     defaultTemplate = DefaultTemplate;
     unixTextEditor = UnixTextEditor;
     winTextEditor = WinTextEditor;
@@ -149,10 +132,24 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
         return 1;
     }
 
+    //checks for non-default script extension
+    Path extPath = pageToBuild.pagePath.getInfoPath();
+    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
+
+    std::string pageScriptExt;
+    if(std::ifstream(extPath.str()))
+    {
+        std::ifstream ifs(extPath.str());
+        getline(ifs, pageScriptExt);
+        ifs.close();
+    }
+    else
+        pageScriptExt = scriptExt;
+
     //checks for pre-build scripts
-    Path prebuildScripts = pageToBuild.contentPath;
-    prebuildScripts.file = prebuildScripts.file.substr(0, prebuildScripts.file.find_first_of('.')) + ".pre-build.scripts";
-    if(run_scripts(os, prebuildScripts.str()))
+    Path prebuildScript = pageToBuild.contentPath;
+    prebuildScript.file = prebuildScript.file.substr(0, prebuildScript.file.find_first_of('.')) + "-pre-build" + pageScriptExt;
+    if(run_script(os, prebuildScript.str(), os_mtx))
         return 1;
 
     //os_mtx->lock();
@@ -236,15 +233,20 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
 
     //checks for post-build scripts
     Path postbuildScripts = pageToBuild.contentPath;
-    postbuildScripts.file = postbuildScripts.file.substr(0, postbuildScripts.file.find_first_of('.')) + ".post-build.scripts";
-    if(run_scripts(os, postbuildScripts.str()))
-        return 0; //should a page be listed as failing to build if the post-build script fails?
+    postbuildScripts.file = postbuildScripts.file.substr(0, postbuildScripts.file.find_first_of('.')) + "-post-build" + pageScriptExt;
+    if(run_script(os, postbuildScripts.str(), os_mtx))
+        return 1; //should a page be listed as failing to build if the post-build script fails?
 
     return result;
 }
 
 //parses istream 'is' whilst writing processed version to ostream 'os' with error ostream 'eos'
-int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Path& readPath, std::set<Path> antiDepsOfReadPath, std::ostream& os, std::ostream& eos)
+int PageBuilder::read_and_process(const bool& indent,
+                                  std::istream& is,
+                                  const Path& readPath,
+                                  std::set<Path> antiDepsOfReadPath,
+                                  std::ostream& os,
+                                  std::ostream& eos)
 {
     //adds read path to anti dependencies of read path
     if(std::ifstream(readPath.str()))
@@ -828,7 +830,7 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                 else if(inLine.substr(linePos, 8) == "@script(" || inLine.substr(linePos, 9) == "@script*(")
                 {
                     linePos+=std::string("@script").length();
-                    std::string scriptPathStr;
+                    std::string scriptPathStr, scriptParams;
                     std::string output_filename = ".@scriptoutput" + std::to_string(sys_counter++);
 
                     if(inLine[linePos] == '*')
@@ -841,7 +843,7 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
 
                     linePos++;
 
-                    if(read_path(scriptPathStr, linePos, inLine, readPath, lineNo, "@script()", eos) > 0)
+                    if(read_script_params(scriptPathStr, scriptParams, linePos, inLine, readPath, lineNo, "@script()", eos) > 0)
                         return 1;
 
                     if(parseParams)
@@ -863,12 +865,36 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
 
                         scriptPathStr = oss.str();
 
+                        iss.str("");
+                        iss.clear();
+                        iss = std::istringstream(scriptParams);
+                        oss.str("");
+                        oss.clear();
+
+                        indentAmount = "";
+
+                        if(read_and_process(0, iss, Path("", "script params"), antiDepsOfReadPath, oss, eos) > 0)
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
+
+                        scriptParams = oss.str();
+
                         indentAmount = oldIndent;
                     }
 
+                    size_t pos = scriptPathStr.substr(1, scriptPathStr.size()-1).find_first_of('.');
+                    std::string scriptExt = "";
+                    if(pos != std::string::npos)
+                        scriptExt = scriptPathStr.substr(pos+1, scriptPathStr.size()-pos-1);
+                    std::string execPath = "./.script" + std::to_string(sys_counter++) + scriptExt;
+
                     #if defined _WIN32 || defined _WIN64
-                        if(unquote(scriptPathStr).substr(0, 2) == "./")
-                            scriptPathStr = unquote(scriptPathStr).substr(2, unquote(scriptPathStr).size()-2);
+                        if(unquote(execPath).substr(0, 2) == "./")
+                            execPath = unquote(execPath).substr(2, unquote(execPath).size()-2);
                     #else  //unix
                     #endif
 
@@ -887,58 +913,45 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         return 1;
                     }
 
+                    //copies script to backup location
+                    cpFile(scriptPathStr, scriptPathStr + ".backup");
+
+                    //moves script to main directory
+                    rename(scriptPathStr.c_str(), execPath.c_str());
+
                     //checks whether we're running from flatpak
+                    int result;
                     if(std::ifstream("/.flatpak-info"))
+                        result = system(("flatpak-spawn --host bash -c " + quote(execPath + " " + scriptParams) + " > " + output_filename).c_str());
+                    else
+                        result = system((execPath + " " + scriptParams + " > " + output_filename).c_str());
+
+                    //moves script back to original location
+                    rename(execPath.c_str(), scriptPathStr.c_str());
+                    Path("", scriptPathStr + ".backup").removePath();
+
+                    std::ifstream ifs(output_filename);
+                    std::string str;
+                    os_mtx->lock();
+                    while(getline(ifs, str))
+                        eos << str << std::endl;
+                    os_mtx->unlock();
+                    ifs.close();
+
+                    Path("./", output_filename).removePath();
+
+                    if(result)
                     {
-                        int result = system(("flatpak-spawn --host bash -c " + quote(scriptPathStr) + " > " + output_filename).c_str());
-                        //int result = system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > " + output_filename).c_str()); //doesn't work on windows
-
-                        std::ifstream ifs(output_filename);
-                        std::string str;
                         os_mtx->lock();
-                        while(getline(ifs, str))
-                            eos << str << std::endl;
+                        eos << "error: " << readPath << ": line " << lineNo << ": @script(" << quote(scriptPathStr) << ") failed" << std::endl;
                         os_mtx->unlock();
-                        ifs.close();
-
-                        Path("./", output_filename).removePath();
-
-                        if(result)
-                        {
-                            os_mtx->lock();
-                            eos << "error: " << readPath << ": line " << lineNo << ": @script(" << quote(scriptPathStr) << ") failed" << std::endl;
-                            os_mtx->unlock();
-                            return 1;
-                        }
-                    }
-                    else //sys_call has to be quoted for script paths containing spaces //doesn't work on windows!!
-                    {
-                        int result = system((scriptPathStr + " > " + output_filename).c_str());
-                        //int result = system((quote(sys_call) + " > " + output_filename).c_str()); //doesn't work on windows!!
-
-                        std::ifstream ifs(output_filename);
-                        std::string str;
-                        os_mtx->lock();
-                        while(getline(ifs, str))
-                            eos << str << std::endl;
-                        os_mtx->unlock();
-                        ifs.close();
-
-                        Path("./", output_filename).removePath();
-
-                        if(result)
-                        {
-                            os_mtx->lock();
-                            eos << "error: " << readPath << ": line " << lineNo << ": @script(" << quote(scriptPathStr) << ") failed" << std::endl;
-                            os_mtx->unlock();
-                            return 1;
-                        }
+                        return 1;
                     }
                 }
                 else if(inLine.substr(linePos, 11) == "@scriptraw(" || inLine.substr(linePos, 12) == "@scriptraw*(")
                 {
                     linePos+=std::string("@scriptraw").length();
-                    std::string scriptPathStr;
+                    std::string scriptPathStr, scriptParams;
                     std::string output_filename = ".@scriptoutput" + std::to_string(sys_counter++);
 
                     if(inLine[linePos] == '*')
@@ -951,7 +964,7 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
 
                     linePos++;
 
-                    if(read_path(scriptPathStr, linePos, inLine, readPath, lineNo, "@scriptoutput()", eos) > 0)
+                    if(read_script_params(scriptPathStr, scriptParams, linePos, inLine, readPath, lineNo, "@scriptoutput()", eos) > 0)
                         return 1;
 
                     if(parseParams)
@@ -973,12 +986,36 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
 
                         scriptPathStr = oss.str();
 
+                        iss.str("");
+                        iss.clear();
+                        iss = std::istringstream(scriptParams);
+                        oss.str("");
+                        oss.clear();
+
+                        indentAmount = "";
+
+                        if(read_and_process(0, iss, Path("", "script params"), antiDepsOfReadPath, oss, eos) > 0)
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
+
+                        scriptParams = oss.str();
+
                         indentAmount = oldIndent;
                     }
 
+                    size_t pos = scriptPathStr.substr(1, scriptPathStr.size()-1).find_first_of('.');
+                    std::string scriptExt = "";
+                    if(pos != std::string::npos)
+                        scriptExt = scriptPathStr.substr(pos+1, scriptPathStr.size()-pos-1);
+                    std::string execPath = "./.script" + std::to_string(sys_counter++) + scriptExt;
+
                     #if defined _WIN32 || defined _WIN64
-                        if(unquote(scriptPathStr).substr(0, 2) == "./")
-                            scriptPathStr = unquote(scriptPathStr).substr(2, unquote(scriptPathStr).size()-2);
+                        if(unquote(execPath).substr(0, 2) == "./")
+                            execPath = unquote(execPath).substr(2, unquote(execPath).size()-2);
                     #else  //unix
                     #endif
 
@@ -1000,23 +1037,24 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         return 1;
                     }
 
+                    //copies script to backup location
+                    cpFile(scriptPathStr, scriptPathStr + ".backup");
+
+                    //moves script to main directory
+                    rename(scriptPathStr.c_str(), execPath.c_str());
+
                     //checks whether we're running from flatpak
+                    int result;
                     if(std::ifstream("/.flatpak-info"))
-                    {
-                        //need sys_call quoted weirdly here for script paths containing spaces (doesn't work on windows!!)
-                        //if(system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > " + output_filename).c_str()))
-                        if(system(("flatpak-spawn --host bash -c " + quote(scriptPathStr) + " > " + output_filename).c_str()))
-                        {
-                            os_mtx->lock();
-                            eos << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(scriptPathStr) << ") failed" << std::endl;
-                            eos << "       see " << quote(output_filename) << " for pre-error script output" << std::endl;
-                            os_mtx->unlock();
-                            //Path("./", output_filename).removePath();
-                            return 1;
-                        }
-                    }
-                    //else if(system((quote(sys_call) + " > " + output_filename).c_str())) //sys_call has to be quoted for script paths containing spaces //doesn't work on windows!!
-                    else if(system((scriptPathStr + " > " + output_filename).c_str()))
+                        result = system(("flatpak-spawn --host bash -c " + quote(execPath + " " + scriptParams) + " > " + output_filename).c_str());
+                    else
+                        result = system((execPath + " " + scriptParams + " > " + output_filename).c_str());
+
+                    //moves script back to original location
+                    rename(execPath.c_str(), scriptPathStr.c_str());
+                    Path("", scriptPathStr + ".backup").removePath();
+
+                    if(result)
                     {
                         os_mtx->lock();
                         eos << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(scriptPathStr) << ") failed" << std::endl;
@@ -1046,7 +1084,7 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                 else if(inLine.substr(linePos, 14) == "@scriptoutput(" || inLine.substr(linePos, 15) == "@scriptoutput*(")
                 {
                     linePos+=std::string("@scriptoutput").length();
-                    std::string scriptPathStr;
+                    std::string scriptPathStr, scriptParams;
                     std::string output_filename = ".@scriptoutput" + std::to_string(sys_counter++);
 
                     if(inLine[linePos] == '*')
@@ -1059,7 +1097,7 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
 
                     linePos++;
 
-                    if(read_path(scriptPathStr, linePos, inLine, readPath, lineNo, "@scriptoutput()", eos) > 0)
+                    if(read_script_params(scriptPathStr, scriptParams, linePos, inLine, readPath, lineNo, "@scriptoutput()", eos) > 0)
                         return 1;
 
                     if(parseParams)
@@ -1081,12 +1119,36 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
 
                         scriptPathStr = oss.str();
 
+                        iss.str("");
+                        iss.clear();
+                        iss = std::istringstream(scriptParams);
+                        oss.str("");
+                        oss.clear();
+
+                        indentAmount = "";
+
+                        if(read_and_process(0, iss, Path("", "script params"), antiDepsOfReadPath, oss, eos) > 0)
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
+
+                        scriptParams = oss.str();
+
                         indentAmount = oldIndent;
                     }
 
+                    size_t pos = scriptPathStr.substr(1, scriptPathStr.size()-1).find_first_of('.');
+                    std::string scriptExt = "";
+                    if(pos != std::string::npos)
+                        scriptExt = scriptPathStr.substr(pos+1, scriptPathStr.size()-pos-1);
+                    std::string execPath = "./.script" + std::to_string(sys_counter++) + scriptExt;
+
                     #if defined _WIN32 || defined _WIN64
-                        if(unquote(scriptPathStr).substr(0, 2) == "./")
-                            scriptPathStr = unquote(scriptPathStr).substr(2, unquote(scriptPathStr).size()-2);
+                        if(unquote(execPath).substr(0, 2) == "./")
+                            execPath = unquote(execPath).substr(2, unquote(execPath).size()-2);
                     #else  //unix
                     #endif
 
@@ -1108,23 +1170,24 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         return 1;
                     }
 
+                    //copies script to backup location
+                    cpFile(scriptPathStr, scriptPathStr + ".backup");
+
+                    //moves script to main directory
+                    rename(scriptPathStr.c_str(), execPath.c_str());
+
                     //checks whether we're running from flatpak
+                    int result;
                     if(std::ifstream("/.flatpak-info"))
-                    {
-                        //need sys_call quoted weirdly here for script paths containing spaces (doesn't work on windows!!)
-                        //if(system(("flatpak-spawn --host bash -c \"'" + sys_call + "'\" > " + output_filename).c_str()))
-                        if(system(("flatpak-spawn --host bash -c " + quote(scriptPathStr) + " > " + output_filename).c_str()))
-                        {
-                            os_mtx->lock();
-                            eos << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(scriptPathStr) << ") failed" << std::endl;
-                            eos << "       see " << quote(output_filename) << " for pre-error script output" << std::endl;
-                            os_mtx->unlock();
-                            //Path("./", output_filename).removePath();
-                            return 1;
-                        }
-                    }
-                    //else if(system((quote(sys_call) + " > " + output_filename).c_str())) //sys_call has to be quoted for script paths containing spaces //doesn't work on windows!!
-                    else if(system((scriptPathStr + " > " + output_filename).c_str()))
+                        result = system(("flatpak-spawn --host bash -c " + quote(execPath + " " + scriptParams) + " > " + output_filename).c_str());
+                    else
+                        result = system((execPath + " " + scriptParams + " > " + output_filename).c_str());
+
+                    //moves script back to original location
+                    rename(execPath.c_str(), scriptPathStr.c_str());
+                    Path("", scriptPathStr + ".backup").removePath();
+
+                    if(result)
                     {
                         os_mtx->lock();
                         eos << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(scriptPathStr) << ") failed" << std::endl;
@@ -1198,50 +1261,29 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                     #endif
 
                     //checks whether we're running from flatpak
-                    if(std::ifstream("/.flatpak-info"))
-                    {
-                        int result = system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str());
-
-                        std::ifstream ifs(output_filename);
-                        std::string str;
-                        os_mtx->lock();
-                        while(getline(ifs, str))
-                            eos << str << std::endl;
-                        os_mtx->unlock();
-                        ifs.close();
-
-                        Path("./", output_filename).removePath();
-
-                        //need sys_call quoted here for cURL to work
-                        if(result)
-                        {
-                            os_mtx->lock();
-                            eos << "error: " << readPath << ": line " << lineNo << ": @system(" << quote(sys_call) << ") failed" << std::endl;
-                            os_mtx->unlock();
-                            return 1;
-                        }
-                    }
+                    int result;
+                    if(std::ifstream("/.flatpak-info")) //sys_call has to be quoted for cURL to work
+                        result = system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str());
                     else //sys_call has to be unquoted for cURL to work
+                        result = system((sys_call + " > " + output_filename).c_str());
+
+                    std::ifstream ifs(output_filename);
+                    std::string str;
+                    os_mtx->lock();
+                    while(getline(ifs, str))
+                        eos << str << std::endl;
+                    os_mtx->unlock();
+                    ifs.close();
+
+                    Path("./", output_filename).removePath();
+
+                    //need sys_call quoted here for cURL to work
+                    if(result)
                     {
-                        int result = system((sys_call + " > " + output_filename).c_str());
-
-                        std::ifstream ifs(output_filename);
-                        std::string str;
                         os_mtx->lock();
-                        while(getline(ifs, str))
-                            eos << str << std::endl;
+                        eos << "error: " << readPath << ": line " << lineNo << ": @system(" << quote(sys_call) << ") failed" << std::endl;
                         os_mtx->unlock();
-                        ifs.close();
-
-                        Path("./", output_filename).removePath();
-
-                        if(result)
-                        {
-                            os_mtx->lock();
-                            eos << "error: " << readPath << ": line " << lineNo << ": @system(" << quote(sys_call) << ") failed" << std::endl;
-                            os_mtx->unlock();
-                            return 1;
-                        }
+                        return 1;
                     }
                 }
                 else if(inLine.substr(linePos, 11) == "@systemraw(" || inLine.substr(linePos, 12) == "@systemraw*(")
@@ -1292,20 +1334,13 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                     #endif
 
                     //checks whether we're running from flatpak
-                    if(std::ifstream("/.flatpak-info"))
-                    {
-                        //need sys_call quoted here for cURL to work
-                        if(system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str()))
-                        {
-                            os_mtx->lock();
-                            eos << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
-                            eos << "       see " << quote(output_filename) << " for pre-error system output" << std::endl;
-                            os_mtx->unlock();
-                            //Path("./", output_filename).removePath();
-                            return 1;
-                        }
-                    }
-                    else if(system((sys_call + " > " + output_filename).c_str())) //sys_call has to be unquoted for cURL to work
+                    int result;
+                    if(std::ifstream("/.flatpak-info")) //sys_call has to be quoted for cURL to work
+                        result = system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str());
+                    else //sys_call has to be unquoted for cURL to work
+                        result = system((sys_call + " > " + output_filename).c_str());
+
+                    if(result)
                     {
                         os_mtx->lock();
                         eos << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
@@ -1380,20 +1415,13 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                     #endif
 
                     //checks whether we're running from flatpak
-                    if(std::ifstream("/.flatpak-info"))
-                    {
-                        //need sys_call quoted here for cURL to work
-                        if(system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str()))
-                        {
-                            os_mtx->lock();
-                            eos << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
-                            eos << "       see " << quote(output_filename) << " for pre-error system output" << std::endl;
-                            os_mtx->unlock();
-                            //Path("./", output_filename).removePath();
-                            return 1;
-                        }
-                    }
-                    else if(system((sys_call + " > " + output_filename).c_str())) //sys_call has to be unquoted for cURL to work
+                    int result;
+                    if(std::ifstream("/.flatpak-info")) //sys_call has to be quoted for cURL to work
+                        result = system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str());
+                    else //sys_call has to be unquoted for cURL to work
+                        result = system((sys_call + " > " + output_filename).c_str());
+
+                    if(result)
                     {
                         os_mtx->lock();
                         eos << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
@@ -1470,20 +1498,13 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                     sys_call += " " + quote(pageToBuild.contentPath.str());
 
                     //checks whether we're running from flatpak
-                    if(std::ifstream("/.flatpak-info"))
-                    {
-                        //need sys_call quoted here for cURL to work
-                        if(system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str()))
-                        {
-                            os_mtx->lock();
-                            eos << "error: " << readPath << ": line " << lineNo << ": @systemcontent(" << quote(sys_call) << ") failed" << std::endl;
-                            eos << "       see " << quote(output_filename) << " for pre-error system output" << std::endl;
-                            os_mtx->unlock();
-                            //Path("./", output_filename).removePath();
-                            return 1;
-                        }
-                    }
-                    else if(system((sys_call + " > " + output_filename).c_str())) //sys_call has to be unquoted for cURL to work
+                    int result;
+                    if(std::ifstream("/.flatpak-info")) //sys_call has to be quoted for cURL to work
+                        result = system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str());
+                    else //sys_call has to be unquoted for cURL to work
+                        result = system((sys_call + " > " + output_filename).c_str());
+
+                    if(result)
                     {
                         os_mtx->lock();
                         eos << "error: " << readPath << ": line " << lineNo << ": @systemcontent(" << quote(sys_call) << ") failed" << std::endl;
@@ -1853,12 +1874,93 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                         indentAmount += into_whitespace(pageToBuild.pagePath.str());
                     linePos += std::string("@pagepath").length();
                 }
+                else if(inLine.substr(linePos, 12) == "@pagepageext")
+                {
+                    //checks for non-default page extension
+                    Path extPath = pageToBuild.pagePath.getInfoPath();
+                    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+
+                    if(std::ifstream(extPath.str()))
+                    {
+                        std::string ext;
+
+                        std::ifstream ifs(extPath.str());
+                        getline(ifs, ext);
+                        ifs.close();
+
+                        os << ext;
+                        if(indent)
+                            indentAmount += into_whitespace(ext);
+                    }
+                    else
+                    {
+                        os << pageExt;
+                        if(indent)
+                            indentAmount += into_whitespace(pageExt);
+                    }
+
+                    linePos += std::string("@pagepageext").length();
+                }
                 else if(inLine.substr(linePos, 12) == "@contentpath")
                 {
                     os << pageToBuild.contentPath.str();
                     if(indent)
                         indentAmount += into_whitespace(pageToBuild.contentPath.str());
                     linePos += std::string("@contentpath").length();
+                }
+                else if(inLine.substr(linePos, 15) == "@pagecontentext")
+                {
+                    //checks for non-default content extension
+                    Path extPath = pageToBuild.pagePath.getInfoPath();
+                    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+
+                    if(std::ifstream(extPath.str()))
+                    {
+                        std::string ext;
+
+                        std::ifstream ifs(extPath.str());
+                        getline(ifs, ext);
+                        ifs.close();
+
+                        os << ext;
+                        if(indent)
+                            indentAmount += into_whitespace(ext);
+                    }
+                    else
+                    {
+                        os << contentExt;
+                        if(indent)
+                            indentAmount += into_whitespace(contentExt);
+                    }
+
+                    linePos += std::string("@pagecontentext").length();
+                }
+                else if(inLine.substr(linePos, 14) == "@pagescriptext")
+                {
+                    //checks for non-default script extension
+                    Path extPath = pageToBuild.pagePath.getInfoPath();
+                    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
+
+                    if(std::ifstream(extPath.str()))
+                    {
+                        std::string ext;
+
+                        std::ifstream ifs(extPath.str());
+                        getline(ifs, ext);
+                        ifs.close();
+
+                        os << ext;
+                        if(indent)
+                            indentAmount += into_whitespace(ext);
+                    }
+                    else
+                    {
+                        os << scriptExt;
+                        if(indent)
+                            indentAmount += into_whitespace(scriptExt);
+                    }
+
+                    linePos += std::string("@pagescriptext").length();
                 }
                 else if(inLine.substr(linePos, 13) == "@templatepath")
                 {
@@ -1912,6 +2014,13 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
                     if(indent)
                         indentAmount += into_whitespace(pageExt);
                     linePos += std::string("@pageExt").length();
+                }
+                else if(inLine.substr(linePos, 10) == "@scriptext")
+                {
+                    os << scriptExt;
+                    if(indent)
+                        indentAmount += into_whitespace(scriptExt);
+                    linePos += std::string("@scriptExt").length();
                 }
                 else if(inLine.substr(linePos, 16) == "@defaulttemplate")
                 {
@@ -2358,7 +2467,13 @@ int PageBuilder::read_and_process(const bool& indent, std::istream& is, const Pa
     return 0;
 }
 
-int PageBuilder::read_path(std::string& pathRead, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os)
+int PageBuilder::read_path(std::string& pathRead,
+                           size_t& linePos,
+                           const std::string& inLine,
+                           const Path& readPath,
+                           const int& lineNo,
+                           const std::string& callType,
+                           std::ostream& os)
 {
     pathRead = "";
 
@@ -2460,7 +2575,211 @@ int PageBuilder::read_path(std::string& pathRead, size_t& linePos, const std::st
     return 0;
 }
 
-int PageBuilder::read_msg(std::string& msgRead, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os)
+int PageBuilder::read_script_params(std::string& pathRead,
+                                    std::string& paramStr,
+                                    size_t& linePos,
+                                    const std::string& inLine,
+                                    const Path& readPath,
+                                    const int& lineNo,
+                                    const std::string& callType,
+                                    std::ostream& os)
+{
+    pathRead = paramStr = "";
+
+    //skips over leading whitespace
+    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+        ++linePos;
+
+    //throws error if either no closing bracket or a newline
+    if(linePos == inLine.size())
+    {
+        os_mtx->lock();
+        os << "error: " << readPath << ": line " << lineNo << ": script path has no closing bracket ) or newline inside " << callType << " call" << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
+
+    //throws error if no path provided
+    if(inLine[linePos] == ')')
+    {
+        os_mtx->lock();
+        os << "error: " << readPath << ": line " << lineNo << ": no script path provided inside " << callType << " call" << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
+
+    //reads the script path
+    if(inLine[linePos] == '\'')
+    {
+        ++linePos;
+        for(; inLine[linePos] != '\''; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os_mtx->lock();
+                os << "error: " << readPath << ": line " << lineNo << ": script path has no closing single quote or newline inside " << callType << " call" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+            pathRead += inLine[linePos];
+        }
+        ++linePos;
+    }
+    else if(inLine[linePos] == '"')
+    {
+        ++linePos;
+        for(; inLine[linePos] != '"'; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os_mtx->lock();
+                os << "error: " << readPath << ": line " << lineNo << ": script path has no closing double quote \" or newline inside " << callType << " call" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+            pathRead += inLine[linePos];
+        }
+        ++linePos;
+    }
+    else
+    {
+        //reads path value
+        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os_mtx->lock();
+                os << "error: " << readPath << ": line " << lineNo << ": script path has no closing bracket ) or newline inside " << callType << " call" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+            pathRead += inLine[linePos];
+        }
+    }
+
+    //skips over hopefully trailing whitespace
+    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+        ++linePos;
+
+    //throws error if new line is between the path and close bracket
+    if(linePos == inLine.size())
+    {
+        os_mtx->lock();
+        os << "error: " << readPath << ": line " << lineNo << ": script path has no closing bracket ) or newline inside " << callType << " call" << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
+
+    if(inLine[linePos] == ',')
+    {
+        linePos++;
+
+        //skips over leading whitespace
+        while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+            ++linePos;
+
+        //throws error if either no closing bracket or a newline
+        if(linePos == inLine.size())
+        {
+            os_mtx->lock();
+            os << "error: " << readPath << ": line " << lineNo << ": script parameters have no closing bracket ) or newline inside " << callType << " call" << std::endl;
+            os_mtx->unlock();
+            return 1;
+        }
+
+        //throws error if no path provided
+        if(inLine[linePos] == ')')
+        {
+            os_mtx->lock();
+            os << "error: " << readPath << ": line " << lineNo << ": no script parameters provided inside " << callType << " call" << std::endl;
+            os_mtx->unlock();
+            return 1;
+        }
+
+        //reads the input path
+        if(inLine[linePos] == '\'')
+        {
+            ++linePos;
+            for(; inLine[linePos] != '\''; ++linePos)
+            {
+                if(linePos == inLine.size())
+                {
+                    os_mtx->lock();
+                    os << "error: " << readPath << ": line " << lineNo << ": script parameters have no closing single quote or newline inside " << callType << " call" << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
+                paramStr += inLine[linePos];
+            }
+            ++linePos;
+        }
+        else if(inLine[linePos] == '"')
+        {
+            ++linePos;
+            for(; inLine[linePos] != '"'; ++linePos)
+            {
+                if(linePos == inLine.size())
+                {
+                    os_mtx->lock();
+                    os << "error: " << readPath << ": line " << lineNo << ": script parameters have no closing double quote \" or newline inside " << callType << " call" << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
+                paramStr += inLine[linePos];
+            }
+            ++linePos;
+        }
+        else
+        {
+            //reads path value
+            for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+            {
+                if(linePos == inLine.size())
+                {
+                    os_mtx->lock();
+                    os << "error: " << readPath << ": line " << lineNo << ": script parameters have no closing bracket ) or newline inside " << callType << " call" << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
+                paramStr += inLine[linePos];
+            }
+        }
+
+        //skips over hopefully trailing whitespace
+        while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+            ++linePos;
+
+        //throws error if new line is between the path and close bracket
+        if(linePos == inLine.size())
+        {
+            os_mtx->lock();
+            os << "error: " << readPath << ": line " << lineNo << ": script parameters have no closing bracket ) or newline inside " << callType << " call" << std::endl;
+            os_mtx->unlock();
+            return 1;
+        }
+    }
+
+    //throws error if the path is invalid
+    if(inLine[linePos] != ')')
+    {
+        os_mtx->lock();
+        os << "error: " << readPath << ": line " << lineNo << ": invalid script path inside " << callType << " call" << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
+
+    ++linePos;
+
+    return 0;
+}
+
+int PageBuilder::read_msg(std::string& msgRead,
+                          size_t& linePos,
+                          const std::string& inLine,
+                          const Path& readPath,
+                          const int& lineNo,
+                          const std::string& callType,
+                          std::ostream& os)
 {
     msgRead = "";
 
@@ -2574,7 +2893,13 @@ int PageBuilder::read_msg(std::string& msgRead, size_t& linePos, const std::stri
     return 0;
 }
 
-int PageBuilder::read_sys_call(std::string& sys_call, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os)
+int PageBuilder::read_sys_call(std::string& sys_call,
+                               size_t& linePos,
+                               const std::string& inLine,
+                               const Path& readPath,
+                               const int& lineNo,
+                               const std::string& callType,
+                               std::ostream& os)
 {
     sys_call = "";
 
@@ -2687,7 +3012,14 @@ int PageBuilder::read_sys_call(std::string& sys_call, size_t& linePos, const std
     return 0;
 }
 
-int PageBuilder::read_stringdef(std::string& varName, std::string& varVal, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os)
+int PageBuilder::read_stringdef(std::string& varName,
+                                std::string& varVal,
+                                size_t& linePos,
+                                const std::string& inLine,
+                                const Path& readPath,
+                                const int& lineNo,
+                                const std::string& callType,
+                                std::ostream& os)
 {
     varName = varVal = "";
 
@@ -2860,7 +3192,13 @@ int PageBuilder::read_stringdef(std::string& varName, std::string& varVal, size_
     return 0;
 }
 
-int PageBuilder::read_var(std::string& varName, size_t& linePos, const std::string& inLine, const Path& readPath, const int& lineNo, const std::string& callType, std::ostream& os)
+int PageBuilder::read_var(std::string& varName,
+                          size_t& linePos,
+                          const std::string& inLine,
+                          const Path& readPath,
+                          const int& lineNo,
+                          const std::string& callType,
+                          std::ostream& os)
 {
     varName = "";
 

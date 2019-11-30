@@ -20,32 +20,49 @@ int SiteInfo::open_config()
     }
 
     contentDir = siteDir = "";
-    contentExt = pageExt = unixTextEditor = winTextEditor = rootBranch = siteBranch = "";
+    buildThreads = 0;
+    contentExt = pageExt = scriptExt = unixTextEditor = winTextEditor = rootBranch = siteBranch = "";
     defaultTemplate = Path("", "");
 
     //reads Nift config file
     std::ifstream ifs(".siteinfo/nsm.config");
-    std::string inType;
-    while(ifs >> inType)
+    std::string inLine, inType;
+    while(getline(ifs, inLine))
     {
-        if(inType == "contentDir")
-            read_quoted(ifs, contentDir);
-        else if(inType == "contentExt")
-            read_quoted(ifs, contentExt);
-        else if(inType == "siteDir")
-            read_quoted(ifs, siteDir);
-        else if(inType == "pageExt")
-            read_quoted(ifs, pageExt);
-        else if(inType == "defaultTemplate")
-            defaultTemplate.read_file_path_from(ifs);
-        else if(inType == "unixTextEditor")
-            read_quoted(ifs, unixTextEditor);
-        else if(inType == "winTextEditor")
-            read_quoted(ifs, winTextEditor);
-        else if(inType == "rootBranch")
-            read_quoted(ifs, rootBranch);
-        else if(inType == "siteBranch")
-            read_quoted(ifs, siteBranch);
+        if(!is_whitespace(inLine) && inLine.size() && inLine[0] != '#')
+        {
+            std::istringstream iss(inLine);
+
+            iss >> inType;
+
+            if(inType == "contentDir")
+                read_quoted(iss, contentDir);
+            else if(inType == "contentExt")
+                read_quoted(iss, contentExt);
+            else if(inType == "siteDir")
+                read_quoted(iss, siteDir);
+            else if(inType == "pageExt")
+                read_quoted(iss, pageExt);
+            else if(inType == "scriptExt")
+                read_quoted(iss, scriptExt);
+            else if(inType == "defaultTemplate")
+                defaultTemplate.read_file_path_from(iss);
+            else if(inType == "buildThreads")
+                iss >> buildThreads;
+            else if(inType == "unixTextEditor")
+                read_quoted(iss, unixTextEditor);
+            else if(inType == "winTextEditor")
+                read_quoted(iss, winTextEditor);
+            else if(inType == "rootBranch")
+                read_quoted(iss, rootBranch);
+            else if(inType == "siteBranch")
+                read_quoted(iss, siteBranch);
+            else
+            {
+                std::cout << "error: .siteinfo/nsm.config: do not recognise confirguration parameter " << inType << std::endl;
+                return 1;
+            }
+        }
     }
     ifs.close();
 
@@ -58,6 +75,12 @@ int SiteInfo::open_config()
     if(pageExt == "" || pageExt[0] != '.')
     {
         std::cout << "error: .siteinfo/nsm.config: page extension must start with a fullstop" << std::endl;
+        return 1;
+    }
+
+    if(scriptExt != "" && scriptExt [0] != '.')
+    {
+        std::cout << "error: .siteinfo/nsm.config: script extension must start with a fullstop" << std::endl;
         return 1;
     }
 
@@ -81,9 +104,29 @@ int SiteInfo::open_config()
 
     bool configChanged = 0;
 
+    if(scriptExt == "")
+    {
+        std::cout << "warning: .siteinfo/nsm.config: script extension not detected, set to default of '.py'" << std::endl;
+
+        scriptExt = ".py";
+
+        configChanged = 1;
+    }
+
+    if(buildThreads == 0)
+    {
+        std::cout << "warning: .siteinfo/nsm.config: number of build threads not detected or invalid, set to default of -1 (number of cores)" << std::endl;
+
+        buildThreads = -1;
+
+        configChanged = 1;
+    }
+
     //code to set unixTextEditor if not present
     if(unixTextEditor == "")
     {
+        std::cout << "warning: .siteinfo/nsm.config: unix text editor not detected, set to default of 'nano'" << std::endl;
+
         unixTextEditor = "nano";
 
         configChanged = 1;
@@ -92,6 +135,8 @@ int SiteInfo::open_config()
     //code to set winTextEditor if not present
     if(winTextEditor == "")
     {
+        std::cout << "warning: .siteinfo/nsm.config: windows text editor not detected, set to default of 'notepad'" << std::endl;
+
         winTextEditor = "notepad";
 
         configChanged = 1;
@@ -100,6 +145,8 @@ int SiteInfo::open_config()
     //code to figure out rootBranch and siteBranch if not present
     if(rootBranch == "" || siteBranch == "")
     {
+        std::cout << "warning: .siteinfo/nsm.config: root or site branch not detected, have attempted to determine them, ensure values in config file are correct" << std::endl;
+
         if(std::ifstream(".git"))
         {
             std::set<std::string> branches = get_git_branches();
@@ -226,7 +273,9 @@ int SiteInfo::save_config()
     ofs << "contentExt " << quote(contentExt) << "\n";
     ofs << "siteDir " << quote(siteDir) << "\n";
     ofs << "pageExt " << quote(pageExt) << "\n";
+    ofs << "scriptExt " << quote(scriptExt) << "\n";
     ofs << "defaultTemplate " << defaultTemplate << "\n\n";
+    ofs << "buildThreads " << buildThreads << "\n\n";
     ofs << "unixTextEditor " << quote(unixTextEditor) << "\n";
     ofs << "winTextEditor " << quote(winTextEditor) << "\n\n";
     ofs << "rootBranch " << quote(rootBranch) << "\n";
@@ -341,9 +390,13 @@ int SiteInfo::info(const std::vector<Name> &pageNames)
         if(pages.count(cPageInfo))
         {
             cPageInfo = *(pages.find(cPageInfo));
+            std::cout << "    page name: " << quote(cPageInfo.pageName) << std::endl;
             std::cout << "   page title: " << cPageInfo.pageTitle << std::endl;
             std::cout << "    page path: " << cPageInfo.pagePath << std::endl;
+            std::cout << "     page ext: " << quote(get_page_ext(cPageInfo)) << std::endl;
             std::cout << " content path: " << cPageInfo.contentPath << std::endl;
+            std::cout << "  content ext: " << quote(get_cont_ext(cPageInfo)) << std::endl;
+            std::cout << "   script ext: " << quote(get_script_ext(cPageInfo)) << std::endl;
             std::cout << "template path: " << cPageInfo.templatePath << std::endl;
         }
         else
@@ -362,10 +415,13 @@ int SiteInfo::info_all()
     {
         if(page != pages.begin())
             std::cout << std::endl;
-        std::cout << "    page name: " << page->pageName << std::endl;
+        std::cout << "    page name: " << quote(page->pageName) << std::endl;
         std::cout << "   page title: " << page->pageTitle << std::endl;
         std::cout << "    page path: " << page->pagePath << std::endl;
+        std::cout << "     page ext: " << quote(get_page_ext(*page)) << std::endl;
         std::cout << " content path: " << page->contentPath << std::endl;
+        std::cout << "  content ext: " << quote(get_cont_ext(*page)) << std::endl;
+        std::cout << "   script ext: " << quote(get_script_ext(*page)) << std::endl;
         std::cout << "template path: " << page->templatePath << std::endl;
     }
     std::cout << "------------------------------------" << std::endl;
@@ -382,6 +438,45 @@ int SiteInfo::info_names()
     std::cout << "------------------------------------------" << std::endl;
 
     return 0;
+}
+
+std::string SiteInfo::get_ext(const PageInfo& page, const std::string& extType)
+{
+    std::string ext;
+
+    //checks for non-default page extension
+    Path extPath = page.pagePath.getInfoPath();
+    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + extType;
+
+    if(std::ifstream(extPath.str()))
+    {
+        std::ifstream ifs(extPath.str());
+        getline(ifs, ext);
+        ifs.close();
+    }
+    else if(extType == ".contExt")
+        ext = contentExt;
+    else if(extType == ".pageExt")
+        ext = pageExt;
+    else if(extType == ".scriptExt")
+        ext = scriptExt;
+
+    return ext;
+}
+
+std::string SiteInfo::get_cont_ext(const PageInfo& page)
+{
+    return get_ext(page, ".contExt");
+}
+
+std::string SiteInfo::get_page_ext(const PageInfo& page)
+{
+    return get_ext(page, ".pageExt");
+}
+
+std::string SiteInfo::get_script_ext(const PageInfo& page)
+{
+    return get_ext(page, ".scriptExt");
 }
 
 bool SiteInfo::tracking(const PageInfo &page)
@@ -729,11 +824,11 @@ int SiteInfo::new_title(const Name &pageName, const Title &newTitle)
         save_pages();
 
         //informs user that page title was successfully changed
-        std::cout << "successfully changed page title to " << newTitle << std::endl;
+        std::cout << "successfully changed page title to " << quote(newTitle.str) << std::endl;
     }
     else
     {
-        std::cout << "error: Nift is not tracking " << pageName << std::endl;
+        std::cout << "error: Nift is not tracking " << quote(pageName) << std::endl;
         return 1;
     }
 
@@ -1133,7 +1228,7 @@ int SiteInfo::new_content_ext(const std::string &newExt)
 
     if(newExt == contentExt)
     {
-        std::cout << "error: content extension is already " << contentExt << std::endl;
+        std::cout << "error: content extension is already " << quote(contentExt) << std::endl;
         return 1;
     }
 
@@ -1172,7 +1267,7 @@ int SiteInfo::new_content_ext(const std::string &newExt)
     }
 
     //informs user that page extension was successfully changed
-    std::cout << "successfully changed content extension to " << newExt << std::endl;
+    std::cout << "successfully changed content extension to " << quote(newExt) << std::endl;
 
     return 0;
 }
@@ -1204,7 +1299,7 @@ int SiteInfo::new_content_ext(const Name &pageName, const std::string &newExt)
 
         if(oldExt == newExt)
         {
-            std::cout << "error: content extension for " << pageName << " is already " << oldExt << std::endl;
+            std::cout << "error: content extension for " << quote(pageName) << " is already " << quote(oldExt) << std::endl;
             return 1;
         }
 
@@ -1234,7 +1329,7 @@ int SiteInfo::new_content_ext(const Name &pageName, const std::string &newExt)
     }
     else
     {
-        std::cout << "error: Nift is not tracking " << pageName << std::endl;
+        std::cout << "error: Nift is not tracking " << quote(pageName) << std::endl;
         return 1;
     }
 
@@ -1251,7 +1346,7 @@ int SiteInfo::new_page_ext(const std::string &newExt)
 
     if(newExt == pageExt)
     {
-        std::cout << "error: page extension is already " << pageExt << std::endl;
+        std::cout << "error: page extension is already " << quote(pageExt) << std::endl;
         return 1;
     }
 
@@ -1290,7 +1385,7 @@ int SiteInfo::new_page_ext(const std::string &newExt)
     }
 
     //informs user that page extension was successfully changed
-    std::cout << "successfully changed page extension to " << newExt << std::endl;
+    std::cout << "successfully changed page extension to " << quote(newExt) << std::endl;
 
     return 0;
 }
@@ -1322,7 +1417,7 @@ int SiteInfo::new_page_ext(const Name &pageName, const std::string &newExt)
 
         if(oldExt == newExt)
         {
-            std::cout << "error: page extension for " << pageName << " is already " << oldExt << std::endl;
+            std::cout << "error: page extension for " << quote(pageName) << " is already " << quote(oldExt) << std::endl;
             return 1;
         }
 
@@ -1352,9 +1447,129 @@ int SiteInfo::new_page_ext(const Name &pageName, const std::string &newExt)
     }
     else
     {
-        std::cout << "error: Nift is not tracking " << pageName << std::endl;
+        std::cout << "error: Nift is not tracking " << quote(pageName) << std::endl;
         return 1;
     }
+
+    return 0;
+}
+
+int SiteInfo::new_script_ext(const std::string &newExt)
+{
+    if(newExt != "" && newExt[0] != '.')
+    {
+        std::cout << "error: non-empty script extension must start with a fullstop" << std::endl;
+        return 1;
+    }
+
+    if(newExt == scriptExt)
+    {
+        std::cout << "error: script extension is already " << quote(scriptExt) << std::endl;
+        return 1;
+    }
+
+    scriptExt = newExt;
+
+    save_config();
+
+    for(auto page=pages.begin(); page!=pages.end(); page++)
+    {
+        //checks for non-default page extension
+        Path extPath = page->pagePath.getInfoPath();
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
+
+        if(std::ifstream(extPath.str()))
+        {
+            std::ifstream ifs(extPath.str());
+            std::string oldExt;
+
+            read_quoted(ifs, oldExt);
+            ifs.close();
+
+            if(oldExt == newExt)
+                extPath.removePath();
+        }
+    }
+
+    //informs user that page extension was successfully changed
+    std::cout << "successfully changed script extension to " << quote(newExt) << std::endl;
+
+    return 0;
+}
+
+int SiteInfo::new_script_ext(const Name &pageName, const std::string &newExt)
+{
+    if(newExt != "" && newExt[0] != '.')
+    {
+        std::cout << "error: non-empty script extension must start with a fullstop" << std::endl;
+        return 1;
+    }
+
+    PageInfo pageInfo = get_info(pageName);
+    if(pages.count(pageInfo))
+    {
+        //checks for non-default script extension
+        Path extPath = pageInfo.pagePath.getInfoPath();
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
+
+        std::string oldExt;
+        if(std::ifstream(extPath.str()))
+        {
+            std::ifstream ifs(extPath.str());
+            getline(ifs, oldExt);
+            ifs.close();
+        }
+        else
+            oldExt = scriptExt;
+
+        if(oldExt == newExt)
+        {
+            std::cout << "error: script extension for " << quote(pageName) << " is already " << quote(oldExt) << std::endl;
+            return 1;
+        }
+
+        //makes sure we can write to ext file
+        chmod(extPath.str().c_str(), 0644);
+
+        if(newExt != pageExt)
+        {
+            std::ofstream ofs(extPath.str());
+            ofs << newExt << "\n";
+            ofs.close();
+
+            //makes sure user can't edit ext file
+            chmod(extPath.str().c_str(), 0444);
+        }
+        else
+            extPath.removePath();
+    }
+    else
+    {
+        std::cout << "error: Nift is not tracking " << quote(pageName) << std::endl;
+        return 1;
+    }
+
+    return 0;
+}
+
+int SiteInfo::no_build_threads(int no_threads)
+{
+    if(no_threads == 0)
+    {
+        std::cout << "error: number of build threads must be a non-zero integer (use negative numbers for a multiple of the number of cores on the machine)" << std::endl;
+        return 1;
+    }
+
+    if(no_threads == buildThreads)
+    {
+        std::cout << "error: number of build threads is already " << buildThreads << std::endl;
+        return 1;
+    }
+
+    buildThreads = no_threads;
+    save_config();
+
+    std::cout << "successfully changed number of build threads to " << no_threads << std::endl;
 
     return 0;
 }
@@ -1363,7 +1578,7 @@ std::mutex os_mtx;
 
 int SiteInfo::build(const std::vector<Name>& pageNamesToBuild)
 {
-    PageBuilder pageBuilder(&pages, &os_mtx, contentDir, siteDir, contentExt, pageExt, defaultTemplate, unixTextEditor, winTextEditor);
+    PageBuilder pageBuilder(&pages, &os_mtx, contentDir, siteDir, contentExt, pageExt, scriptExt, defaultTemplate, unixTextEditor, winTextEditor);
     std::set<Name> untrackedPages, failedPages;
 
     for(auto pageName=pageNamesToBuild.begin(); pageName != pageNamesToBuild.end(); pageName++)
@@ -1408,9 +1623,9 @@ std::set<PageInfo>::iterator cPage;
 
 std::atomic<int> counter;
 
-void build_thread(std::ostream& os, std::set<PageInfo>* pages, const int& no_pages, const Directory& ContentDir, const Directory& SiteDir, const std::string& ContentExt, const std::string& PageExt, const Path& DefaultTemplate, const std::string& UnixTextEditor, const std::string& WinTextEditor)
+void build_thread(std::ostream& os, std::set<PageInfo>* pages, const int& no_pages, const Directory& ContentDir, const Directory& SiteDir, const std::string& ContentExt, const std::string& PageExt, const std::string& ScriptExt, const Path& DefaultTemplate, const std::string& UnixTextEditor, const std::string& WinTextEditor)
 {
-    PageBuilder pageBuilder(pages, &os_mtx, ContentDir, SiteDir, ContentExt, PageExt, DefaultTemplate, UnixTextEditor, WinTextEditor);
+    PageBuilder pageBuilder(pages, &os_mtx, ContentDir, SiteDir, ContentExt, PageExt, ScriptExt, DefaultTemplate, UnixTextEditor, WinTextEditor);
     std::set<PageInfo>::iterator pageInfo;
 
     while(counter < no_pages)
@@ -1442,7 +1657,11 @@ void build_thread(std::ostream& os, std::set<PageInfo>* pages, const int& no_pag
 
 int SiteInfo::build_all()
 {
-    int no_threads = std::thread::hardware_concurrency();
+    int no_threads;
+    if(buildThreads < 0)
+        no_threads = -buildThreads*std::thread::hardware_concurrency();
+    else
+        no_threads = buildThreads;
 
     std::set<Name> untrackedPages;
 
@@ -1451,7 +1670,7 @@ int SiteInfo::build_all()
 
 	std::vector<std::thread> threads;
 	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(build_thread, std::ref(std::cout), &pages, pages.size(), contentDir, siteDir, contentExt, pageExt, defaultTemplate, unixTextEditor, winTextEditor));
+		threads.push_back(std::thread(build_thread, std::ref(std::cout), &pages, pages.size(), contentDir, siteDir, contentExt, pageExt, scriptExt, defaultTemplate, unixTextEditor, winTextEditor));
 
 	for(int i=0; i<no_threads; i++)
 		threads[i].join();
@@ -1685,7 +1904,11 @@ int SiteInfo::build_updated(std::ostream& os)
     modifiedFiles.clear();
     removedFiles.clear();
 
-    int no_threads = std::thread::hardware_concurrency();
+    int no_threads;
+    if(buildThreads < 0)
+        no_threads = -buildThreads*std::thread::hardware_concurrency();
+    else
+        no_threads = buildThreads;
 
     cPage = pages.begin();
     counter = 0;
@@ -1770,7 +1993,7 @@ int SiteInfo::build_updated(std::ostream& os)
 
 	threads.clear();
 	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(build_thread, std::ref(os), &pages, updatedPages.size(), contentDir, siteDir, contentExt, pageExt, defaultTemplate, unixTextEditor, winTextEditor));
+		threads.push_back(std::thread(build_thread, std::ref(os), &pages, updatedPages.size(), contentDir, siteDir, contentExt, pageExt, scriptExt, defaultTemplate, unixTextEditor, winTextEditor));
 
 	for(int i=0; i<no_threads; i++)
 		threads[i].join();
