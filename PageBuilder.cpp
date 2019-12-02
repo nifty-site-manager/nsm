@@ -30,13 +30,14 @@ bool run_script(std::ostream& os, std::string scriptPath, std::mutex* os_mtx)
 {
     if(std::ifstream(scriptPath))
     {
+        int c = sys_counter++;
         size_t pos = scriptPath.substr(1, scriptPath.size()-1).find_first_of('.');
-        std::string scriptExt = "";
+        std::string cScriptExt = "";
         if(pos != std::string::npos)
-            scriptExt = scriptPath.substr(pos+1, scriptPath.size()-pos-1);
-        std::string execPath = "./.script" + std::to_string(sys_counter++) + scriptExt;
-        std::string output_filename = ".script.out" + std::to_string(sys_counter++);
-        //std::string output_filename = scriptPath + ".out" + std::to_string(sys_counter++);
+            cScriptExt = scriptPath.substr(pos+1, scriptPath.size()-pos-1);
+        std::string execPath = "./.script" + std::to_string(c) + cScriptExt;
+        std::string output_filename = ".script.out" + std::to_string(c);
+        //std::string output_filename = scriptPath + ".out" + std::to_string(c);
         int result;
 
         #if defined _WIN32 || defined _WIN64
@@ -46,11 +47,27 @@ bool run_script(std::ostream& os, std::string scriptPath, std::mutex* os_mtx)
         #endif
 
         //copies script to backup location
-        cpFile(scriptPath, scriptPath + ".backup");
+        if(cpFile(scriptPath, scriptPath + ".backup"))
+        {
+            os_mtx->lock();
+            os << "error: PageBuilder.cpp: run_script(" << quote(scriptPath) << "): failed to copy " << quote(scriptPath) << " to " << quote(scriptPath + ".backup") << std::endl;
+            os_mtx->unlock();
+            return 1;
+        }
 
         //moves script to main directory
-        //note if just copy original script get 'Text File Busy' errors
-        rename(scriptPath.c_str(), execPath.c_str());
+        //note if just copy original script or move copied script get 'Text File Busy' errors (can be quite rare)
+        //sometimes this fails (on Windows) for some reason, so keeps trying until successful
+        int mcount = 0;
+        while(rename(scriptPath.c_str(), execPath.c_str()))
+        {
+            if(++mcount == 100)
+            {
+                os_mtx->lock();
+                os << "warning: PageBuilder.cpp: run_script(" << quote(scriptPath) << "): have tried to move " << scriptPath << " to " << execPath << " 100 times already, may need to abort" << std::endl;
+                os_mtx->unlock();
+            }
+        }
 
         //checks whether we're running from flatpak
         if(std::ifstream("/.flatpak-info"))
@@ -59,7 +76,19 @@ bool run_script(std::ostream& os, std::string scriptPath, std::mutex* os_mtx)
             result = system((execPath + " > " + output_filename).c_str());
 
         //moves script back to its original location
-        rename(execPath.c_str(), scriptPath.c_str());
+        //sometimes this fails (on Windows) for some reason, so keeps trying until successful
+        mcount = 0;
+        while(rename(execPath.c_str(), scriptPath.c_str()))
+        {
+            if(++mcount == 100)
+            {
+                os_mtx->lock();
+                os << "warning: PageBuilder.cpp: run_script(" << quote(scriptPath) << "): have tried to move " << execPath << " to " << scriptPath << " 100 times already, may need to abort" << std::endl;
+                os_mtx->unlock();
+            }
+        }
+
+        //deletes backup copy
         Path("", scriptPath + ".backup").removePath();
 
         std::ifstream ifxs(output_filename);
@@ -253,25 +282,71 @@ int PageBuilder::read_and_process(const bool& indent,
         antiDepsOfReadPath.insert(readPath);
 
     std::string baseIndentAmount = indentAmount;
+    std::string beforePreBaseIndentAmount;
     if(!indent) // not sure if this is needed?
         baseIndentAmount = "";
     int baseCodeBlockDepth = codeBlockDepth;
 
     int lineNo = 0,
         openCodeLineNo = 0;
+    bool firstLine = 1, lastLine = 0;
     std::string inLine;
     while(getline(is, inLine))
     {
         lineNo++;
 
-        if(lineNo > 1)
+        while(inLine == "@---")
+        {
+            int openLine = lineNo;
+            std::stringstream ss;
+            std::ostringstream oss;
+
+            while(getline(is, inLine))
+            {
+                lineNo++;
+                if(inLine == "@---")
+                    break;
+
+                ss << inLine << "\n";
+            }
+
+            if(inLine != "@---")
+            {
+                os_mtx->lock();
+                eos << "error: " << readPath << ": lineNo " << openLine << ": open comment line @--- has no close line @--- (make sure there is no leading/trailing whitespace)" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+
+            //parses comment stringstream
+            std::string oldIndent = indentAmount;
+            indentAmount = "";
+
+            //readPath << ": line " << lineNo << ":
+            if(read_and_process(0, ss, Path("", "special multi-line parsed comment"), antiDepsOfReadPath, oss, eos))
+            {
+                os_mtx->lock();
+                eos << "error: " << readPath << ": lineNo " << openLine << ": @/* comment @*/: read_and_process() failed here" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+
+            indentAmount = oldIndent;
+
+            if(!getline(is, inLine))
+                lastLine = 1;
+            lineNo++;
+        }
+
+        if(lineNo > 1 && !firstLine && !lastLine) //could check !is.eof() rather than last line (trying to be clear)
         {
             indentAmount = baseIndentAmount;
-            if(codeBlockDepth)
+            /*if(codeBlockDepth)
                 os << "\n";
-            else
-                os << "\n" << baseIndentAmount;
+            else*/
+            os << "\n" << baseIndentAmount;
         }
+        firstLine = 0;
 
         for(size_t linePos=0; linePos<inLine.length();)
         {
@@ -369,6 +444,8 @@ int PageBuilder::read_and_process(const bool& indent,
                 if(htmlCommentDepth == 0 && inLine.substr(linePos+1, 4) == "/pre")
                 {
                     codeBlockDepth--;
+                    if(codeBlockDepth == 0)
+                        baseIndentAmount = beforePreBaseIndentAmount;
                     if(codeBlockDepth < baseCodeBlockDepth)
                     {
                         os_mtx->lock();
@@ -378,8 +455,28 @@ int PageBuilder::read_and_process(const bool& indent,
                     }
                 }
 
-                //checks whether to escape <
-                if(codeBlockDepth > 0 && inLine.substr(linePos+1, 4) != "code" && inLine.substr(linePos+1, 5) != "/code")
+                if(inLine.substr(linePos, 4) == "<@--") //checks for raw multi-line comment
+                {
+                    linePos += 4;
+                    int openLine = lineNo;
+
+                    size_t endPos = inLine.find("--@>");
+                    while(endPos == std::string::npos)
+                    {
+                        if(!getline(is, inLine))
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": lineNo " << openLine << ": open comment <@-- has no close --@>" << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
+                        lineNo++;
+                        endPos = inLine.find("--@>");
+                    }
+
+                    linePos = endPos + 3; // linePos is incemented again further below (a bit gross!)
+                }//else checks whether to escape <
+                else if(codeBlockDepth > 0 && inLine.substr(linePos+1, 4) != "code" && inLine.substr(linePos+1, 5) != "/code")
                 {
                     os << "&lt;";
                     if(indent)
@@ -395,6 +492,11 @@ int PageBuilder::read_and_process(const bool& indent,
                 //checks whether we're going up code block depth
                 if(htmlCommentDepth == 0 && inLine.substr(linePos+1, 3) == "pre")
                 {
+                    if(codeBlockDepth == 0)
+                    {
+                        beforePreBaseIndentAmount = baseIndentAmount;
+                        baseIndentAmount = "";
+                    }
                     if(codeBlockDepth == baseCodeBlockDepth)
                         openCodeLineNo = lineNo;
                     codeBlockDepth++;
@@ -412,6 +514,14 @@ int PageBuilder::read_and_process(const bool& indent,
                 if(inLine.substr(linePos+1, 2) == "->")
                     htmlCommentDepth--;
 
+                if(inLine.substr(linePos, 4) == "--@>")
+                {
+                    os_mtx->lock();
+                    eos << "error: " << readPath << ": lineNo " << lineNo << ": close comment --@> has no open <@--" << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
+
                 os << '-';
                 if(indent)
                     indentAmount += " ";
@@ -425,6 +535,134 @@ int PageBuilder::read_and_process(const bool& indent,
                     if(indent)
                         indentAmount += " ";
                     linePos++;
+                }
+                else if(inLine.substr(linePos, 2) == "@#")
+                {
+                    linePos = inLine.length();
+                }
+                else if(inLine.substr(linePos, 3) == "@//")
+                {
+                    linePos += 3;
+                    std::string restOfLine = inLine.substr(linePos, inLine.size() - linePos);
+
+                    std::istringstream iss(restOfLine);
+                    std::ostringstream oss;
+
+                    std::string oldIndent = indentAmount;
+                    indentAmount = "";
+
+                    //readPath << ": line " << lineNo << ":
+                    if(read_and_process(0, iss, Path("", "single-line parsed comment"), antiDepsOfReadPath, oss, eos))
+                    {
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+
+                    indentAmount = oldIndent;
+
+                    linePos = inLine.length();
+                }
+                else if(inLine.substr(linePos, 3) == "@\\n")
+                {
+                    linePos += 3;
+                    indentAmount = baseIndentAmount;
+                    if(codeBlockDepth)
+                        os << "\n";
+                    else
+                        os << "\n" << baseIndentAmount;
+                }
+                else if(inLine.substr(linePos, 4) == "@!\\n")
+                {
+                    linePos += 4;
+                    std::string restOfLine = inLine.substr(linePos, inLine.size() - linePos);
+
+                    if(restOfLine.find("@!\\n") != std::string::npos)
+                    {
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": line " << lineNo << ": do not use @!\\n twice on the same line" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+
+                    std::istringstream iss(restOfLine);
+                    std::ostringstream oss;
+
+                    std::string oldIndent = indentAmount;
+                    indentAmount = "";
+
+                    //readPath << ": line " << lineNo << ":
+                    if(read_and_process(0, iss, Path("", "special single-line parsed comment"), antiDepsOfReadPath, oss, eos))
+                    {
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+
+                    indentAmount = oldIndent;
+
+                    getline(is, inLine);
+                    lineNo++;
+                    linePos=0;
+                }
+                else if(inLine.substr(linePos, 3) == "@/*")
+                {
+                    linePos += 3;
+                    int openLine = lineNo;
+
+                    std::stringstream ss;
+                    std::ostringstream oss;
+
+                    size_t endPos = inLine.find("@*/");
+
+                    if(endPos != std::string::npos)
+                        ss << inLine.substr(linePos, endPos - linePos);
+                    else
+                    {
+                        while(endPos == std::string::npos)
+                        {
+                            ss << inLine.substr(linePos, inLine.size() - linePos) << "\n";
+
+                            if(!getline(is, inLine))
+                            {
+                                os_mtx->lock();
+                                eos << "error: " << readPath << ": lineNo " << openLine << ": open comment @/* has no close @*/" << std::endl;
+                                os_mtx->unlock();
+                                return 1;
+                            }
+                            lineNo++;
+                            linePos = 0;
+                            endPos = inLine.find("@*/");
+                        }
+
+                        ss << inLine.substr(0, endPos);
+                    }
+
+                    linePos = endPos + 3;
+
+                    //parses comment stringstream
+                    std::string oldIndent = indentAmount;
+                    indentAmount = "";
+
+                    //readPath << ": line " << lineNo << ":
+                    if(read_and_process(0, ss, Path("", "multi-line parsed comment"), antiDepsOfReadPath, oss, eos))
+                    {
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": lineNo " << openLine << ": @/* comment @*/: read_and_process() failed here" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+
+                    indentAmount = oldIndent;
+                }
+                else if(inLine.substr(linePos, 3) == "@*/")
+                {
+                    os_mtx->lock();
+                    eos << "error: " << readPath << ": lineNo " << lineNo << ": close comment @*/ has no open @/*" << std::endl;
+                    os_mtx->unlock();
+                    return 1;
                 }
                 else if(inLine.substr(linePos, 11) == "@rawcontent")
                 {
@@ -829,9 +1067,10 @@ int PageBuilder::read_and_process(const bool& indent,
                 }
                 else if(inLine.substr(linePos, 8) == "@script(" || inLine.substr(linePos, 9) == "@script*(")
                 {
+                    int c = sys_counter++;
                     linePos+=std::string("@script").length();
                     std::string scriptPathStr, scriptParams;
-                    std::string output_filename = ".@scriptoutput" + std::to_string(sys_counter++);
+                    std::string output_filename = ".@scriptoutput" + std::to_string(c);
 
                     if(inLine[linePos] == '*')
                     {
@@ -887,10 +1126,10 @@ int PageBuilder::read_and_process(const bool& indent,
                     }
 
                     size_t pos = scriptPathStr.substr(1, scriptPathStr.size()-1).find_first_of('.');
-                    std::string scriptExt = "";
+                    std::string cScriptExt = "";
                     if(pos != std::string::npos)
-                        scriptExt = scriptPathStr.substr(pos+1, scriptPathStr.size()-pos-1);
-                    std::string execPath = "./.script" + std::to_string(sys_counter++) + scriptExt;
+                        cScriptExt = scriptPathStr.substr(pos+1, scriptPathStr.size()-pos-1);
+                    std::string execPath = "./.script" + std::to_string(c) + cScriptExt;
 
                     #if defined _WIN32 || defined _WIN64
                         if(unquote(execPath).substr(0, 2) == "./")
@@ -899,13 +1138,10 @@ int PageBuilder::read_and_process(const bool& indent,
                     #endif
 
                     Path scriptPath;
-                    if(unquote(scriptPathStr).substr(0, 2) == "./")
-                        scriptPath.set_file_path_from(unquote(unquote(scriptPathStr).substr(2, unquote(scriptPathStr).size()-2)));
-                    else
-                        scriptPath.set_file_path_from(unquote(scriptPathStr));
+                    scriptPath.set_file_path_from(scriptPathStr);
                     pageDeps.insert(scriptPath);
 
-                    if(!std::ifstream(scriptPath.str()))
+                    if(!std::ifstream(scriptPathStr))
                     {
                         os_mtx->lock();
                         eos << "error: " << readPath << ": line " << lineNo << ": @script(" << quote(scriptPathStr) << ") failed as script does not exist" << std::endl;
@@ -914,10 +1150,27 @@ int PageBuilder::read_and_process(const bool& indent,
                     }
 
                     //copies script to backup location
-                    cpFile(scriptPathStr, scriptPathStr + ".backup");
+                    if(cpFile(scriptPathStr, scriptPathStr + ".backup"))
+                    {
+                        os_mtx->lock();
+                        os << "error: " << readPath << ": line " << lineNo << ": failed to copy " << quote(scriptPathStr) << " to " << quote(scriptPathStr + ".backup") << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
 
                     //moves script to main directory
-                    rename(scriptPathStr.c_str(), execPath.c_str());
+                    //note if just copy original script or move copied script get 'Text File Busy' errors (can be quite rare)
+                    //sometimes this fails (on Windows) for some reason, so keeps trying until successful
+                    int mcount = 0;
+                    while(rename(scriptPathStr.c_str(), execPath.c_str()))
+                    {
+                        if(++mcount == 100)
+                        {
+                            os_mtx->lock();
+                            os << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << scriptPathStr << " to " << execPath << " 100 times already, may need to abort" << std::endl;
+                            os_mtx->unlock();
+                        }
+                    }
 
                     //checks whether we're running from flatpak
                     int result;
@@ -927,7 +1180,19 @@ int PageBuilder::read_and_process(const bool& indent,
                         result = system((execPath + " " + scriptParams + " > " + output_filename).c_str());
 
                     //moves script back to original location
-                    rename(execPath.c_str(), scriptPathStr.c_str());
+                    //sometimes this fails (on Windows) for some reason, so keeps trying until successful
+                    mcount = 0;
+                    while(rename(execPath.c_str(), scriptPathStr.c_str()))
+                    {
+                        if(++mcount == 100)
+                        {
+                            os_mtx->lock();
+                            os << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << execPath << " to " << scriptPathStr << " 100 times already, may need to abort" << std::endl;
+                            os_mtx->unlock();
+                        }
+                    }
+
+                    //deletes backup copy
                     Path("", scriptPathStr + ".backup").removePath();
 
                     std::ifstream ifs(output_filename);
@@ -950,9 +1215,10 @@ int PageBuilder::read_and_process(const bool& indent,
                 }
                 else if(inLine.substr(linePos, 11) == "@scriptraw(" || inLine.substr(linePos, 12) == "@scriptraw*(")
                 {
+                    int c = sys_counter++;
                     linePos+=std::string("@scriptraw").length();
                     std::string scriptPathStr, scriptParams;
-                    std::string output_filename = ".@scriptoutput" + std::to_string(sys_counter++);
+                    std::string output_filename = ".@scriptoutput" + std::to_string(c);
 
                     if(inLine[linePos] == '*')
                     {
@@ -1008,10 +1274,10 @@ int PageBuilder::read_and_process(const bool& indent,
                     }
 
                     size_t pos = scriptPathStr.substr(1, scriptPathStr.size()-1).find_first_of('.');
-                    std::string scriptExt = "";
+                    std::string cScriptExt = "";
                     if(pos != std::string::npos)
-                        scriptExt = scriptPathStr.substr(pos+1, scriptPathStr.size()-pos-1);
-                    std::string execPath = "./.script" + std::to_string(sys_counter++) + scriptExt;
+                        cScriptExt = scriptPathStr.substr(pos+1, scriptPathStr.size()-pos-1);
+                    std::string execPath = "./.script" + std::to_string(c) + cScriptExt;
 
                     #if defined _WIN32 || defined _WIN64
                         if(unquote(execPath).substr(0, 2) == "./")
@@ -1020,16 +1286,13 @@ int PageBuilder::read_and_process(const bool& indent,
                     #endif
 
                     Path scriptPath;
-                    if(unquote(scriptPathStr).substr(0, 2) == "./")
-                        scriptPath.set_file_path_from(unquote(unquote(scriptPathStr).substr(2, unquote(scriptPathStr).size()-2)));
-                    else
-                        scriptPath.set_file_path_from(unquote(scriptPathStr));
+                    scriptPath.set_file_path_from(scriptPathStr);
                     pageDeps.insert(scriptPath);
 
                     if(scriptPath == pageToBuild.contentPath)
                         contentAdded = 1;
 
-                    if(!std::ifstream(scriptPath.str()))
+                    if(!std::ifstream(scriptPathStr))
                     {
                         os_mtx->lock();
                         eos << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(scriptPathStr) << ") failed as script does not exist" << std::endl;
@@ -1038,10 +1301,27 @@ int PageBuilder::read_and_process(const bool& indent,
                     }
 
                     //copies script to backup location
-                    cpFile(scriptPathStr, scriptPathStr + ".backup");
+                    if(cpFile(scriptPathStr, scriptPathStr + ".backup"))
+                    {
+                        os_mtx->lock();
+                        os << "error: " << readPath << ": line " << lineNo << ": failed to copy " << quote(scriptPathStr) << " to " << quote(scriptPathStr + ".backup") << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
 
                     //moves script to main directory
-                    rename(scriptPathStr.c_str(), execPath.c_str());
+                    //note if just copy original script or move copied script get 'Text File Busy' errors (can be quite rare)
+                    //sometimes this fails (on Windows) for some reason, so keeps trying until successful
+                    int mcount = 0;
+                    while(rename(scriptPathStr.c_str(), execPath.c_str()))
+                    {
+                        if(++mcount == 100)
+                        {
+                            os_mtx->lock();
+                            os << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << scriptPathStr << " to " << execPath << " 100 times already, may need to abort" << std::endl;
+                            os_mtx->unlock();
+                        }
+                    }
 
                     //checks whether we're running from flatpak
                     int result;
@@ -1051,7 +1331,19 @@ int PageBuilder::read_and_process(const bool& indent,
                         result = system((execPath + " " + scriptParams + " > " + output_filename).c_str());
 
                     //moves script back to original location
-                    rename(execPath.c_str(), scriptPathStr.c_str());
+                    //sometimes this fails (on Windows) for some reason, so keeps trying until successful
+                    mcount = 0;
+                    while(rename(execPath.c_str(), scriptPathStr.c_str()))
+                    {
+                        if(++mcount == 100)
+                        {
+                            os_mtx->lock();
+                            os << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << execPath << " to " << scriptPathStr << " 100 times already, may need to abort" << std::endl;
+                            os_mtx->unlock();
+                        }
+                    }
+
+                    //deletes backup copy
                     Path("", scriptPathStr + ".backup").removePath();
 
                     if(result)
@@ -1083,9 +1375,10 @@ int PageBuilder::read_and_process(const bool& indent,
                 }
                 else if(inLine.substr(linePos, 14) == "@scriptoutput(" || inLine.substr(linePos, 15) == "@scriptoutput*(")
                 {
+                    int c = sys_counter++;
                     linePos+=std::string("@scriptoutput").length();
                     std::string scriptPathStr, scriptParams;
-                    std::string output_filename = ".@scriptoutput" + std::to_string(sys_counter++);
+                    std::string output_filename = ".@scriptoutput" + std::to_string(c);
 
                     if(inLine[linePos] == '*')
                     {
@@ -1141,10 +1434,10 @@ int PageBuilder::read_and_process(const bool& indent,
                     }
 
                     size_t pos = scriptPathStr.substr(1, scriptPathStr.size()-1).find_first_of('.');
-                    std::string scriptExt = "";
+                    std::string cScriptExt = "";
                     if(pos != std::string::npos)
-                        scriptExt = scriptPathStr.substr(pos+1, scriptPathStr.size()-pos-1);
-                    std::string execPath = "./.script" + std::to_string(sys_counter++) + scriptExt;
+                        cScriptExt = scriptPathStr.substr(pos+1, scriptPathStr.size()-pos-1);
+                    std::string execPath = "./.script" + std::to_string(c) + cScriptExt;
 
                     #if defined _WIN32 || defined _WIN64
                         if(unquote(execPath).substr(0, 2) == "./")
@@ -1153,16 +1446,13 @@ int PageBuilder::read_and_process(const bool& indent,
                     #endif
 
                     Path scriptPath;
-                    if(unquote(scriptPathStr).substr(0, 2) == "./")
-                        scriptPath.set_file_path_from(unquote(unquote(scriptPathStr).substr(2, unquote(scriptPathStr).size()-2)));
-                    else
-                        scriptPath.set_file_path_from(unquote(scriptPathStr));
+                    scriptPath.set_file_path_from(scriptPathStr);
                     pageDeps.insert(scriptPath);
 
                     if(scriptPath == pageToBuild.contentPath)
                         contentAdded = 1;
 
-                    if(!std::ifstream(scriptPath.str()))
+                    if(!std::ifstream(scriptPathStr))
                     {
                         os_mtx->lock();
                         eos << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(scriptPathStr) << ") failed as script does not exist" << std::endl;
@@ -1171,10 +1461,27 @@ int PageBuilder::read_and_process(const bool& indent,
                     }
 
                     //copies script to backup location
-                    cpFile(scriptPathStr, scriptPathStr + ".backup");
+                    if(cpFile(scriptPathStr, scriptPathStr + ".backup"))
+                    {
+                        os_mtx->lock();
+                        os << "error: " << readPath << ": line " << lineNo << ": failed to copy " << quote(scriptPathStr) << " to " << quote(scriptPathStr + ".backup") << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
 
                     //moves script to main directory
-                    rename(scriptPathStr.c_str(), execPath.c_str());
+                    //note if just copy original script or move copied script get 'Text File Busy' errors (can be quite rare)
+                    //sometimes this fails (on Windows) for some reason, so keeps trying until successful
+                    int mcount = 0;
+                    while(rename(scriptPathStr.c_str(), execPath.c_str()))
+                    {
+                        if(++mcount == 100)
+                        {
+                            os_mtx->lock();
+                            os << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << scriptPathStr << " to " << execPath << " 100 times already, may need to abort" << std::endl;
+                            os_mtx->unlock();
+                        }
+                    }
 
                     //checks whether we're running from flatpak
                     int result;
@@ -1184,7 +1491,19 @@ int PageBuilder::read_and_process(const bool& indent,
                         result = system((execPath + " " + scriptParams + " > " + output_filename).c_str());
 
                     //moves script back to original location
-                    rename(execPath.c_str(), scriptPathStr.c_str());
+                    //sometimes this fails (on Windows) for some reason, so keeps trying until successful
+                    mcount = 0;
+                    while(rename(execPath.c_str(), scriptPathStr.c_str()))
+                    {
+                        if(++mcount == 100)
+                        {
+                            os_mtx->lock();
+                            os << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << execPath << " to " << scriptPathStr << " 100 times already, may need to abort" << std::endl;
+                            os_mtx->unlock();
+                        }
+                    }
+
+                    //deletes backup copy
                     Path("", scriptPathStr + ".backup").removePath();
 
                     if(result)
@@ -1589,7 +1908,7 @@ int PageBuilder::read_and_process(const bool& indent,
                     if(strings.count(varName))
                     {
                         os_mtx->lock();
-                        eos << "error: " << readPath << ": line " << lineNo << ": redeclaration of string('" << varName << "')" << std::endl;
+                        eos << "error: " << readPath << ": line " << lineNo << ": redeclaration of string(" << quote(varName) << ")" << std::endl;
                         os_mtx->unlock();
                         return 1;
                     }
@@ -1659,7 +1978,7 @@ int PageBuilder::read_and_process(const bool& indent,
                     else
                     {
                         os_mtx->lock();
-                        eos << "error: " << readPath << ": line " << lineNo << ": string('" << varName << "') was not declared in this scope" << std::endl;
+                        eos << "error: " << readPath << ": line " << lineNo << ": string(" << quote(varName) << ") was not declared in this scope" << std::endl;
                         os_mtx->unlock();
                         return 1;
                     }
@@ -3037,20 +3356,75 @@ int PageBuilder::read_stringdef(std::string& varName,
     }
 
     //reads variable name
-    for(; inLine[linePos] != ')' && inLine[linePos] != '=' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+    if(inLine[linePos] == '\'')
     {
-        if(linePos == inLine.size())
+        ++linePos;
+        for(; inLine[linePos] != '\''; ++linePos)
         {
-            os_mtx->lock();
-            os << "error: " << readPath << ": line " << lineNo << ": variable definition has no closing bracket ) or newline inside " << callType << " call" << std::endl;
-            os_mtx->unlock();
-            return 1;
+            if(linePos == inLine.size())
+            {
+                os_mtx->lock();
+                os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing single quote or newline inside " << callType << " call" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                varName += '\n';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
+            varName += inLine[linePos];
         }
-        else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
-            linePos++;
-        else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
-            linePos++;
-        varName += inLine[linePos];
+        ++linePos;
+    }
+    else if(inLine[linePos] == '"')
+    {
+        ++linePos;
+        for(; inLine[linePos] != '"'; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os_mtx->lock();
+                os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing double quote \" or newline inside " << callType << " call" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                varName += '\n';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
+            varName += inLine[linePos];
+        }
+        ++linePos;
+    }
+    else
+    {
+        for(; inLine[linePos] != ')' && inLine[linePos] != '=' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os_mtx->lock();
+                os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing bracket ) or newline inside " << callType << " call" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
+            varName += inLine[linePos];
+        }
     }
 
     //skips over whitespace
@@ -3095,7 +3469,7 @@ int PageBuilder::read_stringdef(std::string& varName,
             if(linePos == inLine.size())
             {
                 os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": variable definition has no closing single quote or newline inside " << callType << " call" << std::endl;
+                os << "error: " << readPath << ": line " << lineNo << ": variable value has no closing single quote or newline inside " << callType << " call" << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
@@ -3121,7 +3495,7 @@ int PageBuilder::read_stringdef(std::string& varName,
             if(linePos == inLine.size())
             {
                 os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": variable definition has no closing double quote \" or newline inside " << callType << " call" << std::endl;
+                os << "error: " << readPath << ": line " << lineNo << ": variable value has no closing double quote \" or newline inside " << callType << " call" << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
@@ -3147,7 +3521,7 @@ int PageBuilder::read_stringdef(std::string& varName,
             if(linePos == inLine.size())
             {
                 os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": variable definition has no closing bracket ) or newline inside " << callType << " call" << std::endl;
+                os << "error: " << readPath << ": line " << lineNo << ": variable value has no closing bracket ) or newline inside " << callType << " call" << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
@@ -3216,20 +3590,75 @@ int PageBuilder::read_var(std::string& varName,
     }
 
     //reads variable name
-    for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+    if(inLine[linePos] == '\'')
     {
-        if(linePos == inLine.size())
+        ++linePos;
+        for(; inLine[linePos] != '\''; ++linePos)
         {
-            os_mtx->lock();
-            os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing bracket ) or newline inside " << callType << " call" << std::endl;
-            os_mtx->unlock();
-            return 1;
+            if(linePos == inLine.size())
+            {
+                os_mtx->lock();
+                os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing single quote or newline inside " << callType << " call" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                varName += '\n';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
+            varName += inLine[linePos];
         }
-        else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
-            linePos++;
-        else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
-            linePos++;
-        varName += inLine[linePos];
+        ++linePos;
+    }
+    else if(inLine[linePos] == '"')
+    {
+        ++linePos;
+        for(; inLine[linePos] != '"'; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os_mtx->lock();
+                os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing double quote \" or newline inside " << callType << " call" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                varName += '\n';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
+            varName += inLine[linePos];
+        }
+        ++linePos;
+    }
+    else
+    {
+        for(; inLine[linePos] != ')' && inLine[linePos] != '=' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+        {
+            if(linePos == inLine.size())
+            {
+                os_mtx->lock();
+                os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing bracket ) or newline inside " << callType << " call" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
+            varName += inLine[linePos];
+        }
     }
 
     //skips over hopefully trailing whitespace

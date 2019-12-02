@@ -3,17 +3,18 @@ Nift Release Notes
 ------------------
 
 Version 1.23 of Nift
-* [todo] improved filenames for temporary files
-* [todo] added syntax @txt to template language
-* [todo] added syntax @scriptcontent, @systemtofile, @scripttofile to template language
-* [todo] added in Nift comments:
+* fixed Windows bugs and tidied up with pre/post build/serve scripts and @script, @scriptoutput, @scriptraw
+* fixed indenting inside pre blocks with methods to input from file
+* added allowing quoted string variable names with whitespace and open brackets
+* improved filenames for temporary files
+* added syntax @\n to template language
+* added in syntax for Nift comments to template language:
 	- <@-- .. --@>   (raw multi line comment)
 	- @/*  .. @*/    (parsed multi line comment)
 	- @--- .. @---   (parsed special multi line comment)
 	- @#             (raw single line comment)
 	- @//            (parsed single line comment)
-	- @\n            (parsed special single line comment))
-	- @comment\*(..) (raw and parsed mid line comment)
+	- @!\n           (parsed special single line comment)
 
 Version 1.22 of Nift
 * added in scriptExt to config files, better way to do pre/post build/serve scripts

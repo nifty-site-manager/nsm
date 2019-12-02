@@ -124,7 +124,7 @@ int main(int argc, char* argv[])
     //Nift commands that can run from anywhere
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.22" << std::endl;
+        std::cout << "Nift (aka nsm) v1.23" << std::endl;
 
         return 0;
     }
@@ -342,7 +342,7 @@ int main(int argc, char* argv[])
                     ret_val = system(cmdStr.c_str());
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: config: system('" << cmdStr << "') failed in " << quote(get_pwd()) << std::endl;
+                        std::cout << "error: nsm.cpp: config: system(" << quote(cmdStr) << ") failed in " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
                 }
@@ -364,7 +364,7 @@ int main(int argc, char* argv[])
                     ret_val = system(cmdStr.c_str());
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: config: system('" << cmdStr << "') failed in " << quote(get_pwd()) << std::endl;
+                        std::cout << "error: nsm.cpp: config: system(" << quote(cmdStr) << ") failed in " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
                 }
@@ -422,7 +422,7 @@ int main(int argc, char* argv[])
         ret_val = system(cloneCmnd.c_str());
         if(ret_val)
         {
-            std::cout << "error: nsm.cpp: clone: system('" << cloneCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+            std::cout << "error: nsm.cpp: clone: system(" << quote(cloneCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
             return ret_val;
         }
 
@@ -435,6 +435,18 @@ int main(int argc, char* argv[])
 
         std::string obranch = get_pb();
         std::set<std::string> branches = get_git_branches();
+
+        if(obranch == "##error##")
+        {
+            std::cout << "error: nsm.cpp: pull: get_pb() failed in repository root directory " << quote(get_pwd()) << std::endl;
+            return 1;
+        }
+
+        if(obranch == "##not-found##")
+        {
+            std::cout << "error: nsm.cpp: clone: no branch found in repository root directory " << quote(get_pwd()) << std::endl;
+            return 1;
+        }
 
         if(branches.size() == 0)
         {
@@ -453,7 +465,7 @@ int main(int argc, char* argv[])
                 Path("./", "nul").removePath();
             if(ret_val)
             {
-                std::cout << "error: nsm.cpp: clone: system('" << checkoutCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+                std::cout << "error: nsm.cpp: clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
                 return ret_val;
             }
 
@@ -483,17 +495,17 @@ int main(int argc, char* argv[])
                         return ret_val;
                     }
 
-                    ret_val = cpDir(dirName, ".abcd143d");
+                    ret_val = cpDir(dirName, ".temp-site-dir");
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: clone: failed to copy directory " << quote(dirName) << " to '.abcd143d/' from " << quote(get_pwd()) << std::endl;
+                        std::cout << "error: nsm.cpp: clone: failed to copy directory " << quote(dirName) << " to '.temp-site-dir/' from " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
 
-                    ret_val = chdir(".abcd143d");
+                    ret_val = chdir(".temp-site-dir");
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(dirName) << " from " << quote(get_pwd()) << std::endl;
+                        std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(".temp-site-dir") << " from " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
 
@@ -512,7 +524,7 @@ int main(int argc, char* argv[])
                         Path("./", "nul").removePath();
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: clone: system('" << checkoutCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+                        std::cout << "error: nsm.cpp: clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
 
@@ -538,7 +550,7 @@ int main(int argc, char* argv[])
                     }
 
                     //moves site dir/branch in two steps here in case site dir/branch isn't located inside stage/root dir/branch
-                    rename(".abcd143d", (dirName + "/.abcd143d").c_str());
+                    rename(".temp-site-dir", (dirName + "/.temp-site-dir").c_str());
 
                     ret_val = chdir(dirName.c_str());
                     if(ret_val)
@@ -547,7 +559,7 @@ int main(int argc, char* argv[])
                         return ret_val;
                     }
 
-                    rename(".abcd143d", site.siteDir.c_str());
+                    rename(".temp-site-dir", site.siteDir.c_str());
 
                     ret_val = chdir(parDir.c_str());
                     if(ret_val)
@@ -567,7 +579,7 @@ int main(int argc, char* argv[])
             Path("./", "nul").removePath();
         if(ret_val)
         {
-            std::cout << "error: nsm.cpp: clone: system('" << checkoutCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+            std::cout << "error: nsm.cpp: clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
             return ret_val;
         }
 
@@ -720,11 +732,17 @@ int main(int argc, char* argv[])
 
             //checks that git is configured
             if(!is_git_configured())
+            {
+                std::cout << "error: nsm.cpp: pull: is git configured?" << std::endl;
                 return 1;
+            }
 
             //checks that remote git url is set
             if(!is_git_remote_set())
+            {
+                std::cout << "error: nsm.cpp: pull: is the git remote url set?" << std::endl;
                 return 1;
+            }
 
             std::string pullCmnd,
                         siteDirRemote,
@@ -734,13 +752,24 @@ int main(int argc, char* argv[])
 
             if(siteRootDirRemote == "##error##")
             {
-                std::cout << "error: nsm.cpp: pull: get_remote() failed in " << quote(get_pwd()) << std::endl;
+                std::cout << "error: nsm.cpp: pull: get_remote() failed in project root directory " << quote(get_pwd()) << std::endl;
                 return 1;
+            }
+
+            if(siteRootDirRemote == "##not-found##")
+            {
+                std::cout << "error: nsm.cpp: pull: get_remote() did not find any git remote in project root directory " << quote(get_pwd()) << std::endl;
             }
 
             if(siteRootDirBranch == "##error##")
             {
-                std::cout << "error: nsm.cpp: pull: get_pb() failed in " << quote(get_pwd()) << std::endl;
+                std::cout << "error: nsm.cpp: pull: get_pb() failed in project root directory " << quote(get_pwd()) << std::endl;
+                return 1;
+            }
+
+            if(siteRootDirBranch == "##not-found##")
+            {
+                std::cout << "error: nsm.cpp: pull: no branch found in project root directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
@@ -761,16 +790,22 @@ int main(int argc, char* argv[])
 
             if(siteDirRemote == "##error##")
             {
-                std::cout << "error: nsm.cpp: pull: get_remote() failed in " << quote(get_pwd()) << std::endl;
-                return 0;
+                std::cout << "error: nsm.cpp: pull: get_remote() failed in site directory " << quote(get_pwd()) << std::endl;
+                return 1;
             }
 
             siteDirBranch = get_pb();
 
             if(siteDirBranch == "##error##")
             {
-                std::cout << "error: nsm.cpp: pull: get_pb() failed in " << quote(get_pwd()) << std::endl;
-                return 0;
+                std::cout << "error: nsm.cpp: pull: get_pb() failed in site directory " << quote(get_pwd()) << std::endl;
+                return 1;
+            }
+
+            if(siteDirBranch == "##not-found##")
+            {
+                std::cout << "error: nsm.cpp: pull: no branch found in site directory " << quote(get_pwd()) << std::endl;
+                return 1;
             }
 
             if(siteDirBranch != site.siteBranch)
@@ -786,7 +821,7 @@ int main(int argc, char* argv[])
                 ret_val = system(pullCmnd.c_str());
                 if(ret_val)
                 {
-                    std::cout << "error: nsm.cpp: pull: system('" << pullCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+                    std::cout << "error: nsm.cpp: pull: system(" << quote(pullCmnd) << ") failed in site directory " << quote(get_pwd()) << std::endl;
                     return ret_val;
                 }
             }
@@ -803,7 +838,7 @@ int main(int argc, char* argv[])
             ret_val = system(pullCmnd.c_str());
             if(ret_val)
             {
-                std::cout << "error: nsm.cpp: pull: system('" << pullCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+                std::cout << "error: nsm.cpp: pull: system(" << quote(pullCmnd) << ") failed in project root directory " << quote(get_pwd()) << std::endl;
                 return ret_val;
             }
 
@@ -864,6 +899,12 @@ int main(int argc, char* argv[])
                 return 0;
             }
 
+            if(siteRootDirBranch == "##not-found##")
+            {
+                std::cout << "error: nsm.cpp: bcp: no branch found in project root directory " << quote(get_pwd()) << std::endl;
+                return 1;
+            }
+
             if(siteRootDirBranch != site.rootBranch)
             {
                 std::cout << "error: nsm.cpp: bcp: root dir branch " << quote(siteRootDirBranch) << " is not the same as rootBranch " << quote(site.rootBranch) << " in .siteinfo/nsm.config" << std::endl;
@@ -885,6 +926,12 @@ int main(int argc, char* argv[])
             {
                 std::cout << "error: nsm.cpp: bcp: get_pb() failed in " << quote(get_pwd()) << std::endl;
                 return 0;
+            }
+
+            if(siteDirBranch == "##not-found##")
+            {
+                std::cout << "error: nsm.cpp: bcp: no branch found in site directory " << quote(get_pwd()) << std::endl;
+                return 1;
             }
 
             if(siteDirBranch != site.siteBranch)
@@ -910,7 +957,7 @@ int main(int argc, char* argv[])
                 ret_val = system(pushCmnd.c_str());
                 if(ret_val)
                 {
-                    std::cout << "error: nsm.cpp: bcp: system('" << pushCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+                    std::cout << "error: nsm.cpp: bcp: system(" << quote(pushCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
                     return ret_val;
                 }
             }
@@ -937,7 +984,7 @@ int main(int argc, char* argv[])
             ret_val = system(pushCmnd.c_str());
             if(ret_val)
             {
-                std::cout << "error: nsm.cpp: bcp: system('" << pushCmnd << "') failed in " << quote(get_pwd()) << std::endl;
+                std::cout << "error: nsm.cpp: bcp: system(" << quote(pushCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
                 return ret_val;
             }
 
