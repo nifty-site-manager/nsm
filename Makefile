@@ -3,7 +3,8 @@ objects=nsm.o DateTimeInfo.o Directory.o Filename.o FileSystem.o GitInfo.o PageB
 cppfiles=nsm.cpp DateTimeInfo.cpp Directory.cpp Filename.cpp FileSystem.cpp GitInfo.cpp PageBuilder.cpp PageInfo.cpp Path.cpp Quoted.cpp SiteInfo.cpp Title.cpp
 CXX?=g++
 LINK=-pthread
-CXXFLAGS+= -std=c++11 -Wall -Wextra -pedantic -O3
+CXXFLAGS?= -O3
+CXXFLAGS+= -std=c++11 -Wall -Wextra -pedantic
 #flags to use when compiling for Netlify
 #CXXFLAGS+= -std=c++11 -Wall -Wextra -pedantic -O3 -static-libgcc -static-libstdc++
 #Flags to use when compiling for Chocolatey
