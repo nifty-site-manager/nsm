@@ -11,6 +11,8 @@
 
 std::string get_pwd();
 bool file_exists(const char *path, const std::string& file);
+bool remove_file(const Path& path);
+bool remove_path(const Path& path); //don't use this anywhere with multithreading!
 std::string ls(const char *path);
 std::vector<std::string> lsVec(const char *path);
 int delDir(std::string dir);

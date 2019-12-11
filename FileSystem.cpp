@@ -32,6 +32,62 @@ bool file_exists(const char *path, const std::string& file)
     return exists;
 }
 
+bool remove_file(const Path& path)
+{
+	if(path.file != "" && std::ifstream(path.str()))
+        if(std::remove(path.str().c_str()))
+			return 1;
+
+	return 0;
+}
+
+//don't use this anywhere with multithreading!
+bool remove_path(const Path& path)
+{
+	if(remove_file(path))
+		return 1;
+
+	std::string owd = get_pwd(),
+	            pwd = owd,
+	            delDir,
+				parDir = "../";
+
+	if(chdir(path.dir.c_str()))
+	{
+		std::cout << "error: remove_path(" << path.str() << "): failed to change directory to " << quote(path.dir) << " from " << quote(get_pwd()) << std::endl;
+		return 1;
+	}
+	delDir = get_pwd();
+
+	if(chdir(parDir.c_str()))
+	{
+		std::cout << "error: remove_path(" << path.str() << "): failed to change directory to parent " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+		return 1;
+	}
+	pwd = get_pwd();
+
+	while(!rmdir(delDir.c_str()))
+	{
+		if(pwd == "/" || pwd == "C:\\")
+			break;
+		delDir = pwd;
+		if(chdir(parDir.c_str()))
+		{
+			std::cout << "error: remove_path(" << path.str() << "): failed to change directory to parent " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+			return 1;
+		}
+		pwd = get_pwd();
+	}
+
+	if(chdir(owd.c_str()))
+	{
+		std::cout << "error: remove_path(" << path.str() << "): failed to change directory to " << quote(owd) << " from " << quote(get_pwd()) << std::endl;
+		return 1;
+	}
+
+	return 0;
+}
+
 std::string ls(const char *path)
 {
     std::string lsStr;
@@ -91,7 +147,7 @@ int delDir(std::string dir)
             }
         }
         else
-            Path("./", files[f]).removePath();
+            remove_path(Path("./", files[f]));
     }
 
     ret_val = chdir(owd.c_str());
@@ -117,7 +173,7 @@ int cpDir(const std::string& sourceDir, const std::string& targetDir)
     if(ret_val)
         ret_val = system(("echo d | xcopy " + sourceDir + " " + targetDir + " /E /H > /dev/null 2>&1 >nul 2>&1").c_str());
     if(std::ifstream("./nul"))
-        Path("./", "nul").removePath();
+        remove_path(Path("./", "nul"));
     if(ret_val)
         std::cout << "error: FileSystem.cpp: cpDir(" << quote(sourceDir) << ", " << quote(targetDir) << "): copy failed" << std::endl;
     return ret_val;
@@ -135,6 +191,10 @@ int cpFile(const std::string& sourceFile, const std::string& targetFile)
 		std::cout << "error: will not copy '" << sourceFile << "' to '" << targetFile << "' as target file already exists" << std::endl;
 		return 1;
 	}
+
+	Path targetPath;
+	targetPath.set_file_path_from(targetFile);
+	targetPath.ensureDirExists();
 
 	std::ifstream ifs(sourceFile);
 	std::ofstream ofs(targetFile);

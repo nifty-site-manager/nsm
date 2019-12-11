@@ -20,15 +20,19 @@ int SiteInfo::open_config()
     }
 
     contentDir = siteDir = "";
+    backupScripts = 1;
     buildThreads = 0;
     contentExt = pageExt = scriptExt = unixTextEditor = winTextEditor = rootBranch = siteBranch = "";
     defaultTemplate = Path("", "");
 
     //reads Nift config file
     std::ifstream ifs(".siteinfo/nsm.config");
-    std::string inLine, inType;
+    std::string inLine, inType, str = "";
+    int lineNo = 0;
     while(getline(ifs, inLine))
     {
+        lineNo++;
+
         if(!is_whitespace(inLine) && inLine.size() && inLine[0] != '#')
         {
             std::istringstream iss(inLine);
@@ -36,17 +40,25 @@ int SiteInfo::open_config()
             iss >> inType;
 
             if(inType == "contentDir")
+            {
                 read_quoted(iss, contentDir);
+                contentDir = comparable(contentDir);
+            }
             else if(inType == "contentExt")
                 read_quoted(iss, contentExt);
             else if(inType == "siteDir")
+            {
                 read_quoted(iss, siteDir);
+                siteDir = comparable(siteDir);
+            }
             else if(inType == "pageExt")
                 read_quoted(iss, pageExt);
             else if(inType == "scriptExt")
                 read_quoted(iss, scriptExt);
             else if(inType == "defaultTemplate")
                 defaultTemplate.read_file_path_from(iss);
+            else if(inType == "backupScripts")
+                iss >> backupScripts;
             else if(inType == "buildThreads")
                 iss >> buildThreads;
             else if(inType == "unixTextEditor")
@@ -59,7 +71,17 @@ int SiteInfo::open_config()
                 read_quoted(iss, siteBranch);
             else
             {
-                std::cout << "error: .siteinfo/nsm.config: do not recognise confirguration parameter " << inType << std::endl;
+                continue;
+                //if we throw error here can't compile sites for newer versions with older versions of Nift
+                //std::cout << "error: .siteinfo/nsm.config: line " << lineNo << ": do not recognise confirguration parameter " << inType << std::endl;
+                //return 1;
+            }
+
+            iss >> str;
+            if(str != "" && str[0] != '#')
+            {
+                std::cout << "error: .siteinfo/nsm.config: line " << lineNo << ": was not expecting anything on this line from '" << unquote(str) << "' onwards" << std::endl;
+                std::cout << "note: you can comment out the remainder of a line with #" << std::endl;
                 return 1;
             }
         }
@@ -275,6 +297,7 @@ int SiteInfo::save_config()
     ofs << "pageExt " << quote(pageExt) << "\n";
     ofs << "scriptExt " << quote(scriptExt) << "\n";
     ofs << "defaultTemplate " << defaultTemplate << "\n\n";
+    ofs << "backupScripts " << backupScripts << "\n\n";
     ofs << "buildThreads " << buildThreads << "\n\n";
     ofs << "unixTextEditor " << quote(unixTextEditor) << "\n";
     ofs << "winTextEditor " << quote(winTextEditor) << "\n\n";
@@ -297,7 +320,7 @@ int SiteInfo::save_pages()
     return 0;
 }
 
-PageInfo SiteInfo::make_info(const Name &pageName)
+PageInfo SiteInfo::make_info(const Name& pageName)
 {
     PageInfo pageInfo;
 
@@ -312,10 +335,32 @@ PageInfo SiteInfo::make_info(const Name &pageName)
     pageInfo.pageTitle = pageName;
     pageInfo.templatePath = defaultTemplate;
 
+    //checks for non-default extensions
+    std::string inExt;
+    Path extPath = pageInfo.pagePath.getInfoPath();
+    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+    if(std::ifstream(extPath.str()))
+    {
+        std::ifstream ifs(extPath.str());
+        getline(ifs, inExt);
+        ifs.close();
+
+        pageInfo.contentPath.file = pageInfo.contentPath.file.substr(0, pageInfo.contentPath.file.find_first_of('.')) + inExt;
+    }
+    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+    if(std::ifstream(extPath.str()))
+    {
+        std::ifstream ifs(extPath.str());
+        getline(ifs, inExt);
+        ifs.close();
+
+        pageInfo.pagePath.file = pageInfo.pagePath.file.substr(0, pageInfo.pagePath.file.find_first_of('.')) + inExt;
+    }
+
     return pageInfo;
 }
 
-PageInfo SiteInfo::make_info(const Name &pageName, const Title &pageTitle)
+PageInfo SiteInfo::make_info(const Name& pageName, const Title& pageTitle)
 {
     PageInfo pageInfo;
 
@@ -330,10 +375,72 @@ PageInfo SiteInfo::make_info(const Name &pageName, const Title &pageTitle)
     pageInfo.pageTitle = pageTitle;
     pageInfo.templatePath = defaultTemplate;
 
+    //checks for non-default extensions
+    std::string inExt;
+    Path extPath = pageInfo.pagePath.getInfoPath();
+    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+    if(std::ifstream(extPath.str()))
+    {
+        std::ifstream ifs(extPath.str());
+        getline(ifs, inExt);
+        ifs.close();
+
+        pageInfo.contentPath.file = pageInfo.contentPath.file.substr(0, pageInfo.contentPath.file.find_first_of('.')) + inExt;
+    }
+    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+    if(std::ifstream(extPath.str()))
+    {
+        std::ifstream ifs(extPath.str());
+        getline(ifs, inExt);
+        ifs.close();
+
+        pageInfo.pagePath.file = pageInfo.pagePath.file.substr(0, pageInfo.pagePath.file.find_first_of('.')) + inExt;
+    }
+
     return pageInfo;
 }
 
-PageInfo SiteInfo::make_info(const Name &pageName, const Title &pageTitle, const Path &templatePath)
+PageInfo SiteInfo::make_info(const Name& pageName, const Title& pageTitle, const Path& templatePath)
+{
+    PageInfo pageInfo;
+
+    pageInfo.pageName = pageName;
+
+    Path pageNameAsPath;
+    pageNameAsPath.set_file_path_from(unquote(pageName));
+
+    pageInfo.contentPath = Path(contentDir + pageNameAsPath.dir, pageNameAsPath.file + contentExt);
+    pageInfo.pagePath = Path(siteDir + pageNameAsPath.dir, pageNameAsPath.file + pageExt);
+
+    pageInfo.pageTitle = pageTitle;
+    pageInfo.templatePath = templatePath;
+
+    //checks for non-default extensions
+    std::string inExt;
+    Path extPath = pageInfo.pagePath.getInfoPath();
+    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+    if(std::ifstream(extPath.str()))
+    {
+        std::ifstream ifs(extPath.str());
+        getline(ifs, inExt);
+        ifs.close();
+
+        pageInfo.contentPath.file = pageInfo.contentPath.file.substr(0, pageInfo.contentPath.file.find_first_of('.')) + inExt;
+    }
+    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+    if(std::ifstream(extPath.str()))
+    {
+        std::ifstream ifs(extPath.str());
+        getline(ifs, inExt);
+        ifs.close();
+
+        pageInfo.pagePath.file = pageInfo.pagePath.file.substr(0, pageInfo.pagePath.file.find_first_of('.')) + inExt;
+    }
+
+    return pageInfo;
+}
+
+PageInfo make_info(const Name& pageName, const Title& pageTitle, const Path& templatePath, const Directory& contentDir, const Directory& siteDir, const std::string& contentExt, const std::string& pageExt)
 {
     PageInfo pageInfo;
 
@@ -351,32 +458,20 @@ PageInfo SiteInfo::make_info(const Name &pageName, const Title &pageTitle, const
     return pageInfo;
 }
 
-PageInfo make_info(const Name &pageName, const Title &pageTitle, const Path &templatePath, const Directory& contentDir, const Directory& siteDir, const std::string& contentExt, const std::string& pageExt)
-{
-    PageInfo pageInfo;
-
-    pageInfo.pageName = pageName;
-
-    Path pageNameAsPath;
-    pageNameAsPath.set_file_path_from(unquote(pageName));
-
-    pageInfo.contentPath = Path(contentDir + pageNameAsPath.dir, pageNameAsPath.file + contentExt);
-    pageInfo.pagePath = Path(siteDir + pageNameAsPath.dir, pageNameAsPath.file + pageExt);
-
-    pageInfo.pageTitle = pageTitle;
-    pageInfo.templatePath = templatePath;
-
-    return pageInfo;
-}
-
-PageInfo SiteInfo::get_info(const Name &pageName)
+PageInfo SiteInfo::get_info(const Name& pageName)
 {
     PageInfo page;
     page.pageName = pageName;
-    return *pages.find(page);
+    auto result = pages.find(page);
+
+    if(result != pages.end())
+        return *result;
+
+    page.pageName = "##not-found##";
+    return page;
 }
 
-int SiteInfo::info(const std::vector<Name> &pageNames)
+int SiteInfo::info(const std::vector<Name>& pageNames)
 {
     std::cout << std::endl;
     std::cout << "------ information on specified pages ------" << std::endl;
@@ -409,6 +504,32 @@ int SiteInfo::info(const std::vector<Name> &pageNames)
 
 int SiteInfo::info_all()
 {
+    if(std::ifstream(".siteinfo/.watchinfo/watching.list"))
+    {
+        WatchList wl;
+        if(wl.open())
+        {
+            std::cout << "error: info-all: failed to open watch list" << std::endl;
+            return 1;
+        }
+
+        std::cout << std::endl;
+        std::cout << "------ all watched directories ------" << std::endl;
+        for(auto wd=wl.dirs.begin(); wd!=wl.dirs.end(); wd++)
+        {
+            if(wd != wl.dirs.begin())
+                std::cout << std::endl;
+            std::cout << "  watch directory: " << quote(wd->watchDir) << std::endl;
+            for(auto ext=wd->contExts.begin(); ext!=wd->contExts.end(); ext++)
+            {
+                std::cout << "content extension: " << quote(*ext) << std::endl;
+                std::cout << "    template path: " << wd->templatePaths.at(*ext) << std::endl;
+                std::cout << "   page extension: " << wd->pageExts.at(*ext) << std::endl;
+            }
+        }
+        std::cout << "-------------------------------------" << std::endl;
+    }
+
     std::cout << std::endl;
     std::cout << "--------- all tracked pages ---------" << std::endl;
     for(auto page=pages.begin(); page!=pages.end(); page++)
@@ -425,6 +546,41 @@ int SiteInfo::info_all()
         std::cout << "template path: " << page->templatePath << std::endl;
     }
     std::cout << "------------------------------------" << std::endl;
+
+    return 0;
+}
+
+int SiteInfo::info_watching()
+{
+    if(std::ifstream(".siteinfo/.watchinfo/watching.list"))
+    {
+        WatchList wl;
+        if(wl.open())
+        {
+            std::cout << "error: info-watching: failed to open watch list" << std::endl;
+            return 1;
+        }
+
+        std::cout << std::endl;
+        std::cout << "------ all watched directories ------" << std::endl;
+        for(auto wd=wl.dirs.begin(); wd!=wl.dirs.end(); wd++)
+        {
+            if(wd != wl.dirs.begin())
+                std::cout << std::endl;
+            std::cout << "  watch directory: " << quote(wd->watchDir) << std::endl;
+            for(auto ext=wd->contExts.begin(); ext!=wd->contExts.end(); ext++)
+            {
+                std::cout << "content extension: " << quote(*ext) << std::endl;
+                std::cout << "    template path: " << wd->templatePaths.at(*ext) << std::endl;
+                std::cout << "   page extension: " << wd->pageExts.at(*ext) << std::endl;
+            }
+        }
+        std::cout << "-------------------------------------" << std::endl;
+    }
+    else
+    {
+        std::cout << "not watching any directories" << std::endl;
+    }
 
     return 0;
 }
@@ -479,28 +635,34 @@ std::string SiteInfo::get_script_ext(const PageInfo& page)
     return get_ext(page, ".scriptExt");
 }
 
-bool SiteInfo::tracking(const PageInfo &page)
+bool SiteInfo::tracking(const PageInfo& page)
 {
     return pages.count(page);
 }
 
-bool SiteInfo::tracking(const Name &pageName)
+bool SiteInfo::tracking(const Name& pageName)
 {
     PageInfo page;
     page.pageName = pageName;
     return pages.count(page);
 }
 
-int SiteInfo::track(const Name &name, const Title &title, const Path &templatePath)
+int SiteInfo::track(const Name& name, const Title& title, const Path& templatePath)
 {
     if(name.find('.') != std::string::npos)
     {
         std::cout << "error: page names cannot contain '.'" << std::endl;
+        std::cout << "note: you can add post-build scripts to move built pages/files to paths containing . other than for extensions if you want" << std::endl;
         return 1;
     }
     else if(name == "" || title.str == "" || templatePath == Path("", ""))
     {
         std::cout << "error: page name, title and template path must all be non-empty strings" << std::endl;
+        return 1;
+    }
+    if(unquote(name)[unquote(name).size()-1] == '/' || unquote(name)[unquote(name).size()-1] == '\\')
+    {
+        std::cout << "error: page name " << quote(name) << " cannot end in '/' or '\\'" << std::endl;
         return 1;
     }
     else if(
@@ -517,7 +679,6 @@ int SiteInfo::track(const Name &name, const Title &title, const Path &templatePa
 
     if(newPage.contentPath == newPage.templatePath)
     {
-        std::cout << std::endl;
         std::cout << "error: content and template paths cannot be the same, page not tracked" << std::endl;
         return 1;
     }
@@ -526,7 +687,6 @@ int SiteInfo::track(const Name &name, const Title &title, const Path &templatePa
     {
         PageInfo cInfo = *(pages.find(newPage));
 
-        std::cout << std::endl;
         std::cout << "error: Nift is already tracking " << newPage.pagePath << std::endl;
         std::cout << "----- current page details -----" << std::endl;
         std::cout << "   page title: " << cInfo.pageTitle << std::endl;
@@ -541,16 +701,19 @@ int SiteInfo::track(const Name &name, const Title &title, const Path &templatePa
     //warns user if content and/or template paths don't exist
     if(!std::ifstream(newPage.contentPath.str()))
     {
-        std::cout << std::endl;
         std::cout << "warning: content path " << newPage.contentPath << " did not exist" << std::endl;
-        newPage.contentPath.ensurePathExists();
-        chmod(newPage.contentPath.str().c_str(), 0666);
+        newPage.contentPath.ensureFileExists();
+        //chmod(newPage.contentPath.str().c_str(), 0666);
     }
     if(!std::ifstream(newPage.templatePath.str()))
     {
-        std::cout << std::endl;
-        std::cout << "warning: template path " << newPage.templatePath << " does not exist" << std::endl;
+        std::cout << "error: template path " << newPage.templatePath << " does not exist" << std::endl;
+        return 1;
     }
+
+    //ensures directories for page file and page info file exist
+    newPage.pagePath.ensureDirExists();
+    newPage.pagePath.getInfoPath().ensureDirExists();
 
     //inserts new page into set of pages
     pages.insert(newPage);
@@ -562,78 +725,892 @@ int SiteInfo::track(const Name &name, const Title &title, const Path &templatePa
     ofs.close();
 
     //informs user that page addition was successful
-    std::cout << std::endl;
     std::cout << "successfully tracking " << newPage.pageName << std::endl;
 
     return 0;
 }
 
-int SiteInfo::untrack(const Name &pageNameToUntrack)
+int SiteInfo::track_from_file(const std::string& filePath)
+{
+    if(!std::ifstream(filePath))
+    {
+        std::cout << "error: track-from-file: track-file " << quote(filePath) << " does not exist" << std::endl;
+        return 1;
+    }
+
+    Name name;
+    Title title;
+    Path templatePath;
+    std::string cExt, pExt, str;
+    int noPagesAdded = 0;
+
+    std::ifstream ifs(filePath);
+    while(getline(ifs, str))
+    {
+        std::istringstream iss(str);
+
+        name = "";
+        title.str = "";
+        cExt = "";
+        templatePath = Path("", "");
+        pExt = "";
+
+        if(read_quoted(iss, name))
+            if(read_quoted(iss, title.str))
+                if(read_quoted(iss, cExt))
+                    if(templatePath.read_file_path_from(iss))
+                        read_quoted(iss, pExt);
+
+        if(name == "" || name[0] == '#')
+            continue;
+
+        if(title.str == "")
+            title.str = name;
+
+        if(cExt == "")
+            cExt = contentExt;
+
+        if(templatePath == Path("", ""))
+            templatePath = defaultTemplate;
+
+        if(pExt == "")
+            pExt = pageExt;
+
+        if(name.find('.') != std::string::npos)
+        {
+            std::cout << "error: page name " << quote(name) << " cannot contain '.'" << std::endl;
+            std::cout << "note: you can add post-build scripts to move built pages/files to paths containing . other than for extensions if you want" << std::endl;
+            return 1;
+        }
+        else if(name == "" || title.str == "" || templatePath == Path("", "") || cExt == "" || pExt == "")
+        {
+            std::cout << "error: page names, titles, template paths, content extensions and page extensions must all be non-empty strings" << std::endl;
+            return 1;
+        }
+        if(unquote(name)[unquote(name).size()-1] == '/' || unquote(name)[unquote(name).size()-1] == '\\')
+        {
+            std::cout << "error: page name " << quote(name) << " cannot end in '/' or '\\'" << std::endl;
+            return 1;
+        }
+        else if(
+                    (unquote(name).find('"') != std::string::npos && unquote(name).find('\'') != std::string::npos) ||
+                    (unquote(title.str).find('"') != std::string::npos && unquote(title.str).find('\'') != std::string::npos) ||
+                    (unquote(templatePath.str()).find('"') != std::string::npos && unquote(templatePath.str()).find('\'') != std::string::npos)
+                )
+        {
+            std::cout << "error: page names, titles and template paths cannot contain both single and double quotes" << std::endl;
+            return 1;
+        }
+
+        PageInfo newPage = make_info(name, title, templatePath);
+
+        if(cExt != contentExt)
+        {
+            newPage.contentPath.file = newPage.contentPath.file.substr(0, newPage.contentPath.file.find_first_of('.')) + cExt;
+
+            Path extPath = newPage.pagePath.getInfoPath();
+            extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+            std::ofstream ofs(extPath.str());
+            ofs << cExt << std::endl;
+            ofs.close();
+        }
+
+        if(pExt != pageExt)
+        {
+            newPage.pagePath.file = newPage.pagePath.file.substr(0, newPage.pagePath.file.find_first_of('.')) + pExt;
+
+            Path extPath = newPage.pagePath.getInfoPath();
+            extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+            std::ofstream ofs(extPath.str());
+            ofs << pExt << std::endl;
+            ofs.close();
+        }
+
+        if(newPage.contentPath == newPage.templatePath)
+        {
+            std::cout << "error: content and template paths cannot be the same, page not tracked" << std::endl;
+            return 1;
+        }
+
+        if(pages.count(newPage) > 0)
+        {
+            PageInfo cInfo = *(pages.find(newPage));
+
+            std::cout << "error: Nift is already tracking " << newPage.pagePath << std::endl;
+            std::cout << "----- current page details -----" << std::endl;
+            std::cout << "   page title: " << cInfo.pageTitle << std::endl;
+            std::cout << "    page path: " << cInfo.pagePath << std::endl;
+            std::cout << " content path: " << cInfo.contentPath << std::endl;
+            std::cout << "template path: " << cInfo.templatePath << std::endl;
+            std::cout << "--------------------------------" << std::endl;
+
+            return 1;
+        }
+
+        //warns user if content and/or template paths don't exist
+        if(!std::ifstream(newPage.contentPath.str()))
+        {
+            //std::cout << "warning: content path " << newPage.contentPath << " did not exist" << std::endl;
+            newPage.contentPath.ensureFileExists();
+        }
+        if(!std::ifstream(newPage.templatePath.str()))
+        {
+            std::cout << "error: template path " << newPage.templatePath << " does not exist" << std::endl;
+            return 1;
+        }
+
+        //ensures directories for page file and page info file exist
+        newPage.pagePath.ensureDirExists();
+        newPage.pagePath.getInfoPath().ensureDirExists();
+
+        //inserts new page into set of pages
+        pages.insert(newPage);
+        noPagesAdded++;
+    }
+    ifs.close();
+
+    //saves new set of pages to pages.list
+    std::ofstream ofs(".siteinfo/pages.list");
+    for(auto page=pages.begin(); page!=pages.end(); page++)
+        ofs << *page << "\n\n";
+    ofs.close();
+
+    std::cout << "successfully tracked " << noPagesAdded << " pages" << std::endl;
+
+    return 0;
+}
+
+int SiteInfo::track_dir(const Path& dirPath, const std::string& cExt, const Path& templatePath, const std::string& pExt)
+{
+    if(dirPath.file != "")
+    {
+        std::cout << "error: track-dir: directory path " << dirPath << " is to a file not a directory" << std::endl;
+        return 1;
+    }
+    else if(dirPath.comparableStr().substr(0, contentDir.size()) != contentDir)
+    {
+        std::cout << "error: track-dir: cannot track files from directory " << dirPath << " as it is not a subdirectory of the site-wide content directory " << quote(contentDir) << std::endl;
+        return 1;
+    }
+    else if(!std::ifstream(dirPath.str()))
+    {
+        std::cout << "error: track-dir: directory path " << dirPath << " does not exist" << std::endl;
+        return 1;
+    }
+
+    if(cExt == "" || cExt[0] != '.')
+    {
+        std::cout << "error: track-dir: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
+        return 1;
+    }
+    else if(pExt == "" || pExt[0] != '.')
+    {
+        std::cout << "error: track-dir: page extension " << quote(pExt) << " must start with a fullstop" << std::endl;
+        return 1;
+    }
+
+    if(!std::ifstream(templatePath.str()))
+    {
+        std::cout << "error: track-dir: template path " << templatePath << " does not exist" << std::endl;
+        return 1;
+    }
+
+    std::vector<TrackInfo> pages_to_track;
+    std::string ext;
+    std::string contDir2dirPath = "";
+    if(comparable(dirPath.dir).size() > comparable(contentDir).size())
+       contDir2dirPath = dirPath.dir.substr(contentDir.size(), dirPath.dir.size()-contentDir.size());
+    Name pagename;
+    size_t pos;
+    std::vector<std::string> files = lsVec(dirPath.dir.c_str());
+    for(size_t f=0; f<files.size(); f++)
+    {
+        pos = files[f].find_first_of('.');
+        if(pos != std::string::npos)
+        {
+            ext = files[f].substr(pos, files[f].size()-pos);
+            pagename = contDir2dirPath + files[f].substr(0, pos);
+
+            if(cExt == ext)
+                if(!tracking(pagename))
+                    pages_to_track.push_back(TrackInfo(pagename, Title(pagename), templatePath, cExt, pExt));
+        }
+    }
+
+    if(pages_to_track.size())
+        track(pages_to_track);
+
+    return 0;
+}
+
+int SiteInfo::track(const Name& name, const Title& title, const Path& templatePath, const std::string& cExt, const std::string& pExt)
+{
+    if(name.find('.') != std::string::npos)
+    {
+        std::cout << "error: page names cannot contain '.'" << std::endl;
+        std::cout << "note: you can add post-build scripts to move built pages/files to paths containing . other than for extensions if you want" << std::endl;
+        return 1;
+    }
+    else if(name == "" || title.str == "" || templatePath == Path("", "") || cExt == "" || pExt == "")
+    {
+        std::cout << "error: page name, title, template path, content extension and page extension must all be non-empty strings" << std::endl;
+        return 1;
+    }
+    if(unquote(name)[unquote(name).size()-1] == '/' || unquote(name)[unquote(name).size()-1] == '\\')
+    {
+        std::cout << "error: page name " << quote(name) << " cannot end in '/' or '\\'" << std::endl;
+        return 1;
+    }
+    else if(
+                (unquote(name).find('"') != std::string::npos && unquote(name).find('\'') != std::string::npos) ||
+                (unquote(title.str).find('"') != std::string::npos && unquote(title.str).find('\'') != std::string::npos) ||
+                (unquote(templatePath.str()).find('"') != std::string::npos && unquote(templatePath.str()).find('\'') != std::string::npos)
+            )
+    {
+        std::cout << "error: page name, title and template path cannot contain both single and double quotes" << std::endl;
+        return 1;
+    }
+
+    PageInfo newPage = make_info(name, title, templatePath);
+
+    if(cExt != contentExt)
+    {
+        newPage.contentPath.file = newPage.contentPath.file.substr(0, newPage.contentPath.file.find_first_of('.')) + cExt;
+
+        Path extPath = newPage.pagePath.getInfoPath();
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+        std::ofstream ofs(extPath.str());
+        ofs << cExt << std::endl;
+        ofs.close();
+    }
+
+    if(pExt != pageExt)
+    {
+        newPage.pagePath.file = newPage.pagePath.file.substr(0, newPage.pagePath.file.find_first_of('.')) + pExt;
+
+        Path extPath = newPage.pagePath.getInfoPath();
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+        std::ofstream ofs(extPath.str());
+        ofs << pExt << std::endl;
+        ofs.close();
+    }
+
+    if(newPage.contentPath == newPage.templatePath)
+    {
+        std::cout << "error: content and template paths cannot be the same, page not tracked" << std::endl;
+        return 1;
+    }
+
+    if(pages.count(newPage) > 0)
+    {
+        PageInfo cInfo = *(pages.find(newPage));
+
+        std::cout << "error: Nift is already tracking " << newPage.pagePath << std::endl;
+        std::cout << "----- current page details -----" << std::endl;
+        std::cout << "   page title: " << cInfo.pageTitle << std::endl;
+        std::cout << "    page path: " << cInfo.pagePath << std::endl;
+        std::cout << " content path: " << cInfo.contentPath << std::endl;
+        std::cout << "template path: " << cInfo.templatePath << std::endl;
+        std::cout << "--------------------------------" << std::endl;
+
+        return 1;
+    }
+
+    //warns user if content and/or template paths don't exist
+    if(!std::ifstream(newPage.contentPath.str()))
+    {
+        std::cout << "warning: content path " << newPage.contentPath << " did not exist" << std::endl;
+        newPage.contentPath.ensureFileExists();
+        //chmod(newPage.contentPath.str().c_str(), 0666);
+    }
+    if(!std::ifstream(newPage.templatePath.str()))
+    {
+        std::cout << "error: template path " << newPage.templatePath << " does not exist" << std::endl;
+        return 1;
+    }
+
+    //ensures directories for page file and page info file exist
+    newPage.pagePath.ensureDirExists();
+    newPage.pagePath.getInfoPath().ensureDirExists();
+
+    //inserts new page into set of pages
+    pages.insert(newPage);
+
+    //saves new set of pages to pages.list
+    std::ofstream ofs(".siteinfo/pages.list");
+    for(auto page=pages.begin(); page!=pages.end(); page++)
+        ofs << *page << "\n\n";
+    ofs.close();
+
+    //informs user that page addition was successful
+    std::cout << "successfully tracking " << newPage.pageName << std::endl;
+
+    return 0;
+}
+
+int SiteInfo::track(const std::vector<TrackInfo>& pagesToTrack)
+{
+    Name name;
+    Title title;
+    Path templatePath;
+    std::string cExt, pExt;
+
+    for(size_t p=0; p<pagesToTrack.size(); p++)
+    {
+        name = pagesToTrack[p].pagename;
+        title = pagesToTrack[p].title;
+        templatePath = pagesToTrack[p].templatePath;
+        cExt = pagesToTrack[p].contExt;
+        pExt = pagesToTrack[p].pageExt;
+
+        if(name.find('.') != std::string::npos)
+        {
+            std::cout << "error: page name " << quote(name) << " cannot contain '.'" << std::endl;
+            std::cout << "note: you can add post-build scripts to move built pages/files to paths containing . other than for extensions if you want" << std::endl;
+            return 1;
+        }
+        else if(name == "" || title.str == "" || templatePath == Path("", "") || cExt == "" || pExt == "")
+        {
+            std::cout << "error: page names, titles, template paths, content extensions and page extensions must all be non-empty strings" << std::endl;
+            return 1;
+        }
+        if(unquote(name)[unquote(name).size()-1] == '/' || unquote(name)[unquote(name).size()-1] == '\\')
+        {
+            std::cout << "error: page name " << quote(name) << " cannot end in '/' or '\\'" << std::endl;
+            return 1;
+        }
+        else if(
+                    (unquote(name).find('"') != std::string::npos && unquote(name).find('\'') != std::string::npos) ||
+                    (unquote(title.str).find('"') != std::string::npos && unquote(title.str).find('\'') != std::string::npos) ||
+                    (unquote(templatePath.str()).find('"') != std::string::npos && unquote(templatePath.str()).find('\'') != std::string::npos)
+                )
+        {
+            std::cout << "error: page names, titles and template paths cannot contain both single and double quotes" << std::endl;
+            return 1;
+        }
+
+        PageInfo newPage = make_info(name, title, templatePath);
+
+        if(cExt != contentExt)
+        {
+            newPage.contentPath.file = newPage.contentPath.file.substr(0, newPage.contentPath.file.find_first_of('.')) + cExt;
+
+            Path extPath = newPage.pagePath.getInfoPath();
+            extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+            std::ofstream ofs(extPath.str());
+            ofs << cExt << std::endl;
+            ofs.close();
+        }
+
+        if(pExt != pageExt)
+        {
+            newPage.pagePath.file = newPage.pagePath.file.substr(0, newPage.pagePath.file.find_first_of('.')) + pExt;
+
+            Path extPath = newPage.pagePath.getInfoPath();
+            extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+            std::ofstream ofs(extPath.str());
+            ofs << pExt << std::endl;
+            ofs.close();
+        }
+
+        if(newPage.contentPath == newPage.templatePath)
+        {
+            std::cout << "error: content and template paths cannot be the same, page not tracked" << std::endl;
+            return 1;
+        }
+
+        if(pages.count(newPage) > 0)
+        {
+            PageInfo cInfo = *(pages.find(newPage));
+
+            std::cout << "error: Nift is already tracking " << newPage.pagePath << std::endl;
+            std::cout << "----- current page details -----" << std::endl;
+            std::cout << "   page title: " << cInfo.pageTitle << std::endl;
+            std::cout << "    page path: " << cInfo.pagePath << std::endl;
+            std::cout << " content path: " << cInfo.contentPath << std::endl;
+            std::cout << "template path: " << cInfo.templatePath << std::endl;
+            std::cout << "--------------------------------" << std::endl;
+
+            return 1;
+        }
+
+        //warns user if content and/or template paths don't exist
+        if(!std::ifstream(newPage.contentPath.str()))
+        {
+            std::cout << "warning: content path " << newPage.contentPath << " did not exist" << std::endl;
+            newPage.contentPath.ensureFileExists();
+            //chmod(newPage.contentPath.str().c_str(), 0666);
+        }
+        if(!std::ifstream(newPage.templatePath.str()))
+        {
+            std::cout << "error: template path " << newPage.templatePath << " does not exist" << std::endl;
+            return 1;
+        }
+
+        //ensures directories for page file and page info file exist
+        newPage.pagePath.ensureDirExists();
+        newPage.pagePath.getInfoPath().ensureDirExists();
+
+        //inserts new page into set of pages
+        pages.insert(newPage);
+
+        //informs user that page addition was successful
+        std::cout << "successfully tracking " << newPage.pageName << std::endl;
+    }
+
+    //saves new set of pages to pages.list
+    std::ofstream ofs(".siteinfo/pages.list");
+    for(auto page=pages.begin(); page!=pages.end(); page++)
+        ofs << *page << "\n\n";
+    ofs.close();
+
+    return 0;
+}
+
+int SiteInfo::untrack(const Name& pageNameToUntrack)
 {
     //checks that page is being tracked
     if(!tracking(pageNameToUntrack))
     {
-        std::cout << std::endl;
         std::cout << "error: Nift is not tracking " << pageNameToUntrack << std::endl;
         return 1;
     }
 
     PageInfo pageToErase = get_info(pageNameToUntrack);
 
-    //removes page info file and containing dir if now empty
-    chmod(pageToErase.pagePath.getInfoPath().str().c_str(), 0666);
-    pageToErase.pagePath.getInfoPath().removePath();
-    std::cout << "removed " << pageToErase.pagePath.getInfoPath().str() << std::endl;
-    rmdir(pageToErase.pagePath.getInfoPath().dir.c_str());
+    //removes the extension files if they exist
+    Path extPath = pageToErase.pagePath.getInfoPath();
+    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+    if(std::ifstream(extPath.str()))
+    {
+        chmod(extPath.str().c_str(), 0666);
+        remove_path(extPath);
+    }
+    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+    if(std::ifstream(extPath.str()))
+    {
+        chmod(extPath.str().c_str(), 0666);
+        remove_path(extPath);
+    }
+    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
+    if(std::ifstream(extPath.str()))
+    {
+        chmod(extPath.str().c_str(), 0666);
+        remove_path(extPath);
+    }
 
-    //removes page file and containing dir if now empty
-    chmod(pageToErase.pagePath.str().c_str(), 0666);
-    pageToErase.pagePath.removePath();
-    std::cout << "removed " << pageToErase.pagePath.str() << std::endl;
-    rmdir(pageToErase.pagePath.dir.c_str());
+    //removes page info file and containing dirs if now empty
+    if(std::ifstream(pageToErase.pagePath.getInfoPath().dir))
+    {
+        chmod(pageToErase.pagePath.getInfoPath().str().c_str(), 0666);
+        remove_path(pageToErase.pagePath.getInfoPath());
+    }
+
+    //removes page file and containing dirs if now empty
+    if(std::ifstream(pageToErase.pagePath.dir))
+    {
+        chmod(pageToErase.pagePath.str().c_str(), 0666);
+        remove_path(pageToErase.pagePath);
+    }
 
     //removes page from pages set
     pages.erase(pageToErase);
 
-    //saves new set of pages to pages.list
+    //saves new set of pages to .siteinfo/pages.list
     save_pages();
 
     //informs user that page was successfully untracked
-    std::cout << std::endl;
     std::cout << "successfully untracked " << pageNameToUntrack << std::endl;
 
     return 0;
 }
 
-int SiteInfo::rm(const Name &pageNameToRemove)
+int SiteInfo::untrack(const std::vector<Name>& pageNamesToUntrack)
+{
+    PageInfo pageToErase;
+    Path extPath;
+    for(size_t p=0; p<pageNamesToUntrack.size(); p++)
+    {
+        //checks that page is being tracked
+        if(!tracking(pageNamesToUntrack[p]))
+        {
+            std::cout << "error: Nift is not tracking " << pageNamesToUntrack[p] << std::endl;
+            return 1;
+        }
+
+        pageToErase = get_info(pageNamesToUntrack[p]);
+
+        //removes the extension files if they exist
+        Path extPath = pageToErase.pagePath.getInfoPath();
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+        if(std::ifstream(extPath.str()))
+        {
+            chmod(extPath.str().c_str(), 0666);
+            remove_path(extPath);
+        }
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+        if(std::ifstream(extPath.str()))
+        {
+            chmod(extPath.str().c_str(), 0666);
+            remove_path(extPath);
+        }
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
+        if(std::ifstream(extPath.str()))
+        {
+            chmod(extPath.str().c_str(), 0666);
+            remove_path(extPath);
+        }
+
+        //removes page info file and containing dirs if now empty
+        if(std::ifstream(pageToErase.pagePath.getInfoPath().dir))
+        {
+            chmod(pageToErase.pagePath.getInfoPath().str().c_str(), 0666);
+            remove_path(pageToErase.pagePath.getInfoPath());
+        }
+
+        //removes page file and containing dirs if now empty
+        if(std::ifstream(pageToErase.pagePath.dir))
+        {
+            chmod(pageToErase.pagePath.str().c_str(), 0666);
+            remove_path(pageToErase.pagePath);
+        }
+
+        //removes page from pages set
+        pages.erase(pageToErase);
+
+        //informs user that page was successfully untracked
+        std::cout << "successfully untracked " << pageNamesToUntrack[p] << std::endl;
+    }
+
+    //saves new set of pages to .siteinfo/pages.list
+    save_pages();
+
+    return 0;
+}
+
+int SiteInfo::untrack_from_file(const std::string& filePath)
+{
+    if(!std::ifstream(filePath))
+    {
+        std::cout << "error: untrack-from-file: untrack-file " << quote(filePath) << " does not exist" << std::endl;
+        return 1;
+    }
+
+    Name pageNameToUntrack;
+    int noPagesUntracked = 0;
+    std::string str;
+    std::ifstream ifs(filePath);
+    while(getline(ifs, str))
+    {
+        std::istringstream iss(str);
+
+        read_quoted(iss, pageNameToUntrack);
+
+        if(pageNameToUntrack == "" || pageNameToUntrack[0] == '#')
+            continue;
+
+        //checks that page is being tracked
+        if(!tracking(pageNameToUntrack))
+        {
+            std::cout << "error: Nift is not tracking " << pageNameToUntrack << std::endl;
+            return 1;
+        }
+
+        PageInfo pageToErase = get_info(pageNameToUntrack);
+
+        //removes the extension files if they exist
+        Path extPath = pageToErase.pagePath.getInfoPath();
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+        if(std::ifstream(extPath.str()))
+        {
+            chmod(extPath.str().c_str(), 0666);
+            remove_path(extPath);
+        }
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+        if(std::ifstream(extPath.str()))
+        {
+            chmod(extPath.str().c_str(), 0666);
+            remove_path(extPath);
+        }
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
+        if(std::ifstream(extPath.str()))
+        {
+            chmod(extPath.str().c_str(), 0666);
+            remove_path(extPath);
+        }
+
+        //removes page info file and containing dirs if now empty
+        if(std::ifstream(pageToErase.pagePath.getInfoPath().dir))
+        {
+            chmod(pageToErase.pagePath.getInfoPath().str().c_str(), 0666);
+            remove_path(pageToErase.pagePath.getInfoPath());
+        }
+
+        //removes page file and containing dirs if now empty
+        if(std::ifstream(pageToErase.pagePath.dir))
+        {
+            chmod(pageToErase.pagePath.str().c_str(), 0666);
+            remove_path(pageToErase.pagePath);
+        }
+
+        //removes page from pages set
+        pages.erase(pageToErase);
+        noPagesUntracked++;
+    }
+
+    ifs.close();
+
+    //saves new set of pages to .siteinfo/pages.list
+    save_pages();
+
+    std::cout << "successfully untracked " << noPagesUntracked << " pages" << std::endl;
+
+    return 0;
+}
+
+int SiteInfo::untrack_dir(const Path& dirPath, const std::string& cExt)
+{
+    if(dirPath.file != "")
+    {
+        std::cout << "error: untrack-dir: directory path " << dirPath << " is to a file not a directory" << std::endl;
+        return 1;
+    }
+    else if(dirPath.comparableStr().substr(0, contentDir.size()) != contentDir)
+    {
+        std::cout << "error: untrack-dir: cannot untrack pages from directory " << dirPath << " as it is not a subdirectory of the site-wide content directory " << quote(contentDir) << std::endl;
+        return 1;
+    }
+    else if(!std::ifstream(dirPath.str()))
+    {
+        std::cout << "error: untrack-dir: directory path " << dirPath << " does not exist" << std::endl;
+        return 1;
+    }
+
+    if(cExt == "" || cExt[0] != '.')
+    {
+        std::cout << "error: untrack-dir: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
+        return 1;
+    }
+
+    std::vector<Name> pageNamesToUntrack;
+    std::string ext;
+    std::string contDir2dirPath = "";
+    if(comparable(dirPath.dir).size() > comparable(contentDir).size())
+       contDir2dirPath = dirPath.dir.substr(contentDir.size(), dirPath.dir.size()-contentDir.size());
+    Name pagename;
+    size_t pos;
+    std::vector<std::string> files = lsVec(dirPath.dir.c_str());
+    for(size_t f=0; f<files.size(); f++)
+    {
+        pos = files[f].find_first_of('.');
+        if(pos != std::string::npos)
+        {
+            ext = files[f].substr(pos, files[f].size()-pos);
+            pagename = contDir2dirPath + files[f].substr(0, pos);
+
+            if(cExt == ext)
+                if(tracking(pagename))
+                    pageNamesToUntrack.push_back(pagename);
+        }
+    }
+
+    if(pageNamesToUntrack.size())
+        untrack(pageNamesToUntrack);
+
+    return 0;
+}
+
+int SiteInfo::rm_from_file(const std::string& filePath)
+{
+    if(!std::ifstream(filePath))
+    {
+        std::cout << "error: rm-from-file: rm-file " << quote(filePath) << " does not exist" << std::endl;
+        return 1;
+    }
+
+    Name pageNameToRemove;
+    int noPagesRemoved = 0;
+    std::string str;
+    std::ifstream ifs(filePath);
+    while(getline(ifs, str))
+    {
+        std::istringstream iss(str);
+
+        read_quoted(iss, pageNameToRemove);
+
+        if(pageNameToRemove == "" || pageNameToRemove[0] == '#')
+            continue;
+
+        //checks that page is being tracked
+        if(!tracking(pageNameToRemove))
+        {
+            std::cout << "error: Nift is not tracking " << pageNameToRemove << std::endl;
+            return 1;
+        }
+
+        PageInfo pageToErase = get_info(pageNameToRemove);
+
+        //removes the extension files if they exist
+        Path extPath = pageToErase.pagePath.getInfoPath();
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+        if(std::ifstream(extPath.str()))
+        {
+            chmod(extPath.str().c_str(), 0666);
+            remove_path(extPath);
+        }
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+        if(std::ifstream(extPath.str()))
+        {
+            chmod(extPath.str().c_str(), 0666);
+            remove_path(extPath);
+        }
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
+        if(std::ifstream(extPath.str()))
+        {
+            chmod(extPath.str().c_str(), 0666);
+            remove_path(extPath);
+        }
+
+        //removes page info file and containing dirs if now empty
+        if(std::ifstream(pageToErase.pagePath.getInfoPath().dir))
+        {
+            chmod(pageToErase.pagePath.getInfoPath().str().c_str(), 0666);
+            remove_path(pageToErase.pagePath.getInfoPath());
+        }
+
+        //removes page file and containing dirs if now empty
+        if(std::ifstream(pageToErase.pagePath.dir))
+        {
+            chmod(pageToErase.pagePath.str().c_str(), 0666);
+            remove_path(pageToErase.pagePath);
+        }
+
+        //removes content file and containing dirs if now empty
+        if(std::ifstream(pageToErase.contentPath.dir))
+        {
+            chmod(pageToErase.contentPath.str().c_str(), 0666);
+            remove_path(pageToErase.contentPath);
+        }
+
+        //removes page from pages set
+        pages.erase(pageToErase);
+        noPagesRemoved++;
+    }
+
+    ifs.close();
+
+    //saves new set of pages to pages.list
+    save_pages();
+
+    std::cout << "successfully removed " << noPagesRemoved << " pages" << std::endl;
+
+    return 0;
+}
+
+int SiteInfo::rm_dir(const Path& dirPath, const std::string& cExt)
+{
+    if(dirPath.file != "")
+    {
+        std::cout << "error: rm-dir: directory path " << dirPath << " is to a file not a directory" << std::endl;
+        return 1;
+    }
+    else if(dirPath.comparableStr().substr(0, contentDir.size()) != contentDir)
+    {
+        std::cout << "error: rm-dir: cannot remove pages from directory " << dirPath << " as it is not a subdirectory of the site-wide content directory " << quote(contentDir) << std::endl;
+        return 1;
+    }
+    else if(!std::ifstream(dirPath.str()))
+    {
+        std::cout << "error: rm-dir: directory path " << dirPath << " does not exist" << std::endl;
+        return 1;
+    }
+
+    if(cExt == "" || cExt[0] != '.')
+    {
+        std::cout << "error: rm-dir: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
+        return 1;
+    }
+
+    std::vector<Name> pageNamesToRemove;
+    std::string ext;
+    std::string contDir2dirPath = "";
+    if(comparable(dirPath.dir).size() > comparable(contentDir).size())
+       contDir2dirPath = dirPath.dir.substr(contentDir.size(), dirPath.dir.size()-contentDir.size());
+    Name pagename;
+    size_t pos;
+    std::vector<std::string> files = lsVec(dirPath.dir.c_str());
+    for(size_t f=0; f<files.size(); f++)
+    {
+        pos = files[f].find_first_of('.');
+        if(pos != std::string::npos)
+        {
+            ext = files[f].substr(pos, files[f].size()-pos);
+            pagename = contDir2dirPath + files[f].substr(0, pos);
+
+            if(cExt == ext)
+                if(tracking(pagename))
+                    pageNamesToRemove.push_back(pagename);
+        }
+    }
+
+    if(pageNamesToRemove.size())
+        rm(pageNamesToRemove);
+
+    return 0;
+}
+
+int SiteInfo::rm(const Name& pageNameToRemove)
 {
     //checks that page is being tracked
     if(!tracking(pageNameToRemove))
     {
-        std::cout << std::endl;
         std::cout << "error: Nift is not tracking " << pageNameToRemove << std::endl;
         return 1;
     }
 
     PageInfo pageToErase = get_info(pageNameToRemove);
 
-    //removes page info file and containing dir if now empty
-    chmod(pageToErase.pagePath.getInfoPath().str().c_str(), 0666);
-    pageToErase.pagePath.getInfoPath().removePath();
-    std::cout << "removed " << pageToErase.pagePath.getInfoPath().str() << std::endl;
-    rmdir(pageToErase.pagePath.getInfoPath().dir.c_str());
+    //removes the extension files if they exist
+    Path extPath = pageToErase.pagePath.getInfoPath();
+    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+    if(std::ifstream(extPath.str()))
+    {
+        chmod(extPath.str().c_str(), 0666);
+        remove_path(extPath);
+    }
+    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+    if(std::ifstream(extPath.str()))
+    {
+        chmod(extPath.str().c_str(), 0666);
+        remove_path(extPath);
+    }
+    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
+    if(std::ifstream(extPath.str()))
+    {
+        chmod(extPath.str().c_str(), 0666);
+        remove_path(extPath);
+    }
 
-    //removes page file and containing dir if now empty
-    chmod(pageToErase.pagePath.str().c_str(), 0666);
-    pageToErase.pagePath.removePath();
-    std::cout << "removed " << pageToErase.pagePath.str() << std::endl;
-    rmdir(pageToErase.pagePath.dir.c_str());
+    //removes page info file and containing dirs if now empty
+    if(std::ifstream(pageToErase.pagePath.getInfoPath().dir))
+    {
+        chmod(pageToErase.pagePath.getInfoPath().str().c_str(), 0666);
+        remove_path(pageToErase.pagePath.getInfoPath());
+    }
 
-    //removes content file and containing dir if now empty
-    chmod(pageToErase.contentPath.str().c_str(), 0666);
-    pageToErase.contentPath.removePath();
-    std::cout << "removed " << pageToErase.contentPath.str() << std::endl;
-    rmdir(pageToErase.contentPath.dir.c_str());
+    //removes page file and containing dirs if now empty
+    if(std::ifstream(pageToErase.pagePath.dir))
+    {
+        chmod(pageToErase.pagePath.str().c_str(), 0666);
+        remove_path(pageToErase.pagePath);
+    }
+
+    //removes content file and containing dirs if now empty
+    if(std::ifstream(pageToErase.contentPath.dir))
+    {
+        chmod(pageToErase.contentPath.str().c_str(), 0666);
+        remove_path(pageToErase.contentPath);
+    }
 
     //removes page from pages set
     pages.erase(pageToErase);
@@ -642,13 +1619,82 @@ int SiteInfo::rm(const Name &pageNameToRemove)
     save_pages();
 
     //informs user that page was successfully removed
-    std::cout << std::endl;
     std::cout << "successfully removed " << pageNameToRemove << std::endl;
 
     return 0;
 }
 
-int SiteInfo::mv(const Name &oldPageName, const Name &newPageName)
+int SiteInfo::rm(const std::vector<Name>& pageNamesToRemove)
+{
+    PageInfo pageToErase;
+    Path extPath;
+    for(size_t p=0; p<pageNamesToRemove.size(); p++)
+    {
+        //checks that page is being tracked
+        if(!tracking(pageNamesToRemove[p]))
+        {
+            std::cout << "error: Nift is not tracking " << pageNamesToRemove[p] << std::endl;
+            return 1;
+        }
+
+        pageToErase = get_info(pageNamesToRemove[p]);
+
+        //removes the extension files if they exist
+        extPath = pageToErase.pagePath.getInfoPath();
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+        if(std::ifstream(extPath.str()))
+        {
+            chmod(extPath.str().c_str(), 0666);
+            remove_path(extPath);
+        }
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+        if(std::ifstream(extPath.str()))
+        {
+            chmod(extPath.str().c_str(), 0666);
+            remove_path(extPath);
+        }
+        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
+        if(std::ifstream(extPath.str()))
+        {
+            chmod(extPath.str().c_str(), 0666);
+            remove_path(extPath);
+        }
+
+        //removes page info file and containing dirs if now empty
+        if(std::ifstream(pageToErase.pagePath.getInfoPath().dir))
+        {
+            chmod(pageToErase.pagePath.getInfoPath().str().c_str(), 0666);
+            remove_path(pageToErase.pagePath.getInfoPath());
+        }
+
+        //removes page file and containing dirs if now empty
+        if(std::ifstream(pageToErase.pagePath.dir))
+        {
+            chmod(pageToErase.pagePath.str().c_str(), 0666);
+            remove_path(pageToErase.pagePath);
+        }
+
+        //removes content file and containing dirs if now empty
+        if(std::ifstream(pageToErase.contentPath.dir))
+        {
+            chmod(pageToErase.contentPath.str().c_str(), 0666);
+            remove_path(pageToErase.contentPath);
+        }
+
+        //removes page from pages set
+        pages.erase(pageToErase);
+
+        //informs user that page was successfully removed
+        std::cout << "successfully removed " << pageNamesToRemove[p] << std::endl;
+    }
+
+    //saves new set of pages to pages.list
+    save_pages();
+
+    return 0;
+}
+
+int SiteInfo::mv(const Name& oldPageName, const Name& newPageName)
 {
     if(newPageName.find('.') != std::string::npos)
     {
@@ -667,23 +1713,40 @@ int SiteInfo::mv(const Name &oldPageName, const Name &newPageName)
     }
     else if(!tracking(oldPageName)) //checks old page is being tracked
     {
-        std::cout << std::endl;
         std::cout << "error: Nift is not tracking " << oldPageName << std::endl;
         return 1;
     }
     else if(tracking(newPageName)) //checks new page isn't already tracked
     {
-        std::cout << std::endl;
         std::cout << "error: Nift is already tracking " << newPageName << std::endl;
         return 1;
     }
 
     PageInfo oldPageInfo = get_info(oldPageName);
 
+    Path oldExtPath = oldPageInfo.pagePath.getInfoPath();
+    std::string pageContExt = contentExt,
+                pagePageExt = pageExt;
+
+    oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".contExt";
+    if(std::ifstream(oldExtPath.str()))
+    {
+        std::ifstream ifs(oldExtPath.str());
+        getline(ifs, pageContExt);
+        ifs.close();
+    }
+    oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".pageExt";
+    if(std::ifstream(oldExtPath.str()))
+    {
+        std::ifstream ifs(oldExtPath.str());
+        getline(ifs, pagePageExt);
+        ifs.close();
+    }
+
     PageInfo newPageInfo;
     newPageInfo.pageName = newPageName;
-    newPageInfo.contentPath.set_file_path_from(contentDir + newPageName + contentExt);
-    newPageInfo.pagePath.set_file_path_from(siteDir + newPageName + pageExt);
+    newPageInfo.contentPath.set_file_path_from(contentDir + newPageName + pageContExt);
+    newPageInfo.pagePath.set_file_path_from(siteDir + newPageName + pagePageExt);
     if(get_title(oldPageInfo.pageName) == oldPageInfo.pageTitle.str)
         newPageInfo.pageTitle = get_title(newPageName);
     else
@@ -691,33 +1754,62 @@ int SiteInfo::mv(const Name &oldPageName, const Name &newPageName)
     newPageInfo.templatePath = oldPageInfo.templatePath;
 
     //moves content file
-    std::ifstream ifs(oldPageInfo.contentPath.str());
-    newPageInfo.contentPath.ensurePathExists();
-    chmod(newPageInfo.contentPath.str().c_str(), 0666);
-    std::ofstream ofs(newPageInfo.contentPath.str());
-    std::string inLine;
-    while(getline(ifs, inLine))
-        ofs << inLine << "\n";
-    ofs.close();
-    ifs.close();
+    newPageInfo.contentPath.ensureDirExists();
+    if(rename(oldPageInfo.contentPath.str().c_str(), newPageInfo.contentPath.str().c_str()))
+    {
+        std::cout << "error: mv: failed to move " << oldPageInfo.contentPath << " to " << newPageInfo.contentPath << std::endl;
+        return 1;
+    }
 
-    //removes old page info file and containing dir if now empty
-    chmod(oldPageInfo.pagePath.getInfoPath().str().c_str(), 0666);
-    oldPageInfo.pagePath.getInfoPath().removePath();
-    std::cout << "removed " << oldPageInfo.pagePath.getInfoPath().str() << std::endl;
-    rmdir(oldPageInfo.pagePath.getInfoPath().dir.c_str());
+    //moves extension files if they exist
+    Path newExtPath = newPageInfo.pagePath.getInfoPath();
+    oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".contExt";
+    if(std::ifstream(oldExtPath.str()))
+    {
+        newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".contExt";
+        newExtPath.ensureDirExists();
+        if(rename(oldExtPath.str().c_str(), newExtPath.str().c_str()))
+        {
+            std::cout << "error: mv: failed to move " << oldExtPath << " to " << newExtPath << std::endl;
+            return 1;
+        }
+    }
+    oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".pageExt";
+    if(std::ifstream(oldExtPath.str()))
+    {
+        newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".pageExt";
+        newExtPath.ensureDirExists();
+        if(rename(oldExtPath.str().c_str(), newExtPath.str().c_str()))
+        {
+            std::cout << "error: mv: failed to move " << oldExtPath << " to " << newExtPath << std::endl;
+            return 1;
+        }
+    }
+    oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".scriptExt";
+    if(std::ifstream(oldExtPath.str()))
+    {
+        newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".scriptExt";
+        newExtPath.ensureDirExists();
+        if(rename(oldExtPath.str().c_str(), newExtPath.str().c_str()))
+        {
+            std::cout << "error: mv: failed to move " << oldExtPath << " to " << newExtPath << std::endl;
+            return 1;
+        }
+    }
 
-    //removes old page file and containing dir if now empty
-    chmod(oldPageInfo.pagePath.str().c_str(), 0666);
-    oldPageInfo.pagePath.removePath();
-    std::cout << "removed " << oldPageInfo.pagePath.str() << std::endl;
-    rmdir(oldPageInfo.pagePath.dir.c_str());
+    //removes page info file and containing dirs if now empty
+    if(std::ifstream(oldPageInfo.pagePath.getInfoPath().dir))
+    {
+        chmod(oldPageInfo.pagePath.getInfoPath().str().c_str(), 0666);
+        remove_path(oldPageInfo.pagePath.getInfoPath());
+    }
 
-    //removes old content file and containing dir if now empty
-    chmod(oldPageInfo.contentPath.str().c_str(), 0666);
-    oldPageInfo.contentPath.removePath();
-    std::cout << "removed " << oldPageInfo.contentPath.str() << std::endl;
-    rmdir(oldPageInfo.contentPath.dir.c_str());
+    //removes page file and containing dirs if now empty
+    if(std::ifstream(oldPageInfo.pagePath.dir))
+    {
+        chmod(oldPageInfo.pagePath.str().c_str(), 0666);
+        remove_path(oldPageInfo.pagePath);
+    }
 
     //removes oldPageInfo from pages
     pages.erase(oldPageInfo);
@@ -728,13 +1820,12 @@ int SiteInfo::mv(const Name &oldPageName, const Name &newPageName)
     save_pages();
 
     //informs user that page was successfully moved
-    std::cout << std::endl;
     std::cout << "successfully moved " << oldPageName << " to " << newPageName << std::endl;
 
     return 0;
 }
 
-int SiteInfo::cp(const Name &trackedPageName, const Name &newPageName)
+int SiteInfo::cp(const Name& trackedPageName, const Name& newPageName)
 {
     if(newPageName.find('.') != std::string::npos)
     {
@@ -753,23 +1844,40 @@ int SiteInfo::cp(const Name &trackedPageName, const Name &newPageName)
     }
     else if(!tracking(trackedPageName)) //checks old page is being tracked
     {
-        std::cout << std::endl;
         std::cout << "error: Nift is not tracking " << trackedPageName << std::endl;
         return 1;
     }
     else if(tracking(newPageName)) //checks new page isn't already tracked
     {
-        std::cout << std::endl;
         std::cout << "error: Nift is already tracking " << newPageName << std::endl;
         return 1;
     }
 
     PageInfo trackedPageInfo = get_info(trackedPageName);
 
+    Path oldExtPath = trackedPageInfo.pagePath.getInfoPath();
+    std::string pageContExt = contentExt,
+                pagePageExt = pageExt;
+
+    oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".contExt";
+    if(std::ifstream(oldExtPath.str()))
+    {
+        std::ifstream ifs(oldExtPath.str());
+        getline(ifs, pageContExt);
+        ifs.close();
+    }
+    oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".pageExt";
+    if(std::ifstream(oldExtPath.str()))
+    {
+        std::ifstream ifs(oldExtPath.str());
+        getline(ifs, pagePageExt);
+        ifs.close();
+    }
+
     PageInfo newPageInfo;
     newPageInfo.pageName = newPageName;
-    newPageInfo.contentPath.set_file_path_from(contentDir + newPageName + contentExt);
-    newPageInfo.pagePath.set_file_path_from(siteDir + newPageName + pageExt);
+    newPageInfo.contentPath.set_file_path_from(contentDir + newPageName + pageContExt);
+    newPageInfo.pagePath.set_file_path_from(siteDir + newPageName + pagePageExt);
     if(get_title(trackedPageInfo.pageName) == trackedPageInfo.pageTitle.str)
         newPageInfo.pageTitle = get_title(newPageName);
     else
@@ -777,15 +1885,50 @@ int SiteInfo::cp(const Name &trackedPageName, const Name &newPageName)
     newPageInfo.templatePath = trackedPageInfo.templatePath;
 
     //copies content file
-    std::ifstream ifs(trackedPageInfo.contentPath.str());
-    newPageInfo.contentPath.ensurePathExists();
-    chmod(newPageInfo.contentPath.str().c_str(), 0666);
-    std::ofstream ofs(newPageInfo.contentPath.str());
-    std::string inLine;
-    while(getline(ifs, inLine))
-        ofs << inLine << "\n";
-    ofs.close();
-    ifs.close();
+    if(cpFile(trackedPageInfo.contentPath.str(), newPageInfo.contentPath.str()))
+    {
+        std::cout << "error: cp: failed to copy " << trackedPageInfo.contentPath << " to " << newPageInfo.contentPath << std::endl;
+        return 1;
+    }
+
+    //copies extension files if they exist
+    Path newExtPath = newPageInfo.pagePath.getInfoPath();
+    oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".contExt";
+    if(std::ifstream(oldExtPath.str()))
+    {
+        newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".contExt";
+        newExtPath.ensureDirExists();
+        if(cpFile(oldExtPath.str(), newExtPath.str()))
+        {
+            std::cout << "error: cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
+            return 1;
+        }
+        chmod(newExtPath.str().c_str(), 0444);
+    }
+    oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".pageExt";
+    if(std::ifstream(oldExtPath.str()))
+    {
+        newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".pageExt";
+        newExtPath.ensureDirExists();
+        if(cpFile(oldExtPath.str(), newExtPath.str()))
+        {
+            std::cout << "error: cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
+            return 1;
+        }
+        chmod(newExtPath.str().c_str(), 0444);
+    }
+    oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".scriptExt";
+    if(std::ifstream(oldExtPath.str()))
+    {
+        newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".scriptExt";
+        newExtPath.ensureDirExists();
+        if(cpFile(oldExtPath.str(), newExtPath.str()))
+        {
+            std::cout << "error: cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
+            return 1;
+        }
+        chmod(newExtPath.str().c_str(), 0444);
+    }
 
     //adds newPageInfo to pages
     pages.insert(newPageInfo);
@@ -794,13 +1937,12 @@ int SiteInfo::cp(const Name &trackedPageName, const Name &newPageName)
     save_pages();
 
     //informs user that page was successfully moved
-    std::cout << std::endl;
     std::cout << "successfully copied " << trackedPageName << " to " << newPageName << std::endl;
 
     return 0;
 }
 
-int SiteInfo::new_title(const Name &pageName, const Title &newTitle)
+int SiteInfo::new_title(const Name& pageName, const Title& newTitle)
 {
     if(newTitle.str == "")
     {
@@ -835,7 +1977,7 @@ int SiteInfo::new_title(const Name &pageName, const Title &newTitle)
     return 0;
 }
 
-int SiteInfo::new_template(const Path &newTemplatePath)
+int SiteInfo::new_template(const Path& newTemplatePath)
 {
     if(newTemplatePath == Path("", ""))
     {
@@ -868,7 +2010,7 @@ int SiteInfo::new_template(const Path &newTemplatePath)
     }
     ifs.close();
     ofs.close();
-    Path(".siteinfo/", "pages.list-old").removePath();
+    remove_path(Path(".siteinfo/", "pages.list-old"));
 
     //sets new template
     defaultTemplate = newTemplatePath;
@@ -885,7 +2027,7 @@ int SiteInfo::new_template(const Path &newTemplatePath)
     return 0;
 }
 
-int SiteInfo::new_template(const Name &pageName, const Path &newTemplatePath)
+int SiteInfo::new_template(const Name& pageName, const Path& newTemplatePath)
 {
     if(newTemplatePath == Path("", ""))
     {
@@ -921,7 +2063,7 @@ int SiteInfo::new_template(const Name &pageName, const Path &newTemplatePath)
     return 0;
 }
 
-int SiteInfo::new_site_dir(const Directory &newSiteDir)
+int SiteInfo::new_site_dir(const Directory& newSiteDir)
 {
     if(newSiteDir == "")
     {
@@ -991,36 +2133,16 @@ int SiteInfo::new_site_dir(const Directory &newSiteDir)
     rename(siteDir.c_str(), ".temp_site_dir");
 
     //ensures new site directory exists
-    Path(newSiteDir, Filename("")).ensurePathExists();
+    Path(newSiteDir, Filename("")).ensureDirExists();
 
     //moves site directory to final location
     rename(".temp_site_dir", newSiteDir.c_str());
 
     //deletes any remaining empty directories
-    ret_val = chdir(delDir.c_str());
-    if(ret_val)
+    if(remove_path(Path(delDir, "")))
     {
-        std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(delDir) << " from " << quote(get_pwd()) << std::endl;
-        return ret_val;
-    }
-
-    size_t pos;
-    while(ls("./") == ". .. ")
-    {
-        pwd = get_pwd();
-        ret_val = chdir(parDir.c_str());
-        if(ret_val)
-        {
-            std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
-            return ret_val;
-        }
-        pos = pwd.find_last_of('/');
-        ret_val = rmdir(pwd.substr(pos+1, pwd.size()-(pos+1)).c_str());
-        if(ret_val)
-        {
-            std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to remove directory " << quote(pwd.substr(pos+1, pwd.size()-(pos+1))) << std::endl;
-            return ret_val;
-        }
+        std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to remove " << quote(delDir) << std::endl;
+        return 1;
     }
 
     //changes back to site root directory
@@ -1057,34 +2179,16 @@ int SiteInfo::new_site_dir(const Directory &newSiteDir)
     rename((".siteinfo/" + siteDir).c_str(), ".temp_site_dir");
 
     //ensures new info directory exists
-    Path(".siteinfo/" + newSiteDir, Filename("")).ensurePathExists();
+    Path(".siteinfo/" + newSiteDir, Filename("")).ensureDirExists();
 
     //moves old info directory to final location
     rename(".temp_site_dir", (".siteinfo/" + newSiteDir).c_str());
 
     //deletes any remaining empty directories
-    ret_val = chdir(delDir.c_str());
-    if(ret_val)
+    if(remove_path(Path(delDir, "")))
     {
-        std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(delDir) << " from " << quote(get_pwd()) << std::endl;
-        return ret_val;
-    }
-    while(ls("./") == ". .. ")
-    {
-        pwd = get_pwd();
-        ret_val = chdir(parDir.c_str());
-        if(ret_val)
-        {
-            std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
-            return ret_val;
-        }
-        pos = pwd.find_last_of('/');
-        ret_val = rmdir(pwd.substr(pos+1, pwd.size()-(pos+1)).c_str());
-        if(ret_val)
-        {
-            std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to remove directory " << quote(pwd.substr(pos+1, pwd.size()-(pos+1))) << std::endl;
-            return ret_val;
-        }
+        std::cout << "error: SiteInfo.cpp: new_site_dir(" << quote(newSiteDir) << "): failed to remove " << quote(delDir) << std::endl;
+        return 1;
     }
 
     //changes back to site root directory
@@ -1106,7 +2210,7 @@ int SiteInfo::new_site_dir(const Directory &newSiteDir)
     return 0;
 }
 
-int SiteInfo::new_content_dir(const Directory &newContDir)
+int SiteInfo::new_content_dir(const Directory& newContDir)
 {
     if(newContDir == "")
     {
@@ -1168,35 +2272,16 @@ int SiteInfo::new_content_dir(const Directory &newContDir)
     rename(contentDir.c_str(), ".temp_cont_dir");
 
     //ensures new site directory exists
-    Path(newContDir, Filename("")).ensurePathExists();
+    Path(newContDir, Filename("")).ensureDirExists();
 
     //moves content directory to final location
     rename(".temp_cont_dir", newContDir.c_str());
 
     //deletes any remaining empty directories
-    ret_val = chdir(delDir.c_str());
-    if(ret_val)
+    if(remove_path(Path(delDir, "")))
     {
-        std::cout << "error: SiteInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(delDir) << " from " << quote(get_pwd()) << std::endl;
-        return ret_val;
-    }
-    size_t pos;
-    while(ls("./") == ". .. ")
-    {
-        pwd = get_pwd();
-        ret_val = chdir(parDir.c_str());
-        if(ret_val)
-        {
-            std::cout << "error: SiteInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
-            return ret_val;
-        }
-        pos = pwd.find_last_of('/');
-        ret_val = rmdir(pwd.substr(pos+1, pwd.size()-(pos+1)).c_str());
-        if(ret_val)
-        {
-            std::cout << "error: SiteInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to remove directory " << quote(pwd.substr(pos+1, pwd.size()-(pos+1))) << std::endl;
-            return ret_val;
-        }
+        std::cout << "error: SiteInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to remove " << quote(delDir) << std::endl;
+        return 1;
     }
 
     //changes back to site root directory
@@ -1218,7 +2303,7 @@ int SiteInfo::new_content_dir(const Directory &newContDir)
     return 0;
 }
 
-int SiteInfo::new_content_ext(const std::string &newExt)
+int SiteInfo::new_content_ext(const std::string& newExt)
 {
     if(newExt == "" || newExt[0] != '.')
     {
@@ -1251,7 +2336,10 @@ int SiteInfo::new_content_ext(const std::string &newExt)
             ifs.close();
 
             if(oldExt == newExt)
-                extPath.removePath();
+            {
+                chmod(extPath.str().c_str(), 0666);
+                remove_path(extPath);
+            }
         }
         else
         {
@@ -1272,7 +2360,7 @@ int SiteInfo::new_content_ext(const std::string &newExt)
     return 0;
 }
 
-int SiteInfo::new_content_ext(const Name &pageName, const std::string &newExt)
+int SiteInfo::new_content_ext(const Name& pageName, const std::string& newExt)
 {
     if(newExt == "" || newExt[0] != '.')
     {
@@ -1316,7 +2404,7 @@ int SiteInfo::new_content_ext(const Name &pageName, const std::string &newExt)
             chmod(extPath.str().c_str(), 0444);
         }
         else
-            extPath.removePath();
+            remove_path(extPath);
 
         //moves the content file
         if(std::ifstream(pageInfo.contentPath.str()))
@@ -1336,7 +2424,7 @@ int SiteInfo::new_content_ext(const Name &pageName, const std::string &newExt)
     return 0;
 }
 
-int SiteInfo::new_page_ext(const std::string &newExt)
+int SiteInfo::new_page_ext(const std::string& newExt)
 {
     if(newExt == "" || newExt[0] != '.')
     {
@@ -1369,7 +2457,10 @@ int SiteInfo::new_page_ext(const std::string &newExt)
             ifs.close();
 
             if(oldExt == newExt)
-                extPath.removePath();
+            {
+                chmod(extPath.str().c_str(), 0666);
+                remove_path(extPath);
+            }
         }
         else
         {
@@ -1390,7 +2481,7 @@ int SiteInfo::new_page_ext(const std::string &newExt)
     return 0;
 }
 
-int SiteInfo::new_page_ext(const Name &pageName, const std::string &newExt)
+int SiteInfo::new_page_ext(const Name& pageName, const std::string& newExt)
 {
     if(newExt == "" || newExt[0] != '.')
     {
@@ -1434,7 +2525,7 @@ int SiteInfo::new_page_ext(const Name &pageName, const std::string &newExt)
             chmod(extPath.str().c_str(), 0444);
         }
         else
-            extPath.removePath();
+            remove_path(extPath);
 
         //moves the built page
         if(std::ifstream(pageInfo.pagePath.str()))
@@ -1454,7 +2545,7 @@ int SiteInfo::new_page_ext(const Name &pageName, const std::string &newExt)
     return 0;
 }
 
-int SiteInfo::new_script_ext(const std::string &newExt)
+int SiteInfo::new_script_ext(const std::string& newExt)
 {
     if(newExt != "" && newExt[0] != '.')
     {
@@ -1487,7 +2578,10 @@ int SiteInfo::new_script_ext(const std::string &newExt)
             ifs.close();
 
             if(oldExt == newExt)
-                extPath.removePath();
+            {
+                chmod(extPath.str().c_str(), 0666);
+                remove_path(extPath);
+            }
         }
     }
 
@@ -1497,7 +2591,7 @@ int SiteInfo::new_script_ext(const std::string &newExt)
     return 0;
 }
 
-int SiteInfo::new_script_ext(const Name &pageName, const std::string &newExt)
+int SiteInfo::new_script_ext(const Name& pageName, const std::string& newExt)
 {
     if(newExt != "" && newExt[0] != '.')
     {
@@ -1541,7 +2635,7 @@ int SiteInfo::new_script_ext(const Name &pageName, const std::string &newExt)
             chmod(extPath.str().c_str(), 0444);
         }
         else
-            extPath.removePath();
+            remove_path(extPath);
     }
     else
     {
@@ -1574,12 +2668,97 @@ int SiteInfo::no_build_threads(int no_threads)
     return 0;
 }
 
+int SiteInfo::check_watch_dirs()
+{
+    if(std::ifstream(".siteinfo/.watchinfo/watching.list"))
+    {
+        WatchList wl;
+        if(wl.open())
+        {
+            std::cout << "error: failed to open watch list '.siteinfo/.watchinfo/watching.list'" << std::endl;
+            return 1;
+        }
+
+        for(auto wd=wl.dirs.begin(); wd!=wl.dirs.end(); wd++)
+        {
+            std::string file,
+                        watchDirFilesStr = ".siteinfo/.watchinfo/" + replace_slashes(wd->watchDir) + ".tracked";
+            PageInfo pageinfo;
+
+            std::ifstream ifs(watchDirFilesStr);
+            std::vector<Name> pageNamesToRemove;
+            while(read_quoted(ifs, file))
+            {
+                pageinfo = get_info(file);
+                if(pageinfo.pageName != "##not-found##")
+                    if(!std::ifstream(pageinfo.contentPath.str()))
+                        pageNamesToRemove.push_back(file);
+            }
+            ifs.close();
+
+            if(pageNamesToRemove.size())
+                rm(pageNamesToRemove);
+
+            std::vector<TrackInfo> pages_to_track;
+            std::vector<Name> pages_tracked;
+            std::string ext;
+            Name pagename;
+            size_t pos;
+            std::vector<std::string> files = lsVec(wd->watchDir.c_str());
+            for(size_t f=0; f<files.size(); f++)
+            {
+                pos = files[f].find_first_of('.');
+                if(pos != std::string::npos)
+                {
+                    ext = files[f].substr(pos, files[f].size()-pos);
+                    if(wd->watchDir.size() == contentDir.size())
+                        pagename = files[f].substr(0, pos);
+                    else
+                        pagename = wd->watchDir.substr(contentDir.size(), wd->watchDir.size()-contentDir.size()) + files[f].substr(0, pos);
+
+                    if(wd->contExts.count(ext)) //we are watching the extension
+                    {
+                        if(!tracking(pagename))
+                            pages_to_track.push_back(TrackInfo(pagename, Title(pagename), wd->templatePaths.at(ext), ext, wd->pageExts.at(ext)));
+
+                        pages_tracked.push_back(pagename);
+                    }
+                }
+            }
+
+            if(pages_to_track.size())
+                track(pages_to_track);
+
+            //makes sure we can write to watchDir tracked file
+            chmod(watchDirFilesStr.c_str(), 0644);
+
+            std::ofstream ofs(watchDirFilesStr);
+
+            for(size_t f=0; f<pages_tracked.size(); f++)
+                ofs << quote(pages_tracked[f]) << std::endl;
+
+            ofs.close();
+
+            //makes sure user can't accidentally write to watchDir tracked file
+            chmod(watchDirFilesStr.c_str(), 0444);
+        }
+    }
+
+    return 0;
+}
+
 std::mutex os_mtx;
 
 int SiteInfo::build(const std::vector<Name>& pageNamesToBuild)
 {
-    PageBuilder pageBuilder(&pages, &os_mtx, contentDir, siteDir, contentExt, pageExt, scriptExt, defaultTemplate, unixTextEditor, winTextEditor);
+    check_watch_dirs();
+
+    PageBuilder pageBuilder(&pages, &os_mtx, contentDir, siteDir, contentExt, pageExt, scriptExt, defaultTemplate, backupScripts, unixTextEditor, winTextEditor);
     std::set<Name> untrackedPages, failedPages;
+
+    //checks for pre-build scripts
+    if(run_script(std::cout, "pre-build" + scriptExt, backupScripts, &os_mtx3))
+        return 1;
 
     for(auto pageName=pageNamesToBuild.begin(); pageName != pageNamesToBuild.end(); pageName++)
     {
@@ -1600,7 +2779,7 @@ int SiteInfo::build(const std::vector<Name>& pageNamesToBuild)
             std::cout << " " << *fName << std::endl;
         std::cout << "-----------------------------------------" << std::endl;
     }
-    if(untrackedPages.size() > 0)
+    else if(untrackedPages.size() > 0)
     {
         std::cout << std::endl;
         std::cout << "---- Nift not tracking following pages ----" << std::endl;
@@ -1608,10 +2787,13 @@ int SiteInfo::build(const std::vector<Name>& pageNamesToBuild)
             std::cout << " " << *uName << std::endl;
         std::cout << "-------------------------------------------" << std::endl;
     }
-    if(failedPages.size() == 0 && untrackedPages.size() == 0)
+    else if(failedPages.size() == 0 && untrackedPages.size() == 0)
     {
-        std::cout << std::endl;
-        std::cout << "all pages built successfully" << std::endl;
+        std::cout << "all " << pageNamesToBuild.size() << " pages built successfully" << std::endl;
+
+        //checks for post-build scripts
+        if(run_script(std::cout, "post-build" + scriptExt, backupScripts, &os_mtx3))
+            return 1;
     }
 
     return 0;
@@ -1623,9 +2805,20 @@ std::set<PageInfo>::iterator cPage;
 
 std::atomic<int> counter;
 
-void build_thread(std::ostream& os, std::set<PageInfo>* pages, const int& no_pages, const Directory& ContentDir, const Directory& SiteDir, const std::string& ContentExt, const std::string& PageExt, const std::string& ScriptExt, const Path& DefaultTemplate, const std::string& UnixTextEditor, const std::string& WinTextEditor)
+void build_thread(std::ostream& os,
+                  std::set<PageInfo>* pages,
+                  const int& no_pages,
+                  const Directory& ContentDir,
+                  const Directory& SiteDir,
+                  const std::string& ContentExt,
+                  const std::string& PageExt,
+                  const std::string& ScriptExt,
+                  const Path& DefaultTemplate,
+                  const bool& BackupScripts,
+                  const std::string& UnixTextEditor,
+                  const std::string& WinTextEditor)
 {
-    PageBuilder pageBuilder(pages, &os_mtx, ContentDir, SiteDir, ContentExt, PageExt, ScriptExt, DefaultTemplate, UnixTextEditor, WinTextEditor);
+    PageBuilder pageBuilder(pages, &os_mtx, ContentDir, SiteDir, ContentExt, PageExt, ScriptExt, DefaultTemplate, BackupScripts, UnixTextEditor, WinTextEditor);
     std::set<PageInfo>::iterator pageInfo;
 
     while(counter < no_pages)
@@ -1665,12 +2858,18 @@ int SiteInfo::build_all()
 
     std::set<Name> untrackedPages;
 
+    check_watch_dirs();
+
+    //checks for pre-build scripts
+    if(run_script(std::cout, "pre-build" + scriptExt, backupScripts, &os_mtx3))
+        return 1;
+
     cPage = pages.begin();
     counter = 0;
 
 	std::vector<std::thread> threads;
 	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(build_thread, std::ref(std::cout), &pages, pages.size(), contentDir, siteDir, contentExt, pageExt, scriptExt, defaultTemplate, unixTextEditor, winTextEditor));
+		threads.push_back(std::thread(build_thread, std::ref(std::cout), &pages, pages.size(), contentDir, siteDir, contentExt, pageExt, scriptExt, defaultTemplate, backupScripts, unixTextEditor, winTextEditor));
 
 	for(int i=0; i<no_threads; i++)
 		threads[i].join();
@@ -1691,7 +2890,7 @@ int SiteInfo::build_all()
         }
         std::cout << "-----------------------------------------" << std::endl;
     }
-    if(untrackedPages.size() > 0)
+    else if(untrackedPages.size() > 0)
     {
         std::cout << std::endl;
         std::cout << "---- Nift not tracking following pages ----" << std::endl;
@@ -1707,8 +2906,14 @@ int SiteInfo::build_all()
         }
         std::cout << "-------------------------------------------" << std::endl;
     }
-    if(failedPages.size() == 0 && untrackedPages.size() == 0)
+    else
+    {
         std::cout << "all " << builtPages.size() << " pages built successfully" << std::endl;
+
+        //checks for post-build scripts
+        if(run_script(std::cout, "post-build" + scriptExt, backupScripts, &os_mtx3))
+            return 1;
+    }
 
     return 0;
 }
@@ -1897,6 +3102,8 @@ void dep_thread(std::ostream& os, const int& no_pages, const Directory& contentD
 
 int SiteInfo::build_updated(std::ostream& os)
 {
+    check_watch_dirs();
+
     builtPages.clear();
     failedPages.clear();
     problemPages.clear();
@@ -1954,23 +3161,6 @@ int SiteInfo::build_updated(std::ostream& os)
         os << "---------------------------------------" << std::endl;
     }
 
-    if(updatedPages.size() > 0)
-    {
-        os << std::endl;
-        os << "----- pages that need building -----" << std::endl;
-        if(updatedPages.size() < 20)
-            for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
-                os << " " << uPage->pagePath << std::endl;
-        else
-        {
-            int x=0;
-            for(auto uPage=updatedPages.begin(); x < 20; uPage++, x++)
-                os << " " << uPage->pagePath << std::endl;
-            os << " along with " << updatedPages.size() - 20 << " other pages" << std::endl;
-        }
-        os << "------------------------------------" << std::endl;
-    }
-
     if(problemPages.size() > 0)
     {
         os << std::endl;
@@ -1988,54 +3178,81 @@ int SiteInfo::build_updated(std::ostream& os)
         os << "-------------------------------------------------------" << std::endl;
     }
 
-    cPage = updatedPages.begin();
-    counter = 0;
-
-	threads.clear();
-	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(build_thread, std::ref(os), &pages, updatedPages.size(), contentDir, siteDir, contentExt, pageExt, scriptExt, defaultTemplate, unixTextEditor, winTextEditor));
-
-	for(int i=0; i<no_threads; i++)
-		threads[i].join();
-
-    if(builtPages.size() > 0)
+    if(updatedPages.size() > 0)
     {
         os << std::endl;
-        os << "------- pages successfully built -------" << std::endl;
-        if(builtPages.size() < 20)
-            for(auto bName=builtPages.begin(); bName != builtPages.end(); bName++)
-                os << " " << *bName << std::endl;
+        os << "----- pages that need building -----" << std::endl;
+        if(updatedPages.size() < 20)
+            for(auto uPage=updatedPages.begin(); uPage != updatedPages.end(); uPage++)
+                os << " " << uPage->pagePath << std::endl;
         else
         {
             int x=0;
-            for(auto bName=builtPages.begin(); x < 20; bName++, x++)
-                os << " " << *bName << std::endl;
-            os << " along with " << builtPages.size() - 20 << " other pages" << std::endl;
+            for(auto uPage=updatedPages.begin(); x < 20; uPage++, x++)
+                os << " " << uPage->pagePath << std::endl;
+            os << " along with " << updatedPages.size() - 20 << " other pages" << std::endl;
         }
-        os << "----------------------------------------" << std::endl;
-    }
+        os << "------------------------------------" << std::endl;
 
-    if(failedPages.size() > 0)
-    {
-        os << std::endl;
-        os << "---- following pages failed to build ----" << std::endl;
-        if(failedPages.size() < 20)
-            for(auto fName=failedPages.begin(); fName != failedPages.end(); fName++)
-                os << " " << *fName << std::endl;
+        //checks for pre-build scripts
+        if(run_script(std::cout, "pre-build" + scriptExt, backupScripts, &os_mtx3))
+            return 1;
+
+        cPage = updatedPages.begin();
+        counter = 0;
+
+        threads.clear();
+        for(int i=0; i<no_threads; i++)
+            threads.push_back(std::thread(build_thread, std::ref(os), &pages, updatedPages.size(), contentDir, siteDir, contentExt, pageExt, scriptExt, defaultTemplate, backupScripts, unixTextEditor, winTextEditor));
+
+        for(int i=0; i<no_threads; i++)
+            threads[i].join();
+
+        if(builtPages.size() > 0)
+        {
+            os << std::endl;
+            os << "------- pages successfully built -------" << std::endl;
+            if(builtPages.size() < 20)
+                for(auto bName=builtPages.begin(); bName != builtPages.end(); bName++)
+                    os << " " << *bName << std::endl;
+            else
+            {
+                int x=0;
+                for(auto bName=builtPages.begin(); x < 20; bName++, x++)
+                    os << " " << *bName << std::endl;
+                os << " along with " << builtPages.size() - 20 << " other pages" << std::endl;
+            }
+            os << "----------------------------------------" << std::endl;
+        }
+
+        if(failedPages.size() > 0)
+        {
+            os << std::endl;
+            os << "---- following pages failed to build ----" << std::endl;
+            if(failedPages.size() < 20)
+                for(auto fName=failedPages.begin(); fName != failedPages.end(); fName++)
+                    os << " " << *fName << std::endl;
+            else
+            {
+                int x=0;
+                for(auto fName=failedPages.begin(); x < 20; fName++, x++)
+                    os << " " << *fName << std::endl;
+                os << " along with " << failedPages.size() - 20 << " other pages" << std::endl;
+            }
+            os << "-----------------------------------------" << std::endl;
+        }
         else
         {
-            int x=0;
-            for(auto fName=failedPages.begin(); x < 20; fName++, x++)
-                os << " " << *fName << std::endl;
-            os << " along with " << failedPages.size() - 20 << " other pages" << std::endl;
+            //checks for post-build scripts
+            if(run_script(std::cout, "post-build" + scriptExt, backupScripts, &os_mtx3))
+                return 1;
         }
-        os << "-----------------------------------------" << std::endl;
     }
 
     if(updatedPages.size() == 0 && problemPages.size() == 0 && failedPages.size() == 0)
     {
         //os << std::endl;
-        os << "all pages are already up to date" << std::endl;
+        os << "all " << pages.size() << " pages are already up to date" << std::endl;
     }
 
 	builtPages.clear();
@@ -2048,7 +3265,6 @@ int SiteInfo::status()
 {
     if(pages.size() == 0)
     {
-        std::cout << std::endl;
         std::cout << "Nift does not have any pages tracked" << std::endl;
         return 0;
     }
@@ -2176,10 +3392,7 @@ int SiteInfo::status()
     }
 
     if(updatedFiles.size() == 0 && updatedPages.size() == 0 && problemPages.size() == 0)
-    {
-        std::cout << std::endl;
         std::cout << "all pages are already up to date" << std::endl;
-    }
 
     return 0;
 }

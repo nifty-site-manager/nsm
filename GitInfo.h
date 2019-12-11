@@ -4,7 +4,6 @@
 #include <set>
 
 #include "FileSystem.h"
-#include "Path.h"
 
 bool is_git_configured(); //checks whether git is configured
 bool is_git_remote_set(); //checks whether git remote is set

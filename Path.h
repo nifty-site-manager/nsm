@@ -34,8 +34,8 @@ struct Path
     //returns whether first file was modified after second file
     bool modified_after(const Path &path2) const;
 
-    bool removePath() const;
-    bool ensurePathExists() const;
+    bool ensureDirExists() const;
+	bool ensureFileExists() const;
 
     Path getInfoPath() const;
 };

@@ -13,7 +13,7 @@
 
 bool is_whitespace(const std::string& str);
 std::string into_whitespace(const std::string& str);
-bool run_script(std::ostream& os, std::string scriptPath, std::mutex* os_mtx);
+bool run_script(std::ostream& os, const std::string& scriptPathStr, const bool& makeBackup, std::mutex* os_mtx);
 
 struct PageBuilder
 {
@@ -33,6 +33,7 @@ struct PageBuilder
     //site info
     Directory contentDir,
               siteDir;
+    bool backupScripts;
     std::string contentExt,
                 pageExt,
                 scriptExt,
@@ -48,6 +49,7 @@ struct PageBuilder
                 const std::string& PageExt,
                 const std::string& ScriptExt,
                 const Path& DefaultTemplate,
+                const bool& makeBackup,
                 const std::string& UnixTextEditor,
                 const std::string& WinTextEditor);
 

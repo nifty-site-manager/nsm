@@ -2,6 +2,16 @@
 Nift Release Notes
 ------------------
 
+Versin 1.24 of Nift
+* fixed bugs with content/page/script extensions and mv/cp/rm aka move/copy/del
+* updated/moved removePath to remove_path and remove_file and now removes now-empty directories
+* added in ^ option for @script syntax in template language for not making a backup copy
+* added in backupScripts to config files
+* added Nift commands track-dir, untrack-dir, rm-dir, track-from-file, untrack-from-file, rm-from-file (note when removing large volumes of pages using rm-from-file can cause significant machine lags while running and not long after)
+* added Nift commands watch, unwatch, info-watching
+* got rid of pre/post build-all and build-updated scripts, costs too much time and not really needed
+* added pre/post build scripts to page dependencies
+
 Version 1.23 of Nift
 * fixed Windows bugs and tidied up with pre/post build/serve scripts and @script, @scriptoutput, @scriptraw
 * fixed indenting inside pre blocks with methods to input from file

@@ -19,6 +19,8 @@ std::string Path::str() const
     /*
         consider:  <a href=@pathtofile('site/pdfs/Example name.pdf')>pdf</a>
             vs     <a href="@pathtofile('site/pdfs/Example name.pdf')">pdf</a>
+        I prefer the latter! Plus first wont even work for paths
+        that don't need to be quoted (though quite rare)
     */
 }
 
@@ -73,14 +75,7 @@ Path Path::getInfoPath() const
     return Path(".siteinfo/" + dir,  strippedExtension(file) + ".info");
 }
 
-bool Path::removePath() const
-{
-    std::remove(str().c_str());
-
-    return 0;
-}
-
-bool Path::ensurePathExists() const
+bool Path::ensureDirExists() const
 {
     std::deque<Directory> dDeque = dirDeque(dir);
     std::string cDir="";
@@ -88,7 +83,6 @@ bool Path::ensurePathExists() const
     for(size_t d=0; d<dDeque.size(); d++)
     {
         cDir += dDeque[d];
-        //std::cout << "making sure " << cDir << " exists " << std::endl;
         #if defined _WIN32 || defined _WIN64
             _mkdir(cDir.c_str()); //windows specific
         #else //osx/unix
@@ -96,9 +90,17 @@ bool Path::ensurePathExists() const
         #endif
     }
 
+    return 0;
+}
+
+bool Path::ensureFileExists() const
+{
+    ensureDirExists();
+
     if(file.length())
     {
         close(creat(str().c_str(), O_CREAT));
+		chmod(str().c_str(), 0644);
     }
 
     return 0;

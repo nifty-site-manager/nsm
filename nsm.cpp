@@ -68,28 +68,26 @@ int serve()
 
         ofs.open(".serve-build-log.txt");
 
-        if(!run_script(ofs, "pre-build" + site.scriptExt, &os_mtx2))
-            if(!run_script(ofs, "pre-build-updated" + site.scriptExt, &os_mtx2))
-                if(!site.build_updated(ofs))
-                    if(!run_script(ofs, "post-build" + site.scriptExt, &os_mtx2))
-                        run_script(ofs, "post-build-updated" + site.scriptExt, &os_mtx2);
+        if(!run_script(ofs, "pre-build" + site.scriptExt, site.backupScripts, &os_mtx2))
+            if(!site.build_updated(ofs))
+                run_script(ofs, "post-build" + site.scriptExt, site.backupScripts, &os_mtx2);
 
         ofs.close();
 
         usleep(sleepTime);
     }
 
-    Path("./", ".serve-build-log.txt").removePath();
+    remove_path(Path("./", ".serve-build-log.txt"));
 
     return 0;
 }
 
-void unrecognisedCommand(const std::string from, const std::string cmd)
+void unrecognisedCommand(const std::string& from, const std::string& cmd)
 {
     std::cout << "error: " << from << " does not recognise the command '" << cmd << "'" << std::endl;
 }
 
-bool parError(int noParams, char* argv[], const std::string &expectedNo)
+bool parError(int noParams, char* argv[], const std::string& expectedNo)
 {
     std::cout << "error: " << noParams << " parameters is not the " << expectedNo << " parameters expected" << std::endl;
     std::cout << "parameters given:";
@@ -124,42 +122,51 @@ int main(int argc, char* argv[])
     //Nift commands that can run from anywhere
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.23" << std::endl;
+        std::cout << "Nift (aka nsm) v1.24" << std::endl;
 
         return 0;
     }
     else if(cmd == "commands")
     {
-        std::cout << "+------ available commands ----------------------------------------+" << std::endl;
-        std::cout << "| commands       | lists all Nift commands                         |" << std::endl;
-        std::cout << "| config         | list config settings or set git email/username  |" << std::endl;
-        std::cout << "| clone          | input: clone-url                                |" << std::endl;
-        std::cout << "| diff           | input: file-path                                |" << std::endl;
-        std::cout << "| pull           | pull remote changes locally                     |" << std::endl;
-        std::cout << "| init           | initialise managing a site - input: (site-name) |" << std::endl;
-        std::cout << "| status         | lists updated and problem pages                 |" << std::endl;
-        std::cout << "| info           | input: page-name-1 .. page-name-k               |" << std::endl;
-        std::cout << "| info-all       | lists tracked pages                             |" << std::endl;
-        std::cout << "| info-names     | lists tracked page names                        |" << std::endl;
-        std::cout << "| track          | input: page-name (page-title) (template-path)   |" << std::endl;
-        std::cout << "| untrack        | input: page-name                                |" << std::endl;
-        std::cout << "| rm or del      | input: page-name                                |" << std::endl;
-        std::cout << "| mv or move     | input: old-name new-name                        |" << std::endl;
-        std::cout << "| cp or copy     | input: tracked-name new-name                    |" << std::endl;
-        std::cout << "| build          | input: page-name-1 .. page-name-k               |" << std::endl;
-        std::cout << "| build-updated  | builds updated pages                            |" << std::endl;
-        std::cout << "| build-all      | builds all tracked pages                        |" << std::endl;
-        std::cout << "| serve          | serves website locally                          |" << std::endl;
-        std::cout << "| bcp            | input: commit-message                           |" << std::endl;
-        std::cout << "| new-title      | input: page-name new-title                      |" << std::endl;
-        std::cout << "| new-template   | input: (page-name) template-path                |" << std::endl;
-        std::cout << "| new-site-dir   | input: dir-path                                 |" << std::endl;
-        std::cout << "| new-cont-dir   | input: dir-path                                 |" << std::endl;
-        std::cout << "| new-cont-ext   | input: (page-name) content-extension            |" << std::endl;
-        std::cout << "| new-page-ext   | input: (page-name) page-extension               |" << std::endl;
-        std::cout << "| new-script-ext | input: (page-name) script-extension             |" << std::endl;
-        std::cout << "| no-build-thrds | input: (no-threads) [-n == n*cores]             |" << std::endl;
-        std::cout << "+------------------------------------------------------------------+" << std::endl;
+        std::cout << "+--------- available commands ------------------------------------------+" << std::endl;
+        std::cout << "| commands          | lists all Nift commands                           |" << std::endl;
+        std::cout << "| config            | list config settings or set git email/username    |" << std::endl;
+        std::cout << "| clone             | input: clone-url                                  |" << std::endl;
+        std::cout << "| diff              | input: file-path                                  |" << std::endl;
+        std::cout << "| pull              | pull remote changes locally                       |" << std::endl;
+        std::cout << "| init              | initialise managing a site - input: (site-name)   |" << std::endl;
+        std::cout << "| status            | lists updated and problem pages                   |" << std::endl;
+        std::cout << "| info              | input: page-name-1 .. page-name-k                 |" << std::endl;
+        std::cout << "| info-all          | lists watched directories and tracked pages       |" << std::endl;
+        std::cout << "| info-watching     | lists watched directories                         |" << std::endl;
+        std::cout << "| info-names        | lists tracked page names                          |" << std::endl;
+        std::cout << "| track             | input: page-name (page-title) (template-path)     |" << std::endl;
+        std::cout << "| track-from-file   | input: file-path                                  |" << std::endl;
+        std::cout << "| track-dir         | input: dir-path (cont-ext) (temp-path) (page-ext) |" << std::endl;
+        std::cout << "| untrack           | input: page-name                                  |" << std::endl;
+        std::cout << "| untrack-from-file | input: file-path                                  |" << std::endl;
+        std::cout << "| untrack-dir       | input: dir-path (content-ext)                     |" << std::endl;
+        std::cout << "| rm or del         | input: page-name                                  |" << std::endl;
+        std::cout << "| rm-from-file      | input: file-path                                  |" << std::endl;
+        std::cout << "| rm-dir            | input: dir-path (content-ext)                     |" << std::endl;
+        std::cout << "| mv or move        | input: old-name new-name                          |" << std::endl;
+        std::cout << "| cp or copy        | input: tracked-name new-name                      |" << std::endl;
+        std::cout << "| build             | input: page-name-1 .. page-name-k                 |" << std::endl;
+        std::cout << "| build-updated     | builds updated pages                              |" << std::endl;
+        std::cout << "| build-all         | builds all tracked pages                          |" << std::endl;
+        std::cout << "| serve             | serves website locally                            |" << std::endl;
+        std::cout << "| bcp               | input: commit-message                             |" << std::endl;
+        std::cout << "| new-title         | input: page-name new-title                        |" << std::endl;
+        std::cout << "| new-template      | input: (page-name) template-path                  |" << std::endl;
+        std::cout << "| new-site-dir      | input: dir-path                                   |" << std::endl;
+        std::cout << "| new-cont-dir      | input: dir-path                                   |" << std::endl;
+        std::cout << "| new-cont-ext      | input: (page-name) content-extension              |" << std::endl;
+        std::cout << "| new-page-ext      | input: (page-name) page-extension                 |" << std::endl;
+        std::cout << "| new-script-ext    | input: (page-name) script-extension               |" << std::endl;
+        std::cout << "| no-build-thrds    | input: (no-threads) [-n == n*cores]               |" << std::endl;
+        std::cout << "| watch             | input: dir-path (cont-ext) (temp-path) (page-ext) |" << std::endl;
+        std::cout << "| unwatch           | input: dir-path (cont-ext)                        |" << std::endl;
+        std::cout << "+-----------------------------------------------------------------------+" << std::endl;
 
         return 0;
     }
@@ -244,9 +251,7 @@ int main(int argc, char* argv[])
         //sets up
         Path pagesListPath(".siteinfo/", "pages.list");
         //ensures pages list file exists
-        pagesListPath.ensurePathExists();
-        //adds read and write permissions to pages list file
-        chmod(pagesListPath.str().c_str(), 0666);
+        pagesListPath.ensureFileExists();
 
         #if defined _WIN32 || defined _WIN64
             ret_val = system("attrib +h .siteinfo");
@@ -261,6 +266,7 @@ int main(int argc, char* argv[])
         ofs << "pageExt '.html'" << std::endl;
         ofs << "scriptExt '.py'" << std::endl;
         ofs << "defaultTemplate 'template/page.template'" << std::endl << std::endl;
+        ofs << "backupScripts 1" << std::endl << std::endl;
         ofs << "buildThreads -1" << std::endl << std::endl;
         ofs << "unixTextEditor nano" << std::endl;
         ofs << "winTextEditor notepad" << std::endl << std::endl;
@@ -270,9 +276,7 @@ int main(int argc, char* argv[])
 
         pagesListPath = Path("template/", "page.template");
         //ensures pages list file exists
-        pagesListPath.ensurePathExists();
-        //adds read and write permissions to pages list file
-        chmod(pagesListPath.str().c_str(), 0666);
+        pagesListPath.ensureDirExists();
 
         ofs.open("template/page.template");
         ofs << "<html>" << std::endl;
@@ -304,7 +308,7 @@ int main(int argc, char* argv[])
         site.track(name, title, site.defaultTemplate);
         site.build_updated(std::cout);
 
-        std::cout << "Nift: initialised empty site in " << get_pwd() << "/.siteinfo/" << std::endl;
+        std::cout << "Nift: initialised empty site in " << get_pwd() << std::endl;
 
         return 0;
     }
@@ -462,7 +466,7 @@ int main(int argc, char* argv[])
             checkoutCmnd = "git checkout " + *branch + " > /dev/null 2>&1 >nul 2>&1";
             ret_val = system(checkoutCmnd.c_str());
             if(std::ifstream("./nul"))
-                Path("./", "nul").removePath();
+                remove_path(Path("./", "nul"));
             if(ret_val)
             {
                 std::cout << "error: nsm.cpp: clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
@@ -511,7 +515,7 @@ int main(int argc, char* argv[])
 
                     ret_val = system("git checkout -- . > /dev/null 2>&1 >nul 2>&1");
                     if(std::ifstream("./nul"))
-                        Path("./", "nul").removePath();
+                        remove_path(Path("./", "nul"));
                     if(ret_val)
                     {
                         std::cout << "error: nsm.cpp: clone: system('git checkout -- .') failed in " << quote(get_pwd()) << std::endl;
@@ -521,7 +525,7 @@ int main(int argc, char* argv[])
                     checkoutCmnd = "git checkout " + site.siteBranch + " > /dev/null 2>&1 >nul 2>&1";
                     ret_val = system(checkoutCmnd.c_str());
                     if(std::ifstream("./nul"))
-                        Path("./", "nul").removePath();
+                        remove_path(Path("./", "nul"));
                     if(ret_val)
                     {
                         std::cout << "error: nsm.cpp: clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
@@ -576,7 +580,7 @@ int main(int argc, char* argv[])
         checkoutCmnd = "git checkout " + obranch + " > /dev/null 2>&1 >nul 2>&1";
         ret_val = system(checkoutCmnd.c_str());
         if(std::ifstream("./nul"))
-            Path("./", "nul").removePath();
+            remove_path(Path("./", "nul"));
         if(ret_val)
         {
             std::cout << "error: nsm.cpp: clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
@@ -595,11 +599,17 @@ int main(int argc, char* argv[])
            cmd != "status" &&
            cmd != "info" &&
            cmd != "info-all" &&
+           cmd != "info-watching" &&
            cmd != "info-names" &&
            cmd != "track" &&
+           cmd != "track-from-file" &&
+           cmd != "track-dir" &&
            cmd != "untrack" &&
-           cmd != "rm" &&
-           cmd != "del" &&
+           cmd != "untrack-from-file" &&
+           cmd != "untrack-dir" &&
+           cmd != "rm-from-file" && cmd != "del-from-file" &&
+           cmd != "rm-dir"       && cmd != "del-dir" &&
+           cmd != "rm"           && cmd != "del" &&
            cmd != "mv" &&
            cmd != "move" &&
            cmd != "cp" &&
@@ -612,6 +622,8 @@ int main(int argc, char* argv[])
            cmd != "new-page-ext" &&
            cmd != "new-script-ext" &&
            cmd != "no-build-thrds" &&
+           cmd != "watch" &&
+           cmd != "unwatch" &&
            cmd != "build-updated" &&
            cmd != "build" &&
            cmd != "build-all" &&
@@ -864,6 +876,189 @@ int main(int argc, char* argv[])
 
             return 0;
         }
+        else if(cmd == "watch")
+        {
+            //ensures correct number of parameters given
+            if(noParams < 2 && noParams > 5)
+                return parError(noParams, argv, "2-5");
+
+            WatchList wl;
+            if(wl.open())
+            {
+                std::cout << "error: watch: failed to open watch list '.siteinfo/.watchinfo/watching.list'" << std::endl;
+                return 1;
+            }
+
+            WatchDir wd;
+            wd.watchDir = comparable(argv[2]);
+            if(!std::ifstream(std::string(argv[2])))
+            {
+                std::cout << "error: cannot watch directory " << quote(wd.watchDir) << " as it does not exist" << std::endl;
+                return 1;
+            }
+            else if(wd.watchDir.substr(0, site.contentDir.size()) != site.contentDir)
+            {
+                std::cout << "error: cannot watch directory " << quote(wd.watchDir) << " as it is not a subdirectory of the site-wide content directory " << quote(site.contentDir) << std::endl;
+                return 1;
+            }
+            std::string contExt, pageExt;
+            Path templatePath;
+            if(wd.watchDir[wd.watchDir.size()-1] != '/' && wd.watchDir[wd.watchDir.size()-1] != '\\')
+            {
+                std::cout << "error: watch directory " << quote(wd.watchDir) << " must end with '/' or '\\'" << std::endl;
+                return 1;
+            }
+            if(noParams >= 3)
+            {
+                contExt = argv[3];
+                if(contExt[0] != '.')
+                {
+                    std::cout << "error: content extension " << quote(contExt) << " must start with a '.'" << std::endl;
+                    return 1;
+                }
+            }
+            else
+                contExt = site.contentExt;
+            if(noParams >= 4)
+            {
+                templatePath.set_file_path_from(argv[4]);
+
+                if(!std::ifstream(templatePath.str()))
+                {
+                    std::cout << "error: template path " << templatePath << " does not exist" << std::endl;
+                    return 1;
+                }
+            }
+            else
+                templatePath = site.defaultTemplate;
+            if(noParams == 5)
+            {
+                pageExt = argv[5];
+                if(pageExt[0] != '.')
+                {
+                    std::cout << "error: page extension " << quote(pageExt) << " must start with a '.'" << std::endl;
+                    return 1;
+                }
+            }
+            else
+                pageExt = site.pageExt;
+
+            auto found = wl.dirs.find(wd);
+
+            if(found != wl.dirs.end())
+            {
+                if(found->contExts.count(contExt))
+                {
+                    std::cout << "error: already watching directory " << quote(wd.watchDir) << " with content extension " << quote(contExt) << std::endl;
+                    return 1;
+                }
+                else
+                {
+                    wd.contExts = found->contExts;
+                    wd.templatePaths = found->templatePaths;
+                    wd.pageExts = found->pageExts;
+
+                    wd.contExts.insert(contExt);
+                    wd.templatePaths[contExt] = templatePath;
+                    wd.pageExts[contExt] = pageExt;
+
+                    wl.dirs.erase(found);
+
+                    wl.dirs.insert(wd);
+                    wl.save();
+
+                    std::cout << "successfully watching directory " << quote(wd.watchDir) << " with:" << std::endl;
+                    std::cout << "  content extension: " << quote(contExt) << std::endl;
+                    std::cout << "      template path: " << templatePath << std::endl;
+                    std::cout << "     page extension: " << quote(pageExt) << std::endl;
+                }
+            }
+            else
+            {
+                wd.contExts.insert(contExt);
+                wd.templatePaths[contExt] = templatePath;
+                wd.pageExts[contExt] = pageExt;
+                wl.dirs.insert(wd);
+                wl.save();
+
+                std::cout << "successfully watching directory " << quote(wd.watchDir) << " with:" << std::endl;
+                std::cout << "  content extension: " << quote(contExt) << std::endl;
+                std::cout << "      template path: " << templatePath << std::endl;
+                std::cout << "     page extension: " << quote(pageExt) << std::endl;
+            }
+
+            return 0;
+        }
+        else if(cmd == "unwatch") //can probably move this up below diff
+        {
+            //ensures correct number of parameters given
+            if(noParams < 2 || noParams > 3)
+                return parError(noParams, argv, "2 or 3");
+
+            if(std::ifstream(".siteinfo/.watchinfo/watching.list"))
+            {
+                std::string contExt;
+                WatchList wl;
+                if(wl.open())
+                {
+                    std::cout << "error: unwatch: failed to open watch list '.siteinfo/.watchinfo/watching.list'" << std::endl;
+                    return 1;
+                }
+
+                WatchDir wd;
+                wd.watchDir = comparable(argv[2]);
+
+                if(noParams == 3)
+                    contExt = argv[3];
+                else
+                    contExt = site.contentExt;
+
+                auto found = wl.dirs.find(wd);
+
+                if(found != wl.dirs.end())
+                {
+                    if(found->contExts.count(contExt))
+                    {
+                        if(found->contExts.size() == 1)
+                        {
+                            wl.dirs.erase(found);
+                            remove_path(Path(".siteinfo/.watchinfo/", replace_slashes(wd.watchDir) + ".exts"));
+                        }
+                        else
+                        {
+                            wd.contExts = found->contExts;
+                            wd.templatePaths = found->templatePaths;
+                            wd.pageExts = found->pageExts;
+
+                            wd.contExts.erase(contExt);
+
+                            wl.dirs.erase(found);
+                            wl.dirs.insert(wd);
+                        }
+
+                        wl.save();
+                        std::cout << "successfully unwatched directory " << quote(argv[2]) << " with content extension " << quote(contExt) << std::endl;
+                    }
+                    else
+                    {
+                        std::cout << "error: not watching directory " << quote(argv[2]) << " with content extension " << quote(contExt) << std::endl;
+                        return 1;
+                    }
+                }
+                else
+                {
+                    std::cout << "error: not watching directory " << quote(argv[2]) << std::endl;
+                    return 1;
+                }
+            }
+            else
+            {
+                std::cout << "error: not watching directory " << quote(argv[2]) << std::endl;
+                return 1;
+            }
+
+            return 0;
+        }
 
         //opens up pages.list file
         if(site.open_pages())
@@ -1018,6 +1213,14 @@ int main(int argc, char* argv[])
 
             return site.info_all();
         }
+        else if(cmd == "info-watching")
+        {
+            //ensures correct number of parameters given
+            if(noParams > 1)
+                return parError(noParams, argv, "1");
+
+            return site.info_watching();
+        }
         else if(cmd == "info-names")
         {
             //ensures correct number of parameters given
@@ -1032,10 +1235,10 @@ int main(int argc, char* argv[])
             if(noParams < 2 || noParams > 4)
                 return parError(noParams, argv, "2-4");
 
-            Name newPageName = quote(argv[2]);
+            Name newPageName = quote(argv[2]); //surely this doesn't need to be quoted?
             Title newPageTitle;
             if(noParams >= 3)
-                newPageTitle = quote(argv[3]);
+                newPageTitle = quote(argv[3]); //surely this doesn't need to be quoted?
             else
                 newPageTitle = get_title(newPageName);
 
@@ -1047,6 +1250,46 @@ int main(int argc, char* argv[])
 
             return site.track(newPageName, newPageTitle, newTemplatePath);
         }
+        else if(cmd == "track-from-file")
+        {
+            //ensures correct number of parameters given
+            if(noParams != 2)
+                return parError(noParams, argv, "2");
+
+            int result = site.track_from_file(argv[2]);
+
+            std::cout.precision(4);
+            std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
+
+            return result;
+        }
+        else if(cmd == "track-dir")
+        {
+            //ensures correct number of parameters given
+            if(noParams < 2 || noParams > 5)
+                return parError(noParams, argv, "2-5");
+
+            Path dirPath,
+                 templatePath = site.defaultTemplate;
+            std::string contExt = site.contentExt,
+                        pageExt = site.pageExt;
+
+            dirPath.set_file_path_from(argv[2]);
+
+            if(noParams >= 3)
+                contExt = argv[3];
+            if(noParams >= 4)
+                templatePath.set_file_path_from(argv[4]);
+            if(noParams == 5)
+                pageExt = argv[5];
+
+            int result = site.track_dir(dirPath, contExt, templatePath, pageExt);
+
+            std::cout.precision(4);
+            std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
+
+            return result;
+        }
         else if(cmd == "untrack")
         {
             //ensures correct number of parameters given
@@ -1056,6 +1299,74 @@ int main(int argc, char* argv[])
             Name pageNameToUntrack = argv[2];
 
             return site.untrack(pageNameToUntrack);
+        }
+        else if(cmd == "untrack-from-file")
+        {
+            //ensures correct number of parameters given
+            if(noParams != 2)
+                return parError(noParams, argv, "2");
+
+            int result = site.untrack_from_file(argv[2]);
+
+            std::cout.precision(4);
+            std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
+
+            return result;
+        }
+        else if(cmd == "untrack-dir")
+        {
+            //ensures correct number of parameters given
+            if(noParams < 2 || noParams > 3)
+                return parError(noParams, argv, "2-3");
+
+            Path dirPath;
+            std::string contExt = site.contentExt;
+
+            dirPath.set_file_path_from(argv[2]);
+
+            if(noParams == 3)
+                contExt = argv[3];
+
+            int result = site.untrack_dir(dirPath, contExt);
+
+            std::cout.precision(4);
+            std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
+
+            return result;
+        }
+        else if(cmd == "rm-from-file" || cmd == "del-from-file")
+        {
+            //ensures correct number of parameters given
+            if(noParams != 2)
+                return parError(noParams, argv, "2");
+
+            int result = site.rm_from_file(argv[2]);
+
+            std::cout.precision(4);
+            std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
+
+            return result;
+        }
+        else if(cmd == "rm-dir" || cmd == "del-dir")
+        {
+            //ensures correct number of parameters given
+            if(noParams < 2 || noParams > 3)
+                return parError(noParams, argv, "2-3");
+
+            Path dirPath;
+            std::string contExt = site.contentExt;
+
+            dirPath.set_file_path_from(argv[2]);
+
+            if(noParams == 3)
+                contExt = argv[3];
+
+            int result = site.rm_dir(dirPath, contExt);
+
+            std::cout.precision(4);
+            std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
+
+            return result;
         }
         else if(cmd == "rm" || cmd == "del")
         {
@@ -1220,23 +1531,7 @@ int main(int argc, char* argv[])
             if(noParams > 1)
                 return parError(noParams, argv, "1");
 
-            //checks for pre-build scripts
-            if(run_script(std::cout, "pre-build" + site.scriptExt, &os_mtx2))
-                return 1;
-
-            //checks for pre-build-updated scripts
-            if(run_script(std::cout, "pre-build-updated" + site.scriptExt, &os_mtx2))
-                return 1;
-
             int result = site.build_updated(std::cout);
-
-            //checks for post-build scripts
-            if(run_script(std::cout, "post-build" + site.scriptExt, &os_mtx2))
-                return 1;
-
-            //checks for post-build-updated scripts
-            if(run_script(std::cout, "post-build-updated" + site.scriptExt, &os_mtx2))
-                return 1;
 
             std::cout.precision(4);
             std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
@@ -1249,21 +1544,11 @@ int main(int argc, char* argv[])
             if(noParams <= 1)
                 return parError(noParams, argv, ">1");
 
-            //checks for pre-build scripts
-            if(run_script(std::cout, "pre-build" + site.scriptExt, &os_mtx2))
-                return 1;
-
             std::vector<Name> pageNamesToBuild;
             for(int p=2; p<argc; p++)
-            {
                 pageNamesToBuild.push_back(argv[p]);
-            }
 
             int result = site.build(pageNamesToBuild);
-
-            //checks for post-build scripts
-            if(run_script(std::cout, "post-build" + site.scriptExt, &os_mtx2))
-                return 1;
 
             std::cout.precision(4);
             std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
@@ -1276,23 +1561,7 @@ int main(int argc, char* argv[])
             if(noParams != 1)
                 return parError(noParams, argv, "1");
 
-            //checks for pre-build scripts
-            if(run_script(std::cout, "pre-build" + site.scriptExt, &os_mtx2))
-                return 1;
-
-            //checks for pre-build-all scripts
-            if(run_script(std::cout, "pre-build-all" + site.scriptExt, &os_mtx2))
-                return 1;
-
             int result = site.build_all();
-
-            //checks for post-build scripts
-            if(run_script(std::cout, "post-build" + site.scriptExt, &os_mtx2))
-                return 1;
-
-            //checks for post-build-all scripts
-            if(run_script(std::cout, "post-build-all" + site.scriptExt, &os_mtx2))
-                return 1;
 
             std::cout.precision(4);
             std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
@@ -1319,7 +1588,7 @@ int main(int argc, char* argv[])
             }
 
             //checks for pre-serve scripts
-            if(run_script(std::cout, "pre-serve" + site.scriptExt, &os_mtx2))
+            if(run_script(std::cout, "pre-serve" + site.scriptExt, site.backupScripts, &os_mtx2))
                 return 1;
 
             serving = 1;
@@ -1333,7 +1602,7 @@ int main(int argc, char* argv[])
             serve_thread.join();
 
             //checks for post-serve scripts
-            if(run_script(std::cout, "post-serve" + site.scriptExt, &os_mtx2))
+            if(run_script(std::cout, "post-serve" + site.scriptExt, site.backupScripts, &os_mtx2))
                 return 1;
         }
         else

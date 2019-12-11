@@ -1,6 +1,16 @@
 #include "Title.h"
 
-Title& Title::operator=(const std::string Str)
+Title::Title()
+{
+	str = "";
+}
+
+Title::Title(const std::string& Str)
+{
+	str = Str;
+}
+
+Title& Title::operator=(const std::string& Str)
 {
     str = Str;
     return *this;

@@ -7,7 +7,7 @@
 
 typedef std::string Name;
 
-std::string get_title(const Name &name);
+Title get_title(const Name &name);
 
 struct PageInfo
 {

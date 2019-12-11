@@ -26,18 +26,18 @@ std::string into_whitespace(const std::string& str)
     return whitespace;
 }
 
-bool run_script(std::ostream& os, std::string scriptPath, std::mutex* os_mtx)
+bool run_script(std::ostream& os, const std::string& scriptPathStr, const bool& makeBackup, std::mutex* os_mtx)
 {
-    if(std::ifstream(scriptPath))
+    if(std::ifstream(scriptPathStr))
     {
         int c = sys_counter++;
-        size_t pos = scriptPath.substr(1, scriptPath.size()-1).find_first_of('.');
+        size_t pos = scriptPathStr.substr(1, scriptPathStr.size()-1).find_first_of('.');
         std::string cScriptExt = "";
         if(pos != std::string::npos)
-            cScriptExt = scriptPath.substr(pos+1, scriptPath.size()-pos-1);
+            cScriptExt = scriptPathStr.substr(pos+1, scriptPathStr.size()-pos-1);
         std::string execPath = "./.script" + std::to_string(c) + cScriptExt;
         std::string output_filename = ".script.out" + std::to_string(c);
-        //std::string output_filename = scriptPath + ".out" + std::to_string(c);
+        //std::string output_filename = scriptPathStr + ".out" + std::to_string(c);
         int result;
 
         #if defined _WIN32 || defined _WIN64
@@ -47,24 +47,27 @@ bool run_script(std::ostream& os, std::string scriptPath, std::mutex* os_mtx)
         #endif
 
         //copies script to backup location
-        if(cpFile(scriptPath, scriptPath + ".backup"))
+        if(makeBackup)
         {
-            os_mtx->lock();
-            os << "error: PageBuilder.cpp: run_script(" << quote(scriptPath) << "): failed to copy " << quote(scriptPath) << " to " << quote(scriptPath + ".backup") << std::endl;
-            os_mtx->unlock();
-            return 1;
+            if(cpFile(scriptPathStr, scriptPathStr + ".backup"))
+            {
+                os_mtx->lock();
+                os << "error: PageBuilder.cpp: run_script(" << quote(scriptPathStr) << "): failed to copy " << quote(scriptPathStr) << " to " << quote(scriptPathStr + ".backup") << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
         }
 
         //moves script to main directory
         //note if just copy original script or move copied script get 'Text File Busy' errors (can be quite rare)
         //sometimes this fails (on Windows) for some reason, so keeps trying until successful
         int mcount = 0;
-        while(rename(scriptPath.c_str(), execPath.c_str()))
+        while(rename(scriptPathStr.c_str(), execPath.c_str()))
         {
             if(++mcount == 100)
             {
                 os_mtx->lock();
-                os << "warning: PageBuilder.cpp: run_script(" << quote(scriptPath) << "): have tried to move " << scriptPath << " to " << execPath << " 100 times already, may need to abort" << std::endl;
+                os << "warning: PageBuilder.cpp: run_script(" << quote(scriptPathStr) << "): have tried to move " << quote(scriptPathStr) << " to " << quote(execPath) << " 100 times already, may need to abort" << std::endl;
                 os_mtx->unlock();
             }
         }
@@ -78,18 +81,19 @@ bool run_script(std::ostream& os, std::string scriptPath, std::mutex* os_mtx)
         //moves script back to its original location
         //sometimes this fails (on Windows) for some reason, so keeps trying until successful
         mcount = 0;
-        while(rename(execPath.c_str(), scriptPath.c_str()))
+        while(rename(execPath.c_str(), scriptPathStr.c_str()))
         {
             if(++mcount == 100)
             {
                 os_mtx->lock();
-                os << "warning: PageBuilder.cpp: run_script(" << quote(scriptPath) << "): have tried to move " << execPath << " to " << scriptPath << " 100 times already, may need to abort" << std::endl;
+                os << "warning: PageBuilder.cpp: run_script(" << quote(scriptPathStr) << "): have tried to move " << quote(execPath) << " to " << quote(scriptPathStr) << " 100 times already, may need to abort" << std::endl;
                 os_mtx->unlock();
             }
         }
 
         //deletes backup copy
-        Path("", scriptPath + ".backup").removePath();
+        if(makeBackup)
+            remove_file(Path("", scriptPathStr + ".backup"));
 
         std::ifstream ifxs(output_filename);
         std::string str;
@@ -98,12 +102,12 @@ bool run_script(std::ostream& os, std::string scriptPath, std::mutex* os_mtx)
             os << str << std::endl;
         os_mtx->unlock();
         ifxs.close();
-        Path("./", output_filename).removePath();
+        remove_file(Path("./", output_filename));
 
         if(result)
         {
             os_mtx->lock();
-            os << "error: PageBuilder.cpp: run_script(" << quote(scriptPath) << "): script failed" << std::endl;
+            os << "error: PageBuilder.cpp: run_script(" << quote(scriptPathStr) << "): script failed" << std::endl;
             os_mtx->unlock();
             return 1;
         }
@@ -120,6 +124,7 @@ PageBuilder::PageBuilder(std::set<PageInfo>* Pages,
                          const std::string& PageExt,
                          const std::string& ScriptExt,
                          const Path& DefaultTemplate,
+                         const bool& makeBackup,
                          const std::string& UnixTextEditor,
                          const std::string& WinTextEditor)
 {
@@ -132,18 +137,15 @@ PageBuilder::PageBuilder(std::set<PageInfo>* Pages,
     pageExt = PageExt;
     scriptExt = ScriptExt;
     defaultTemplate = DefaultTemplate;
+    backupScripts = makeBackup;
     unixTextEditor = UnixTextEditor;
     winTextEditor = WinTextEditor;
 }
 
-int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
+int PageBuilder::build(const PageInfo& PageToBuild, std::ostream& os)
 {
     sys_counter = sys_counter%1000000000000000000;
     pageToBuild = PageToBuild;
-
-    //os_mtx->lock();
-    //os << std::endl;
-    //os_mtx->unlock();
 
     //ensures content and template files exist
     if(!std::ifstream(pageToBuild.contentPath.str()))
@@ -161,6 +163,8 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
         return 1;
     }
 
+    pageDeps.clear();
+
     //checks for non-default script extension
     Path extPath = pageToBuild.pagePath.getInfoPath();
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
@@ -176,14 +180,14 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
         pageScriptExt = scriptExt;
 
     //checks for pre-build scripts
+    if(std::ifstream("pre-build" + scriptExt))
+        pageDeps.insert(Path("", "pre-build" + scriptExt));
     Path prebuildScript = pageToBuild.contentPath;
     prebuildScript.file = prebuildScript.file.substr(0, prebuildScript.file.find_first_of('.')) + "-pre-build" + pageScriptExt;
-    if(run_script(os, prebuildScript.str(), os_mtx))
+    if(std::ifstream(prebuildScript.str()))
+        pageDeps.insert(prebuildScript);
+    if(run_script(os, prebuildScript.str(), backupScripts, os_mtx))
         return 1;
-
-    //os_mtx->lock();
-    //os << "building page " << pageToBuild.pagePath << std::endl;
-    //os_mtx->unlock();
 
     //makes sure variables are at default values
     codeBlockDepth = htmlCommentDepth = 0;
@@ -191,7 +195,6 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
     contentAdded = 0;
     processedPage.clear();
     processedPage.str(std::string());
-    pageDeps.clear();
     strings.clear();
     contentAdded = 0;
 
@@ -222,7 +225,7 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
         }
 
         //makes sure page file exists
-        pageToBuild.pagePath.ensurePathExists();
+        pageToBuild.pagePath.ensureDirExists();
 
         //makes sure we can write to page file
         chmod(pageToBuild.pagePath.str().c_str(), 0644);
@@ -235,11 +238,21 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
         //makes sure user can't accidentally write to page file
         chmod(pageToBuild.pagePath.str().c_str(), 0444);
 
+        //checks for post-build scripts
+        if(std::ifstream("post-build" + scriptExt))
+            pageDeps.insert(Path("", "post-build" + scriptExt));
+        Path postbuildScript = pageToBuild.contentPath;
+        postbuildScript.file = postbuildScript.file.substr(0, postbuildScript.file.find_first_of('.')) + "-post-build" + pageScriptExt;
+        if(std::ifstream(postbuildScript.str()))
+            pageDeps.insert(postbuildScript);
+        if(run_script(os, postbuildScript.str(), backupScripts, os_mtx))
+            return 1; //should a page be listed as failing to build if the post-build script fails?
+
         //gets path for storing page information
         Path pageInfoPath = pageToBuild.pagePath.getInfoPath();
 
         //makes sure page info file exists
-        pageInfoPath.ensurePathExists();
+        pageInfoPath.ensureDirExists();
 
         //makes sure we can write to info file_
         chmod(pageInfoPath.str().c_str(), 0644);
@@ -254,17 +267,7 @@ int PageBuilder::build(const PageInfo &PageToBuild, std::ostream& os)
 
         //makes sure user can't accidentally write to info file
         chmod(pageInfoPath.str().c_str(), 0444);
-
-        //os_mtx->lock();
-        //os << "page build successful" << std::endl;
-        //os_mtx->unlock();
     }
-
-    //checks for post-build scripts
-    Path postbuildScripts = pageToBuild.contentPath;
-    postbuildScripts.file = postbuildScripts.file.substr(0, postbuildScripts.file.find_first_of('.')) + "-post-build" + pageScriptExt;
-    if(run_script(os, postbuildScripts.str(), os_mtx))
-        return 1; //should a page be listed as failing to build if the post-build script fails?
 
     return result;
 }
@@ -859,7 +862,7 @@ int PageBuilder::read_and_process(const bool& indent,
 
                     ifs.close();
 
-                    Path("", output_filename).removePath();
+                    remove_file(Path("", output_filename));
                 }
                 else if(inLine.substr(linePos, 10) == "@inputraw(" || inLine.substr(linePos, 11) == "@inputraw*(")
                 {
@@ -1065,20 +1068,40 @@ int PageBuilder::read_and_process(const bool& indent,
                         return 1;
                     }
                 }
-                else if(inLine.substr(linePos, 8) == "@script(" || inLine.substr(linePos, 9) == "@script*(")
+                else if(inLine.substr(linePos, 8) == "@script(" || inLine.substr(linePos, 8) == "@script*" || inLine.substr(linePos, 8) == "@script^")
                 {
+                    bool makeBackup = 1;
                     int c = sys_counter++;
+                    int sLinePos = linePos;
                     linePos+=std::string("@script").length();
                     std::string scriptPathStr, scriptParams;
                     std::string output_filename = ".@scriptoutput" + std::to_string(c);
+                    parseParams = 0;
 
-                    if(inLine[linePos] == '*')
+                    while(inLine[linePos] == '*' || inLine[linePos] == '^')
                     {
-                        parseParams = 1;
-                        linePos++;
+                        if(inLine[linePos] == '*')
+                        {
+                            if(parseParams)
+                                break;
+                            parseParams = 1;
+                            linePos++;
+                        }
+                        else if(inLine[linePos] == '^')
+                        {
+                            if(!makeBackup)
+                                break;
+                            makeBackup = 0;
+                            linePos++;
+                        }
                     }
-                    else
-                        parseParams = 0;
+
+                    if(inLine[linePos] != '(')
+                    {
+                        os << "@";
+                        linePos = sLinePos + 1;
+                        continue;
+                    }
 
                     linePos++;
 
@@ -1150,12 +1173,15 @@ int PageBuilder::read_and_process(const bool& indent,
                     }
 
                     //copies script to backup location
-                    if(cpFile(scriptPathStr, scriptPathStr + ".backup"))
+                    if(makeBackup)
                     {
-                        os_mtx->lock();
-                        os << "error: " << readPath << ": line " << lineNo << ": failed to copy " << quote(scriptPathStr) << " to " << quote(scriptPathStr + ".backup") << std::endl;
-                        os_mtx->unlock();
-                        return 1;
+                        if(cpFile(scriptPathStr, scriptPathStr + ".backup"))
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": failed to copy " << quote(scriptPathStr) << " to " << quote(scriptPathStr + ".backup") << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
                     }
 
                     //moves script to main directory
@@ -1167,7 +1193,8 @@ int PageBuilder::read_and_process(const bool& indent,
                         if(++mcount == 100)
                         {
                             os_mtx->lock();
-                            os << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << scriptPathStr << " to " << execPath << " 100 times already, may need to abort" << std::endl;
+                            eos << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << quote(scriptPathStr) << " to " << quote(execPath) << " 100 times already, may need to abort" << std::endl;
+                            eos << "warning: you may need to move " << quote(execPath) << " back to " << quote(scriptPathStr) << std::endl;
                             os_mtx->unlock();
                         }
                     }
@@ -1187,13 +1214,14 @@ int PageBuilder::read_and_process(const bool& indent,
                         if(++mcount == 100)
                         {
                             os_mtx->lock();
-                            os << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << execPath << " to " << scriptPathStr << " 100 times already, may need to abort" << std::endl;
+                            eos << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << execPath << " to " << scriptPathStr << " 100 times already, may need to abort" << std::endl;
                             os_mtx->unlock();
                         }
                     }
 
                     //deletes backup copy
-                    Path("", scriptPathStr + ".backup").removePath();
+                    if(makeBackup)
+                        remove_file(Path("", scriptPathStr + ".backup"));
 
                     std::ifstream ifs(output_filename);
                     std::string str;
@@ -1203,7 +1231,7 @@ int PageBuilder::read_and_process(const bool& indent,
                     os_mtx->unlock();
                     ifs.close();
 
-                    Path("./", output_filename).removePath();
+                    remove_file(Path("./", output_filename));
 
                     if(result)
                     {
@@ -1213,20 +1241,40 @@ int PageBuilder::read_and_process(const bool& indent,
                         return 1;
                     }
                 }
-                else if(inLine.substr(linePos, 11) == "@scriptraw(" || inLine.substr(linePos, 12) == "@scriptraw*(")
+                else if(inLine.substr(linePos, 11) == "@scriptraw(" || inLine.substr(linePos, 11) == "@scriptraw*" || inLine.substr(linePos, 11) == "@scriptraw^")
                 {
+                    bool makeBackup = 1;
                     int c = sys_counter++;
+                    int sLinePos = linePos;
                     linePos+=std::string("@scriptraw").length();
                     std::string scriptPathStr, scriptParams;
                     std::string output_filename = ".@scriptoutput" + std::to_string(c);
+                    parseParams = 0;
 
-                    if(inLine[linePos] == '*')
+                    while(inLine[linePos] == '*' || inLine[linePos] == '^')
                     {
-                        parseParams = 1;
-                        linePos++;
+                        if(inLine[linePos] == '*')
+                        {
+                            if(parseParams)
+                                break;
+                            parseParams = 1;
+                            linePos++;
+                        }
+                        else if(inLine[linePos] == '^')
+                        {
+                            if(!makeBackup)
+                                break;
+                            makeBackup = 0;
+                            linePos++;
+                        }
                     }
-                    else
-                        parseParams = 0;
+
+                    if(inLine[linePos] != '(')
+                    {
+                        os << "@";
+                        linePos = sLinePos + 1;
+                        continue;
+                    }
 
                     linePos++;
 
@@ -1301,12 +1349,15 @@ int PageBuilder::read_and_process(const bool& indent,
                     }
 
                     //copies script to backup location
-                    if(cpFile(scriptPathStr, scriptPathStr + ".backup"))
+                    if(makeBackup)
                     {
-                        os_mtx->lock();
-                        os << "error: " << readPath << ": line " << lineNo << ": failed to copy " << quote(scriptPathStr) << " to " << quote(scriptPathStr + ".backup") << std::endl;
-                        os_mtx->unlock();
-                        return 1;
+                        if(cpFile(scriptPathStr, scriptPathStr + ".backup"))
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": failed to copy " << quote(scriptPathStr) << " to " << quote(scriptPathStr + ".backup") << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
                     }
 
                     //moves script to main directory
@@ -1318,7 +1369,7 @@ int PageBuilder::read_and_process(const bool& indent,
                         if(++mcount == 100)
                         {
                             os_mtx->lock();
-                            os << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << scriptPathStr << " to " << execPath << " 100 times already, may need to abort" << std::endl;
+                            eos << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << scriptPathStr << " to " << execPath << " 100 times already, may need to abort" << std::endl;
                             os_mtx->unlock();
                         }
                     }
@@ -1338,13 +1389,14 @@ int PageBuilder::read_and_process(const bool& indent,
                         if(++mcount == 100)
                         {
                             os_mtx->lock();
-                            os << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << execPath << " to " << scriptPathStr << " 100 times already, may need to abort" << std::endl;
+                            eos << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << execPath << " to " << scriptPathStr << " 100 times already, may need to abort" << std::endl;
                             os_mtx->unlock();
                         }
                     }
 
                     //deletes backup copy
-                    Path("", scriptPathStr + ".backup").removePath();
+                    if(makeBackup)
+                        remove_file(Path("", scriptPathStr + ".backup"));
 
                     if(result)
                     {
@@ -1352,7 +1404,7 @@ int PageBuilder::read_and_process(const bool& indent,
                         eos << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(scriptPathStr) << ") failed" << std::endl;
                         eos << "       see " << quote(output_filename) << " for pre-error script output" << std::endl;
                         os_mtx->unlock();
-                        //Path("./", output_filename).removePath();
+                        //remove_file(Path("./", output_filename));
                         return 1;
                     }
 
@@ -1371,22 +1423,42 @@ int PageBuilder::read_and_process(const bool& indent,
 
                     ifs.close();
 
-                    Path("./", output_filename).removePath();
+                    remove_file(Path("./", output_filename));
                 }
-                else if(inLine.substr(linePos, 14) == "@scriptoutput(" || inLine.substr(linePos, 15) == "@scriptoutput*(")
+                else if(inLine.substr(linePos, 14) == "@scriptoutput(" || inLine.substr(linePos, 14) == "@scriptoutput*" || inLine.substr(linePos, 14) == "@scriptoutput^")
                 {
+                    bool makeBackup = 1;
                     int c = sys_counter++;
+                    int sLinePos = linePos;
                     linePos+=std::string("@scriptoutput").length();
                     std::string scriptPathStr, scriptParams;
                     std::string output_filename = ".@scriptoutput" + std::to_string(c);
+                    parseParams = 0;
 
-                    if(inLine[linePos] == '*')
+                    while(inLine[linePos] == '*' || inLine[linePos] == '^')
                     {
-                        parseParams = 1;
-                        linePos++;
+                        if(inLine[linePos] == '*')
+                        {
+                            if(parseParams)
+                                break;
+                            parseParams = 1;
+                            linePos++;
+                        }
+                        else if(inLine[linePos] == '^')
+                        {
+                            if(!makeBackup)
+                                break;
+                            makeBackup = 0;
+                            linePos++;
+                        }
                     }
-                    else
-                        parseParams = 0;
+
+                    if(inLine[linePos] != '(')
+                    {
+                        os << "@";
+                        linePos = sLinePos + 1;
+                        continue;
+                    }
 
                     linePos++;
 
@@ -1461,12 +1533,15 @@ int PageBuilder::read_and_process(const bool& indent,
                     }
 
                     //copies script to backup location
-                    if(cpFile(scriptPathStr, scriptPathStr + ".backup"))
+                    if(makeBackup)
                     {
-                        os_mtx->lock();
-                        os << "error: " << readPath << ": line " << lineNo << ": failed to copy " << quote(scriptPathStr) << " to " << quote(scriptPathStr + ".backup") << std::endl;
-                        os_mtx->unlock();
-                        return 1;
+                        if(cpFile(scriptPathStr, scriptPathStr + ".backup"))
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": failed to copy " << quote(scriptPathStr) << " to " << quote(scriptPathStr + ".backup") << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
                     }
 
                     //moves script to main directory
@@ -1478,7 +1553,7 @@ int PageBuilder::read_and_process(const bool& indent,
                         if(++mcount == 100)
                         {
                             os_mtx->lock();
-                            os << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << scriptPathStr << " to " << execPath << " 100 times already, may need to abort" << std::endl;
+                            eos << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << scriptPathStr << " to " << execPath << " 100 times already, may need to abort" << std::endl;
                             os_mtx->unlock();
                         }
                     }
@@ -1498,13 +1573,14 @@ int PageBuilder::read_and_process(const bool& indent,
                         if(++mcount == 100)
                         {
                             os_mtx->lock();
-                            os << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << execPath << " to " << scriptPathStr << " 100 times already, may need to abort" << std::endl;
+                            eos << "warning: " << readPath << ": line " << lineNo << ": have tried to move " << execPath << " to " << scriptPathStr << " 100 times already, may need to abort" << std::endl;
                             os_mtx->unlock();
                         }
                     }
 
                     //deletes backup copy
-                    Path("", scriptPathStr + ".backup").removePath();
+                    if(makeBackup)
+                        remove_file(Path("", scriptPathStr + ".backup"));
 
                     if(result)
                     {
@@ -1512,7 +1588,7 @@ int PageBuilder::read_and_process(const bool& indent,
                         eos << "error: " << readPath << ": line " << lineNo << ": @scriptoutput(" << quote(scriptPathStr) << ") failed" << std::endl;
                         eos << "       see " << quote(output_filename) << " for pre-error script output" << std::endl;
                         os_mtx->unlock();
-                        //Path("./", output_filename).removePath();
+                        //remove_file(Path("./", output_filename));
                         return 1;
                     }
 
@@ -1524,13 +1600,13 @@ int PageBuilder::read_and_process(const bool& indent,
                         os_mtx->lock();
                         eos << "error: " << readPath << ": line " << lineNo << ": failed to process output of script '" << scriptPathStr << "'" << std::endl;
                         os_mtx->unlock();
-                        //Path("./", output_filename).removePath();
+                        //remove_file(Path("./", output_filename));
                         return 1;
                     }
 
                     ifs.close();
 
-                    Path("./", output_filename).removePath();
+                    remove_file(Path("./", output_filename));
                 }
                 else if(inLine.substr(linePos, 8) == "@system(" || inLine.substr(linePos, 9) == "@system*(")
                 {
@@ -1594,7 +1670,7 @@ int PageBuilder::read_and_process(const bool& indent,
                     os_mtx->unlock();
                     ifs.close();
 
-                    Path("./", output_filename).removePath();
+                    remove_file(Path("./", output_filename));
 
                     //need sys_call quoted here for cURL to work
                     if(result)
@@ -1665,7 +1741,7 @@ int PageBuilder::read_and_process(const bool& indent,
                         eos << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
                         eos << "       see " << quote(output_filename) << " for pre-error system output" << std::endl;
                         os_mtx->unlock();
-                        //Path("./", output_filename).removePath();
+                        //remove_file(Path("./", output_filename));
                         return 1;
                     }
 
@@ -1684,7 +1760,7 @@ int PageBuilder::read_and_process(const bool& indent,
 
                     ifs.close();
 
-                    Path("./", output_filename).removePath();
+                    remove_file(Path("./", output_filename));
                 }
                 else if(inLine.substr(linePos, 14) == "@systemoutput(" || inLine.substr(linePos, 15) == "@systemoutput*(")
                 {
@@ -1746,7 +1822,7 @@ int PageBuilder::read_and_process(const bool& indent,
                         eos << "error: " << readPath << ": line " << lineNo << ": @systemoutput(" << quote(sys_call) << ") failed" << std::endl;
                         eos << "       see " << quote(output_filename) << " for pre-error system output" << std::endl;
                         os_mtx->unlock();
-                        //Path("./", output_filename).removePath();
+                        //remove_file(Path("./", output_filename));
                         return 1;
                     }
 
@@ -1758,13 +1834,13 @@ int PageBuilder::read_and_process(const bool& indent,
                         os_mtx->lock();
                         eos << "error: " << readPath << ": line " << lineNo << ": failed to process output of system call '" << sys_call << "'" << std::endl;
                         os_mtx->unlock();
-                        //Path("./", output_filename).removePath();
+                        //remove_file(Path("./", output_filename));
                         return 1;
                     }
 
                     ifs.close();
 
-                    Path("./", output_filename).removePath();
+                    remove_file(Path("./", output_filename));
                 }
                 else if(inLine.substr(linePos, 15) == "@systemcontent(" || inLine.substr(linePos, 16) == "@systemcontent*(")
                 {
@@ -1829,7 +1905,7 @@ int PageBuilder::read_and_process(const bool& indent,
                         eos << "error: " << readPath << ": line " << lineNo << ": @systemcontent(" << quote(sys_call) << ") failed" << std::endl;
                         eos << "       see " << quote(output_filename) << " for pre-error system output" << std::endl;
                         os_mtx->unlock();
-                        //Path("./", output_filename).removePath();
+                        //remove_file(Path("./", output_filename));
                         return 1;
                     }
 
@@ -1841,13 +1917,13 @@ int PageBuilder::read_and_process(const bool& indent,
                         os_mtx->lock();
                         eos << "error: " << readPath << ": line " << lineNo << ": failed to process output of system call '" << sys_call << "'" << std::endl;
                         os_mtx->unlock();
-                        //Path("./", output_filename).removePath();
+                        //remove_file(Path("./", output_filename));
                         return 1;
                     }
 
                     ifs.close();
 
-                    Path("./", output_filename).removePath();
+                    remove_file(Path("./", output_filename));
                 }
                 else if(inLine.substr(linePos,11) == "@stringdef(" || inLine.substr(linePos,12) == "@stringdef*(")
                 {

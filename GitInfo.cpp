@@ -8,13 +8,13 @@ bool is_git_configured()
     if(ret_val)
     {
         std::cout << "error: nsm.cpp: is_git_configured(): system('git config --global user.email > .nsm-git-email.txt') failed in " << quote(get_pwd()) << std::endl;
-        Path("./", ".nsm-git-email.txt").removePath();
+        remove_path(Path("./", ".nsm-git-email.txt"));
         return 0;
     }
     std::ifstream ifs(".nsm-git-email.txt");
     ifs >> str;
     ifs.close();
-    Path("./", ".nsm-git-email.txt").removePath();
+    remove_path(Path("./", ".nsm-git-email.txt"));
     if(str == "")
     {
         std::cout << "*** Please tell me who you are." << std::endl;
@@ -32,13 +32,13 @@ bool is_git_configured()
     if(ret_val)
     {
         std::cout << "error: nsm.cpp: is_git_configured(): system('git config --global user.name > .nsm-git-username.txt') failed in " << quote(get_pwd()) << std::endl;
-        Path("./", ".nsm-git-username.txt").removePath();
+        remove_path(Path("./", ".nsm-git-username.txt"));
         return 0;
     }
     ifs.open(".nsm-git-username.txt");
     ifs >> str;
     ifs.close();
-    Path("./", ".nsm-git-username.txt").removePath();
+    remove_path(Path("./", ".nsm-git-username.txt"));
     if(str == "")
     {
         std::cout << "*** Please tell me who you are." << std::endl;
@@ -63,14 +63,14 @@ bool is_git_remote_set()
     if(ret_val)
     {
         std::cout << "error: nsm.cpp: is_git_remote_set(): system('git config --get remote.origin.url > .nsm-git-remote-url.txt') failed in " << quote(get_pwd()) << std::endl;
-        Path("./", ".nsm-git-remote-url.txt").removePath();
+        remove_path(Path("./", ".nsm-git-remote-url.txt"));
         return 0;
     }
     std::ifstream ifs(".nsm-git-remote-url.txt");
     std::string str="";
     ifs >> str;
     ifs.close();
-    Path("./", ".nsm-git-remote-url.txt").removePath();
+    remove_path(Path("./", ".nsm-git-remote-url.txt"));
     if(str == "")
     {
         std::cout << "error: no remote git url set" << std::endl;
@@ -89,7 +89,7 @@ std::string get_pb()
     if(ret_val)
     {
         std::cout << "error: nsm.cpp: get_pb(): system('git status > .nsm-present-branch.txt') failed in " << quote(get_pwd()) << std::endl;
-        Path("./", ".nsm-present-branch.txt").removePath();
+        remove_path(Path("./", ".nsm-present-branch.txt"));
         return "##error##";
     }
 
@@ -102,7 +102,7 @@ std::string get_pb()
         ifs >> branch;
 
     ifs.close();
-    Path("./", ".nsm-present-branch.txt").removePath();
+    remove_path(Path("./", ".nsm-present-branch.txt"));
 
 	//developer can choose whether to output error message if no branches found
 
@@ -118,7 +118,7 @@ std::string get_remote()
     if(ret_val)
     {
         std::cout << "error: nsm.cpp: get_remote(): system('git remote > .nsm-git-remote.txt') failed in " << quote(get_pwd()) << std::endl;
-        Path("./", ".nsm-git-remote.txt").removePath();
+        remove_path(Path("./", ".nsm-git-remote.txt"));
         return "##error##";
     }
 
@@ -127,7 +127,7 @@ std::string get_remote()
     ifs >> remote;
 
     ifs.close();
-    Path("./", ".nsm-git-remote.txt").removePath();
+    remove_path(Path("./", ".nsm-git-remote.txt"));
 
 	//developer can choose whether to output error message if no branches found
 
@@ -157,7 +157,7 @@ std::set<std::string> get_git_branches()
 
     ifs.close();
 
-    Path("./", ".nsm-git-branches.txt").removePath();
+    remove_path(Path("./", ".nsm-git-branches.txt"));
 
     return branches;
 }
