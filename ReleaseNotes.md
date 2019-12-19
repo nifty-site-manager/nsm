@@ -2,6 +2,53 @@
 Nift Release Notes
 ------------------
 
+TODO List (not in order of priority)
+* [TODO] add multi-threading to Nift command `status`
+
+* [TODO] output @system/@script without piping to file if using std::cout (don't forget to use os_mtx)
+	- https://stackoverflow.com/questions/3318714/check-if-ostream-object-is-cout-or-ofstream-c
+
+* [TODO] add project name to ProjectInfo.h, .nsm/nift.config etc. with @[projectname] variable/syntax
+
+* [TODO] add script extension option to track commands
+
+* [TODO] add error handling for rename etc. throughout
+
+* [TODO] add more html entities (try to be similar to latex)
+* [TODO] add @char/@ch syntax to template language (do both latex and html equivalents)
+
+* [TODO] need syntax in the template language to ensure existence of a file given relative path from the page
+* [TODO] further clean up reading parameters and parsing them
+* [TODO] implement better variable types with scoping
+* [TODO] implement type defs and function defs
+
+* [TODO] add no template option when building
+* [TODO] add way to build non-tracked pages (including without even being a site, and/or without having a page to output to)
+	- need to be able to do both outputfile to stdout as well as programmingoutput
+	- maybe:
+		- nsm build cont-path (template-path) output-path
+		- nsm render cont-path (template-path)
+		- nsm render-name name
+		- nsm run cont-path (template-path)
+		- nsm run-name name
+
+Version 1.25 of Nift
+* changed the way @ is escaped and removed most escape characters (too likely to conflict in other places)
+* added @ent syntax to template language
+* added @\@, @\<, @\\ escaping syntax to template language
+* improved reading parameters
+* changed how strings/variables are done in preparation for more types (to come, type defs and function defs)
+* now allow multiple string definitions in the one definition
+* improved syntax for inputting tracked file and project/site information, now basically hard-coded constants
+* fixed bug with delDir, which fixed bugs with `clone` etc.
+* removed website specific terminology (lots of changes)
+* added Nift command `backup-scripts (option)`
+* changed one of the Nift `config` commands to `info-config`
+* added Nift command `info-tracking`
+* check if new content path etc. exist with `new-cont-ext` etc.
+* check whether content file already exists when moving/copying 
+* make sure all tracks/untracks/rms will be successful before any of them are done
+
 Versin 1.24 of Nift
 * fixed bugs with content/page/script extensions and mv/cp/rm aka move/copy/del
 * updated/moved removePath to remove_path and remove_file and now removes now-empty directories

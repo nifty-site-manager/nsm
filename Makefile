@@ -1,6 +1,6 @@
 #basic makefile for nsm
-objects=nsm.o DateTimeInfo.o Directory.o Filename.o FileSystem.o GitInfo.o PageBuilder.o PageInfo.o Path.o Quoted.o SiteInfo.o Title.o WatchList.o
-cppfiles=nsm.cpp DateTimeInfo.cpp Directory.cpp Filename.cpp FileSystem.cpp GitInfo.cpp PageBuilder.cpp PageInfo.cpp Path.cpp Quoted.cpp SiteInfo.cpp Title.cpp WatchList.cpp
+objects=nsm.o DateTimeInfo.o Directory.o Filename.o FileSystem.o GitInfo.o Parser.o Path.o ProjectInfo.o Quoted.o Title.o TrackedInfo.o WatchList.o
+cppfiles=nsm.cpp DateTimeInfo.cpp Directory.cpp Filename.cpp FileSystem.cpp GitInfo.cpp Parser.cpp Path.cpp ProjectInfo.cpp Quoted.cpp Title.cpp TrackedInfo.cpp WatchList.cpp
 CXX?=g++
 LINK=-pthread
 CXXFLAGS+= -std=c++11 -Wall -Wextra -pedantic -O3
@@ -18,16 +18,16 @@ nsm: $(objects)
 	$(CXX) $(CXXFLAGS) $(cppfiles) -o nsm $(LINK)
 	$(CXX) $(CXXFLAGS) $(cppfiles) -o nift $(LINK)
 
-nsm.o: nsm.cpp GitInfo.o SiteInfo.o Timer.h
+nsm.o: nsm.cpp GitInfo.o ProjectInfo.o Timer.h
 	$(CXX) $(CXXFLAGS) -c -o $@ $< $(LINK)
 
-SiteInfo.o: SiteInfo.cpp SiteInfo.h GitInfo.o PageBuilder.o WatchList.o
+ProjectInfo.o: ProjectInfo.cpp ProjectInfo.h GitInfo.o Parser.o WatchList.o
 	$(CXX) $(CXXFLAGS) -c -o $@ $< $(LINK)
 
 GitInfo.o: GitInfo.cpp GitInfo.h FileSystem.o
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
-PageBuilder.o: PageBuilder.cpp PageBuilder.h DateTimeInfo.o FileSystem.o PageInfo.o
+Parser.o: Parser.cpp Parser.h DateTimeInfo.o FileSystem.o TrackedInfo.o
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 WatchList.o: WatchList.cpp WatchList.h FileSystem.o
@@ -39,7 +39,7 @@ FileSystem.o: FileSystem.cpp FileSystem.h Path.o
 DateTimeInfo.o: DateTimeInfo.cpp DateTimeInfo.h
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
-PageInfo.o: PageInfo.cpp PageInfo.h Path.o Title.o
+TrackedInfo.o: TrackedInfo.cpp TrackedInfo.h Path.o Title.o
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 Path.o: Path.cpp Path.h Directory.o Filename.o

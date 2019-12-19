@@ -15,7 +15,7 @@ bool remove_file(const Path& path);
 bool remove_path(const Path& path); //don't use this anywhere with multithreading!
 std::string ls(const char *path);
 std::vector<std::string> lsVec(const char *path);
-int delDir(std::string dir);
+int delDir(std::string dir); //don't use this anywhere with multithreading!
 int cpDir(const std::string& sourceDir, const std::string& targetDir);
 int cpFile(const std::string& sourceFile, const std::string& targetFile);
 

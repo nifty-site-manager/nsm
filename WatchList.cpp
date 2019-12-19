@@ -30,24 +30,24 @@ WatchList::WatchList()
 
 int WatchList::open()
 {
-    if(std::ifstream(".siteinfo/nsm.config"))
+    if(std::ifstream(".nsm/nift.config"))
     {
-        if(std::ifstream(".siteinfo/.watchinfo/watching.list"))
+        if(std::ifstream(".nsm/.watchinfo/watching.list"))
         {
             WatchDir wd;
             std::string contExt;
             Path templatePath;
 
-            std::ifstream ifs(".siteinfo/.watchinfo/watching.list");
+            std::ifstream ifs(".nsm/.watchinfo/watching.list");
 
             while(read_quoted(ifs, wd.watchDir))
             {
                 wd.contExts.clear();
                 wd.templatePaths.clear();
-                wd.pageExts.clear();
+                wd.outputExts.clear();
                 if(wd.watchDir != "" && wd.watchDir[0] != '#')
                 {
-                    std::string watchDirExtsFileStr = ".siteinfo/.watchinfo/" + replace_slashes(wd.watchDir) + ".exts";
+                    std::string watchDirExtsFileStr = ".nsm/.watchinfo/" + replace_slashes(wd.watchDir) + ".exts";
 
                     if(std::ifstream(watchDirExtsFileStr))
                     {
@@ -65,7 +65,7 @@ int WatchList::open()
                                 {
                                     wd.contExts.insert(contExt);
                                     wd.templatePaths[contExt].read_file_path_from(ifxs);
-                                    read_quoted(ifxs, wd.pageExts[contExt]);
+                                    read_quoted(ifxs, wd.outputExts[contExt]);
                                 }
                             }
                         }
@@ -86,14 +86,14 @@ int WatchList::open()
         else
         {
             //watch list isn't present, so technically already open
-            /*std::cout << "error: cannot open watch list as '.siteinfo/watching.list' file does not exist" << std::endl;
+            /*std::cout << "error: cannot open watch list as '.nsm/watching.list' file does not exist" << std::endl;
             return 1;*/
         }
     }
     else
     {
         //no Nift configuration file found
-        std::cout << "error: cannot open watch list as Nift configuration file '.siteinfo/nsm.config' does not exist" << std::endl;
+        std::cout << "error: cannot open watch list as Nift configuration file '.nsm/nift.config' does not exist" << std::endl;
         return 1;
     }
 
@@ -102,21 +102,21 @@ int WatchList::open()
 
 int WatchList::save()
 {
-    if(std::ifstream(".siteinfo/nsm.config"))
+    if(std::ifstream(".nsm/nift.config"))
     {
         if(dirs.size())
         {
-            Path(".siteinfo/.watchinfo/", "").ensureDirExists();
-            std::ofstream ofs(".siteinfo/.watchinfo/watching.list");
+            Path(".nsm/.watchinfo/", "").ensureDirExists();
+            std::ofstream ofs(".nsm/.watchinfo/watching.list");
 
             for(auto wd=dirs.begin(); wd!=dirs.end(); wd++)
             {
                 ofs << quote(wd->watchDir) << "\n";
 
-                std::string watchDirExtsFileStr = ".siteinfo/.watchinfo/" + replace_slashes(wd->watchDir) + ".exts";
+                std::string watchDirExtsFileStr = ".nsm/.watchinfo/" + replace_slashes(wd->watchDir) + ".exts";
                 std::ofstream ofxs(watchDirExtsFileStr);
                 for(auto ext=wd->contExts.begin(); ext!=wd->contExts.end(); ext++)
-                    ofxs << *ext << " " << wd->templatePaths.at(*ext) << " " << wd->pageExts.at(*ext) << "\n";
+                    ofxs << *ext << " " << wd->templatePaths.at(*ext) << " " << wd->outputExts.at(*ext) << "\n";
                 ofxs.close();
             }
 
@@ -124,13 +124,13 @@ int WatchList::save()
         }
         else
         {
-            remove_path(Path(".siteinfo/.watchinfo/", "watching.list"));
-            //Path(".siteinfo/.watchinfo/", "").removePath();
+            remove_path(Path(".nsm/.watchinfo/", "watching.list"));
+            //Path(".nsm/.watchinfo/", "").removePath();
         }
     }
     else
     {
-        std::cout << "error: cannot save watch list to '.siteinfo/watching.list' as cannot find Nift configuration file '.siteinfo/nsm.config'" << std::endl;
+        std::cout << "error: cannot save watch list to '.nsm/watching.list' as cannot find Nift configuration file '.nsm/nift.config'" << std::endl;
         return 1;
     }
 

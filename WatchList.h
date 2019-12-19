@@ -13,7 +13,7 @@ struct WatchDir
     Directory watchDir;
     std::set<std::string> contExts;
     std::map<std::string, Path> templatePaths;
-    std::map<std::string, std::string> pageExts;
+    std::map<std::string, std::string> outputExts;
 
     WatchDir();
 };

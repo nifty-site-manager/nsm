@@ -72,7 +72,7 @@ bool Path::modified_after(const Path &path2) const
 
 Path Path::getInfoPath() const
 {
-    return Path(".siteinfo/" + dir,  strippedExtension(file) + ".info");
+    return Path(".nsm/" + dir,  strippedExtension(file) + ".info");
 }
 
 bool Path::ensureDirExists() const

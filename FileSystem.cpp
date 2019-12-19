@@ -47,6 +47,11 @@ bool remove_path(const Path& path)
 	if(remove_file(path))
 		return 1;
 
+	/*
+		if(!std::ifstream(path.dir))
+			return 0;
+	*/
+
 	std::string owd = get_pwd(),
 	            pwd = owd,
 	            delDir,
@@ -68,7 +73,7 @@ bool remove_path(const Path& path)
 
 	while(!rmdir(delDir.c_str()))
 	{
-		if(pwd == "/" || pwd == "C:\\")
+		if(pwd == "/" || pwd == "C:\\" || pwd == owd)
 			break;
 		delDir = pwd;
 		if(chdir(parDir.c_str()))
@@ -124,6 +129,7 @@ std::vector<std::string> lsVec(const char *path)
     return ans;
 }
 
+//don't use this anywhere with multithreading!
 int delDir(std::string dir)
 {
 	if(!std::ifstream(dir))
@@ -147,7 +153,7 @@ int delDir(std::string dir)
             }
         }
         else
-            remove_path(Path("./", files[f]));
+            remove_file(Path("./", files[f]));
     }
 
     ret_val = chdir(owd.c_str());
@@ -163,6 +169,15 @@ int delDir(std::string dir)
         std::cout << "error: FileSystem.cpp: delDir(" << quote(dir) << "): failed to remove (empty) directory " << quote(dir) << std::endl;
         return ret_val;
     }
+
+	//this causes errors! eg. with clone (though may work after not allowing remove_path to go past the owd)
+	//plus would be quite inefficient as it's a recursive function!
+    /*ret_val = remove_path(Path(dir, ""));
+    if(ret_val)
+    {
+        std::cout << "error: FileSystem.cpp: delDir(" << quote(dir) << "): failed to remove (empty) directory " << quote(dir) << std::endl;
+        return ret_val;
+    }*/
 
     return 0;
 }

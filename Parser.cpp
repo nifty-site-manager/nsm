@@ -1,4 +1,4 @@
-#include "PageBuilder.h"
+#include "Parser.h"
 
 std::atomic<long long int> sys_counter;
 
@@ -24,6 +24,17 @@ std::string into_whitespace(const std::string& str)
     }
 
     return whitespace;
+}
+
+void strip_trailing_whitespace(std::string& str)
+{
+    int pos=str.size()-1;
+
+    for(; pos>=0; pos--)
+        if(str[pos] != ' ' && str[pos] != '\t')
+            break;
+
+    str = str.substr(0, pos+1);
 }
 
 bool run_script(std::ostream& os, const std::string& scriptPathStr, const bool& makeBackup, std::mutex* os_mtx)
@@ -52,7 +63,7 @@ bool run_script(std::ostream& os, const std::string& scriptPathStr, const bool& 
             if(cpFile(scriptPathStr, scriptPathStr + ".backup"))
             {
                 os_mtx->lock();
-                os << "error: PageBuilder.cpp: run_script(" << quote(scriptPathStr) << "): failed to copy " << quote(scriptPathStr) << " to " << quote(scriptPathStr + ".backup") << std::endl;
+                os << "error: Parser.cpp: run_script(" << quote(scriptPathStr) << "): failed to copy " << quote(scriptPathStr) << " to " << quote(scriptPathStr + ".backup") << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
@@ -67,7 +78,7 @@ bool run_script(std::ostream& os, const std::string& scriptPathStr, const bool& 
             if(++mcount == 100)
             {
                 os_mtx->lock();
-                os << "warning: PageBuilder.cpp: run_script(" << quote(scriptPathStr) << "): have tried to move " << quote(scriptPathStr) << " to " << quote(execPath) << " 100 times already, may need to abort" << std::endl;
+                os << "warning: Parser.cpp: run_script(" << quote(scriptPathStr) << "): have tried to move " << quote(scriptPathStr) << " to " << quote(execPath) << " 100 times already, may need to abort" << std::endl;
                 os_mtx->unlock();
             }
         }
@@ -86,7 +97,7 @@ bool run_script(std::ostream& os, const std::string& scriptPathStr, const bool& 
             if(++mcount == 100)
             {
                 os_mtx->lock();
-                os << "warning: PageBuilder.cpp: run_script(" << quote(scriptPathStr) << "): have tried to move " << quote(execPath) << " to " << quote(scriptPathStr) << " 100 times already, may need to abort" << std::endl;
+                os << "warning: Parser.cpp: run_script(" << quote(scriptPathStr) << "): have tried to move " << quote(execPath) << " to " << quote(scriptPathStr) << " 100 times already, may need to abort" << std::endl;
                 os_mtx->unlock();
             }
         }
@@ -107,7 +118,7 @@ bool run_script(std::ostream& os, const std::string& scriptPathStr, const bool& 
         if(result)
         {
             os_mtx->lock();
-            os << "error: PageBuilder.cpp: run_script(" << quote(scriptPathStr) << "): script failed" << std::endl;
+            os << "error: Parser.cpp: run_script(" << quote(scriptPathStr) << "): script failed" << std::endl;
             os_mtx->unlock();
             return 1;
         }
@@ -116,12 +127,12 @@ bool run_script(std::ostream& os, const std::string& scriptPathStr, const bool& 
     return 0;
 }
 
-PageBuilder::PageBuilder(std::set<PageInfo>* Pages,
+Parser::Parser(std::set<TrackedInfo>* TrackedAll,
                          std::mutex* OS_mtx,
                          const Directory& ContentDir,
-                         const Directory& SiteDir,
+                         const Directory& OutputDir,
                          const std::string& ContentExt,
-                         const std::string& PageExt,
+                         const std::string& OutputExt,
                          const std::string& ScriptExt,
                          const Path& DefaultTemplate,
                          const bool& makeBackup,
@@ -129,12 +140,12 @@ PageBuilder::PageBuilder(std::set<PageInfo>* Pages,
                          const std::string& WinTextEditor)
 {
     //sys_counter = 0;
-    pages = Pages;
+    trackedAll = TrackedAll;
     os_mtx = OS_mtx;
     contentDir = ContentDir;
-    siteDir = SiteDir;
+    outputDir = OutputDir;
     contentExt = ContentExt;
-    pageExt = PageExt;
+    outputExt = OutputExt;
     scriptExt = ScriptExt;
     defaultTemplate = DefaultTemplate;
     backupScripts = makeBackup;
@@ -142,50 +153,50 @@ PageBuilder::PageBuilder(std::set<PageInfo>* Pages,
     winTextEditor = WinTextEditor;
 }
 
-int PageBuilder::build(const PageInfo& PageToBuild, std::ostream& os)
+int Parser::build(const TrackedInfo& ToBuild, std::ostream& os)
 {
     sys_counter = sys_counter%1000000000000000000;
-    pageToBuild = PageToBuild;
+    toBuild = ToBuild;
 
     //ensures content and template files exist
-    if(!std::ifstream(pageToBuild.contentPath.str()))
+    if(!std::ifstream(toBuild.contentPath.str()))
     {
         os_mtx->lock();
-        os << "error: cannot build " << pageToBuild.pagePath << " as content file " << pageToBuild.contentPath << " does not exist" << std::endl;
+        os << "error: cannot build " << toBuild.outputPath << " as content file " << toBuild.contentPath << " does not exist" << std::endl;
         os_mtx->unlock();
         return 1;
     }
-    if(!std::ifstream(pageToBuild.templatePath.str()))
+    if(!std::ifstream(toBuild.templatePath.str()))
     {
         os_mtx->lock();
-        os << "error: cannot build " << pageToBuild.pagePath << " as template file " << pageToBuild.templatePath << " does not exist." << std::endl;
+        os << "error: cannot build " << toBuild.outputPath << " as template file " << toBuild.templatePath << " does not exist." << std::endl;
         os_mtx->unlock();
         return 1;
     }
 
-    pageDeps.clear();
+    depFiles.clear();
 
     //checks for non-default script extension
-    Path extPath = pageToBuild.pagePath.getInfoPath();
+    Path extPath = toBuild.outputPath.getInfoPath();
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
 
-    std::string pageScriptExt;
+    std::string cScriptExt;
     if(std::ifstream(extPath.str()))
     {
         std::ifstream ifs(extPath.str());
-        getline(ifs, pageScriptExt);
+        getline(ifs, cScriptExt);
         ifs.close();
     }
     else
-        pageScriptExt = scriptExt;
+        cScriptExt = scriptExt;
 
     //checks for pre-build scripts
     if(std::ifstream("pre-build" + scriptExt))
-        pageDeps.insert(Path("", "pre-build" + scriptExt));
-    Path prebuildScript = pageToBuild.contentPath;
-    prebuildScript.file = prebuildScript.file.substr(0, prebuildScript.file.find_first_of('.')) + "-pre-build" + pageScriptExt;
+        depFiles.insert(Path("", "pre-build" + scriptExt));
+    Path prebuildScript = toBuild.contentPath;
+    prebuildScript.file = prebuildScript.file.substr(0, prebuildScript.file.find_first_of('.')) + "-pre-build" + cScriptExt;
     if(std::ifstream(prebuildScript.str()))
-        pageDeps.insert(prebuildScript);
+        depFiles.insert(prebuildScript);
     if(run_script(os, prebuildScript.str(), backupScripts, os_mtx))
         return 1;
 
@@ -193,23 +204,23 @@ int PageBuilder::build(const PageInfo& PageToBuild, std::ostream& os)
     codeBlockDepth = htmlCommentDepth = 0;
     indentAmount = "";
     contentAdded = 0;
-    processedPage.clear();
-    processedPage.str(std::string());
+    parsedText.clear();
+    parsedText.str(std::string());
     strings.clear();
     contentAdded = 0;
 
     //adds content and template paths to dependencies
-    pageDeps.insert(pageToBuild.contentPath);
-    pageDeps.insert(pageToBuild.templatePath);
+    depFiles.insert(toBuild.contentPath);
+    depFiles.insert(toBuild.templatePath);
 
     //opens up template file to start parsing from
-    std::ifstream ifs(pageToBuild.templatePath.str());
+    std::ifstream ifs(toBuild.templatePath.str());
 
-    //creates anti-deps of page template set
+    //creates anti-deps of template set
     std::set<Path> antiDepsOfReadPath;
 
     //starts read_and_process from templatePath
-    int result = read_and_process(1, ifs, pageToBuild.templatePath, antiDepsOfReadPath, processedPage, os);
+    int result = read_and_process(1, ifs, toBuild.templatePath, antiDepsOfReadPath, parsedText, os);
 
     ifs.close();
 
@@ -219,61 +230,61 @@ int PageBuilder::build(const PageInfo& PageToBuild, std::ostream& os)
         if(!contentAdded)
         {
             os_mtx->lock();
-            os << "error: content file " << pageToBuild.contentPath << " has not been used as a dependency within template file " << pageToBuild.templatePath << " or any of its dependencies" << std::endl;
+            os << "error: content file " << toBuild.contentPath << " has not been used as a dependency within template file " << toBuild.templatePath << " or any of its dependencies" << std::endl;
             os_mtx->unlock();
             return 1;
         }
 
-        //makes sure page file exists
-        pageToBuild.pagePath.ensureDirExists();
+        //makes sure directory for output file exists
+        toBuild.outputPath.ensureDirExists();
 
-        //makes sure we can write to page file
-        chmod(pageToBuild.pagePath.str().c_str(), 0644);
+        //makes sure we can write to output file
+        chmod(toBuild.outputPath.str().c_str(), 0644);
 
-        //writes processed page to page file
-        std::ofstream pageStream(pageToBuild.pagePath.str());
-        pageStream << processedPage.str() << "\n";
-        pageStream.close();
+        //writes processed text to output file
+        std::ofstream outputFile(toBuild.outputPath.str());
+        outputFile << parsedText.str() << "\n";
+        outputFile.close();
 
-        //makes sure user can't accidentally write to page file
-        chmod(pageToBuild.pagePath.str().c_str(), 0444);
+        //makes sure user can't accidentally write to output file
+        chmod(toBuild.outputPath.str().c_str(), 0444);
 
         //checks for post-build scripts
         if(std::ifstream("post-build" + scriptExt))
-            pageDeps.insert(Path("", "post-build" + scriptExt));
-        Path postbuildScript = pageToBuild.contentPath;
-        postbuildScript.file = postbuildScript.file.substr(0, postbuildScript.file.find_first_of('.')) + "-post-build" + pageScriptExt;
+            depFiles.insert(Path("", "post-build" + scriptExt));
+        Path postbuildScript = toBuild.contentPath;
+        postbuildScript.file = postbuildScript.file.substr(0, postbuildScript.file.find_first_of('.')) + "-post-build" + cScriptExt;
         if(std::ifstream(postbuildScript.str()))
-            pageDeps.insert(postbuildScript);
+            depFiles.insert(postbuildScript);
         if(run_script(os, postbuildScript.str(), backupScripts, os_mtx))
-            return 1; //should a page be listed as failing to build if the post-build script fails?
+            return 1; //should an output file be listed as failing to build if the post-build script fails?
 
-        //gets path for storing page information
-        Path pageInfoPath = pageToBuild.pagePath.getInfoPath();
+        //gets path for storing info file
+        Path infoPath = toBuild.outputPath.getInfoPath();
 
-        //makes sure page info file exists
-        pageInfoPath.ensureDirExists();
+        //makes sure info file exists
+        infoPath.ensureDirExists();
 
         //makes sure we can write to info file_
-        chmod(pageInfoPath.str().c_str(), 0644);
+        chmod(infoPath.str().c_str(), 0644);
 
-        //writes page info file
-        std::ofstream infoStream(pageInfoPath.str());
+        //writes info file
+        std::ofstream infoStream(infoPath.str());
         infoStream << dateTimeInfo.currentTime() << " " << dateTimeInfo.currentDate() << "\n";
-        infoStream << this->pageToBuild << "\n\n";
-        for(auto pageDep=pageDeps.begin(); pageDep != pageDeps.end(); pageDep++)
-            infoStream << *pageDep << "\n";
+        infoStream << this->toBuild << "\n\n";
+        for(auto depFile=depFiles.begin(); depFile != depFiles.end(); depFile++)
+            infoStream << *depFile << "\n";
         infoStream.close();
 
         //makes sure user can't accidentally write to info file
-        chmod(pageInfoPath.str().c_str(), 0444);
+        chmod(infoPath.str().c_str(), 0444);
     }
 
     return result;
 }
 
 //parses istream 'is' whilst writing processed version to ostream 'os' with error ostream 'eos'
-int PageBuilder::read_and_process(const bool& indent,
+int Parser::read_and_process(const bool& indent,
                                   std::istream& is,
                                   const Path& readPath,
                                   std::set<Path> antiDepsOfReadPath,
@@ -353,93 +364,12 @@ int PageBuilder::read_and_process(const bool& indent,
 
         for(size_t linePos=0; linePos<inLine.length();)
         {
-            if(inLine[linePos] == '\\') //checks whether to escape
+            if(inLine.substr(linePos, 2) == "\\@") //checks whether to escape
             {
-                linePos++;
-                /*
-                    see http://dev.w3.org/html5/html-author/charref for
-                    more character references than you could ever need!
-                */
-                switch(inLine[linePos])
-                {
-                    case '~':
-                        os << "&tilde;";
-                        linePos++;
-                        if(indent)
-                            indentAmount += std::string(7, ' ');
-                        break;
-                    case '!':
-                        os << "&excl;";
-                        linePos++;
-                        if(indent)
-                            indentAmount += std::string(6, ' ');
-                        break;
-                    case '@':
-                        os << "&commat;";
-                        linePos++;
-                        if(indent)
-                            indentAmount += std::string(8, ' ');
-                        break;
-                    case '#':
-                        os << "&num;";
-                        linePos++;
-                        if(indent)
-                            indentAmount += std::string(5, ' ');
-                        break;
-                    /*case '$': //MUST HAVE MATHJAX HANDLE THIS
-                        os << "&dollar;";
-                        linePos++;
-                        indentAmount += string(8, ' ');
-                        break;*/
-                    case '%':
-                        os << "&percnt;";
-                        linePos++;
-                        if(indent)
-                            indentAmount += std::string(8, ' ');
-                        break;
-                    case '^':
-                        os << "&Hat;";
-                        linePos++;
-                        if(indent)
-                            indentAmount += std::string(5, ' ');
-                        break;
-                    /*case '&': //SEEMS TO BREAK SOME VALID JAVASCRIPT CODE
-                                //CHECK DEVELOPERS PERSONAL SITE GENEALOGY PAGE
-                                //FOR EXAMPLE (SEARCH FOR \&)
-                        os << "&amp;";
-                        linePos++;
-                        if(indent)
-                            indentAmount += std::string(5, ' ');
-                        break;*/
-                    case '*':
-                        os << "&ast;";
-                        linePos++;
-                        if(indent)
-                            indentAmount += std::string(5, ' ');
-                        break;
-                    case '?':
-                        os << "&quest;";
-                        linePos++;
-                        if(indent)
-                            indentAmount += std::string(7, ' ');
-                        break;
-                    case '<':
-                        os << "&lt;";
-                        linePos++;
-                        if(indent)
-                            indentAmount += std::string(4, ' ');
-                        break;
-                    case '>':
-                        os << "&gt;";
-                        linePos++;
-                        if(indent)
-                            indentAmount += std::string(4, ' ');
-                        break;
-                    default:
-                        os << "\\";
-                        if(indent)
-                            indentAmount += " ";
-                }
+                os << "@";
+                linePos += 2;
+                if(indent)
+                    indentAmount += " ";
             }
             else if(inLine[linePos] == '<') //checks about code blocks and html comments opening
             {
@@ -532,12 +462,384 @@ int PageBuilder::read_and_process(const bool& indent,
             }
             else if(inLine[linePos] == '@') //checks for commands
             {
-                if(linePos > 0 && inLine[linePos-1] == '\\')
+                /*if(linePos > 0 && inLine[linePos-1] == '\\') //this doesn't work, still outputs escape character!
+                                                               //plus it breaks @\\@\\ etc.
                 {
                     os << '@';
                     if(indent)
                         indentAmount += " ";
                     linePos++;
+                }*/
+                if(inLine.substr(linePos, 10) == "@pagetitle") //can delete this later
+                {
+                    os << toBuild.title.str;
+                    if(indent)
+                        indentAmount += into_whitespace(toBuild.title.str);
+                    linePos += std::string("@pagetitle").length();
+                }
+                else if(inLine.substr(linePos, 2) == "@{" ||
+                        inLine.substr(linePos, 3) == "@*{" ||
+                        inLine.substr(linePos, 2) == "@[" ||
+                        inLine.substr(linePos, 3) == "@*[")
+                {
+                    linePos+=std::string("@").length();
+                    int sLinePos = linePos;
+                    std::string varName;
+
+                    if(inLine[linePos] == '*')
+                    {
+                        parseParams = 1;
+                        linePos++;
+                    }
+                    else
+                        parseParams = 0;
+
+                    linePos++;
+
+                    if(read_param(varName, linePos, inLine, readPath, lineNo, "@<..>", eos))
+                        return 1;
+
+                    if(parseParams)
+                    {
+                        std::istringstream iss(varName);
+                        oss.str("");
+                        oss.clear();
+
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
+                        if(read_and_process(0, iss, Path("", "@[variable name]"), antiDepsOfReadPath, oss, eos) > 0)
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
+
+                        varName = oss.str();
+
+                        indentAmount = oldIndent;
+                    }
+
+                    if(strings.count(varName)) //should this go after hard-coded constants? should we parse the string when printing?
+                    {
+                        std::istringstream iss(strings[varName]);
+                        std::string ssLine, oldLine;
+                        int ssLineNo = 0;
+
+                        while(getline(iss, ssLine))
+                        {
+                            if(0 < ssLineNo++)
+                                os << "\n" << indentAmount;
+                            oldLine = ssLine;
+                            os << ssLine;
+                        }
+                        indentAmount += into_whitespace(oldLine);
+                    }
+                    else if(varName == "title")
+                    {
+                        os << toBuild.title.str;
+                        if(indent)
+                            indentAmount += into_whitespace(toBuild.title.str);
+                    }
+                    else if(varName == "name")
+                    {
+                        os << toBuild.name;
+                        if(indent)
+                            indentAmount += into_whitespace(toBuild.name);
+                    }
+                    else if(varName == "contentpath")
+                    {
+                        os << toBuild.contentPath.str();
+                        if(indent)
+                            indentAmount += into_whitespace(toBuild.contentPath.str());
+                    }
+                    else if(varName == "outputpath")
+                    {
+                        os << toBuild.outputPath.str();
+                        if(indent)
+                            indentAmount += into_whitespace(toBuild.outputPath.str());
+                    }
+                    else if(varName == "contentext")
+                    {
+                        //checks for non-default content extension
+                        Path extPath = toBuild.outputPath.getInfoPath();
+                        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+
+                        if(std::ifstream(extPath.str()))
+                        {
+                            std::string ext;
+
+                            std::ifstream ifs(extPath.str());
+                            getline(ifs, ext);
+                            ifs.close();
+
+                            os << ext;
+                            if(indent)
+                                indentAmount += into_whitespace(ext);
+                        }
+                        else
+                        {
+                            os << contentExt;
+                            if(indent)
+                                indentAmount += into_whitespace(contentExt);
+                        }
+                    }
+                    else if(varName == "outputext")
+                    {
+                        //checks for non-default output extension
+                        Path extPath = toBuild.outputPath.getInfoPath();
+                        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
+
+                        if(std::ifstream(extPath.str()))
+                        {
+                            std::string ext;
+
+                            std::ifstream ifs(extPath.str());
+                            getline(ifs, ext);
+                            ifs.close();
+
+                            os << ext;
+                            if(indent)
+                                indentAmount += into_whitespace(ext);
+                        }
+                        else
+                        {
+                            os << outputExt;
+                            if(indent)
+                                indentAmount += into_whitespace(outputExt);
+                        }
+                    }
+                    else if(varName == "scriptext")
+                    {
+                        //checks for non-default script extension
+                        Path extPath = toBuild.outputPath.getInfoPath();
+                        extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
+
+                        if(std::ifstream(extPath.str()))
+                        {
+                            std::string ext;
+
+                            std::ifstream ifs(extPath.str());
+                            getline(ifs, ext);
+                            ifs.close();
+
+                            os << ext;
+                            if(indent)
+                                indentAmount += into_whitespace(ext);
+                        }
+                        else
+                        {
+                            os << scriptExt;
+                            if(indent)
+                                indentAmount += into_whitespace(scriptExt);
+                        }
+                    }
+                    else if(varName == "templatepath")
+                    {
+                        os << toBuild.templatePath.str();
+                        if(indent)
+                            indentAmount += into_whitespace(toBuild.templatePath.str());
+                    }
+                    else if(varName == "contentdir")
+                    {
+                        if(contentDir.size() && (contentDir[contentDir.size()-1] == '/' || contentDir[contentDir.size()-1] == '\\'))
+                        {
+                            os << contentDir.substr(0, contentDir.size()-1);
+                            if(indent)
+                                indentAmount += into_whitespace(contentDir.substr(0, contentDir.size()-1));
+                        }
+                        else
+                        {
+                            os << contentDir;
+                            if(indent)
+                                indentAmount += into_whitespace(contentDir);
+                        }
+                    }
+                    else if(varName == "outputdir")
+                    {
+                        if(outputDir.size() && (outputDir[outputDir.size()-1] == '/' || outputDir[outputDir.size()-1] == '\\'))
+                        {
+                            os << outputDir.substr(0, outputDir.size()-1);
+                            if(indent)
+                                indentAmount += into_whitespace(outputDir.substr(0, outputDir.size()-1));
+                        }
+                        else
+                        {
+                            os << outputDir;
+                            if(indent)
+                                indentAmount += into_whitespace(outputDir);
+                        }
+                    }
+                    else if(varName == "defaultcontentext")
+                    {
+                        os << contentExt;
+                        if(indent)
+                            indentAmount += into_whitespace(contentExt);
+                    }
+                    else if(varName == "defaultoutputext")
+                    {
+                        os << outputExt;
+                        if(indent)
+                            indentAmount += into_whitespace(outputExt);
+                    }
+                    else if(varName == "defaultscriptext")
+                    {
+                        os << scriptExt;
+                        if(indent)
+                            indentAmount += into_whitespace(scriptExt);
+                    }
+                    else if(varName == "defaulttemplate")
+                    {
+                        os << defaultTemplate.str();
+                        if(indent)
+                            indentAmount += into_whitespace(defaultTemplate.str());
+                    }
+                    else if(varName == "buildtimezone")
+                    {
+                        os << dateTimeInfo.cTimezone;
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.cTimezone);
+                    }
+                    else if(varName == "loadtimezone")
+                    {
+                        os << "<script>document.write(new Date().toString().split(\"(\")[1].split(\")\")[0])</script>";
+                        if(indent)
+                            indentAmount += std::string(82, ' ');
+                    }
+                    else if(varName == "timezone")
+                    { //this is left for backwards compatibility
+                        os << dateTimeInfo.cTimezone;
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.cTimezone);
+                    }
+                    else if(varName == "buildtime")
+                    {
+                        os << dateTimeInfo.cTime;
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.cTime);
+                    }
+                    else if(varName == "buildUTCtime")
+                    {
+                        os << dateTimeInfo.currentUTCTime();
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.currentUTCTime());
+                    }
+                    else if(varName == "builddate")
+                    {
+                        os << dateTimeInfo.cDate;
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.cDate);
+                    }
+                    else if(varName == "buildUTCdate")
+                    {
+                        os << dateTimeInfo.currentUTCDate();
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.currentUTCDate());
+                    }
+                    else if(varName == "currenttime")
+                    { //this is left for backwards compatibility
+                        os << dateTimeInfo.cTime;
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.cTime);
+                    }
+                    else if(varName == "currentUTCtime")
+                    { //this is left for backwards compatibility
+                        os << dateTimeInfo.currentUTCTime();
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.currentUTCTime());
+                    }
+                    else if(varName == "currentdate")
+                    { //this is left for backwards compatibility
+                        os << dateTimeInfo.cDate;
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.cDate);
+                    }
+                    else if(varName == "currentUTCdate")
+                    { //this is left for backwards compatibility
+                        os << dateTimeInfo.currentUTCDate();
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.currentUTCDate());
+                    }
+                    else if(varName == "loadtime")
+                    {
+                        os << "<script>document.write((new Date().toLocaleString()).split(\",\")[1])</script>";
+                        if(indent)
+                            indentAmount += std::string(76, ' ');
+                    }
+                    else if(varName == "loadUTCtime")
+                    {
+                        os << "<script>document.write((new Date().toISOString()).split(\"T\")[1].split(\".\")[0])</script>";
+                        if(indent)
+                            indentAmount += std::string(87, ' ');
+                    }
+                    else if(varName == "loaddate")
+                    {
+                        os << "<script>document.write((new Date().toLocaleString()).split(\",\")[0])</script>";
+                        if(indent)
+                            indentAmount += std::string(76, ' ');
+                    }
+                    else if(varName == "loadUTCdate")
+                    {
+                        os << "<script>document.write((new Date().toISOString()).split(\"T\")[0])</script>";
+                        if(indent)
+                            indentAmount += std::string(73, ' ');
+                    }
+                    else if(varName == "buildYYYY")
+                    {
+                        os << dateTimeInfo.currentYYYY();
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.currentYYYY());
+                    }
+                    else if(varName == "buildYY")
+                    {
+                        os << dateTimeInfo.currentYY();
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.currentYY());
+                    }
+                    else if(varName == "currentYYYY")
+                    { //this is left for backwards compatibility
+                        os << dateTimeInfo.currentYYYY();
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.currentYYYY());
+                    }
+                    else if(varName == "currentYY")
+                    { //this is left for backwards compatibility
+                        os << dateTimeInfo.currentYY();
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.currentYY());
+                    }
+                    else if(varName == "loadYYYY")
+                    {
+                        os << "<script>document.write(new Date().getFullYear())</script>";
+                        if(indent)
+                            indentAmount += std::string(57, ' ');
+                    }
+                    else if(varName == "loadYY")
+                    {
+                        os << "<script>document.write(new Date().getFullYear()%100)</script>";
+                        if(indent)
+                            indentAmount += std::string(61, ' ');
+                    }
+                    else if(varName == "buildOS")
+                    {
+                        os << dateTimeInfo.currentOS();
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.currentOS());
+                    }
+                    else if(varName == "currentOS")
+                    { //this is left for backwards compatibility
+                        os << dateTimeInfo.currentOS();
+                        if(indent)
+                            indentAmount += into_whitespace(dateTimeInfo.currentOS());
+                    }
+                    else
+                    {
+                        os << "@";
+                        linePos = sLinePos;
+                        if(indent)
+                            indentAmount += " ";
+                    }
                 }
                 else if(inLine.substr(linePos, 2) == "@#")
                 {
@@ -566,6 +868,13 @@ int PageBuilder::read_and_process(const bool& indent,
                     indentAmount = oldIndent;
 
                     linePos = inLine.length();
+                }
+                else if(inLine.substr(linePos, 3) == "@\\t")
+                {
+                    linePos += 3;
+                    os << "\t";
+                    if(indent)
+                        indentAmount += "\t";
                 }
                 else if(inLine.substr(linePos, 3) == "@\\n")
                 {
@@ -667,21 +976,164 @@ int PageBuilder::read_and_process(const bool& indent,
                     os_mtx->unlock();
                     return 1;
                 }
+                else if(inLine.substr(linePos, 2) == "@\\")
+                {
+                    linePos+=2;
+
+                    switch(inLine[linePos])
+                    {
+                        case '\\':
+                            linePos++;
+                            os << "\\";
+                            if(indent)
+                                indentAmount += " ";
+                            break;
+                        case '@':
+                            linePos++;
+                            os << "@";
+                            if(indent)
+                                indentAmount += " ";
+                            break;
+                        case '<':
+                            linePos++;
+                            os << "&lt;";
+                            if(indent)
+                                indentAmount += std::string(4, ' ');
+                            break;
+                        case 't': //this isn't needed but here in case code is moved before @\\t code
+                            linePos += 3;
+                            os << "\t";
+                            if(indent)
+                                indentAmount += "\t";
+                            break;
+                        case 'n': //this isn't needed but here in case code is moved before @\\n code
+                            linePos++;
+                            indentAmount = baseIndentAmount;
+                            if(codeBlockDepth)
+                                os << "\n";
+                            else
+                                os << "\n" << baseIndentAmount;
+                            break;
+                        default:
+                            os << "@\\";
+                            if(indent)
+                                indentAmount += "  ";
+                    }
+                }
+                else if(inLine.substr(linePos, 4) == "@:=(" || inLine.substr(linePos, 5) == "@:=*(")
+                {
+                    linePos+=std::string("@:=").length();
+                    std::string varType;
+                    std::vector<std::pair<std::string, std::string> > vars;
+
+                    if(inLine[linePos] == '*')
+                    {
+                        parseParams = 1;
+                        linePos++;
+                    }
+                    else
+                        parseParams = 0;
+
+                    linePos++;
+
+                    if(read_def(varType, vars, linePos, inLine, readPath, lineNo, "@:=(..)", eos))
+                        return 1;
+
+                    if(parseParams)
+                    {
+                        std::istringstream iss(varType);
+                        oss.str("");
+                        oss.clear();
+
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
+                        if(read_and_process(0, iss, Path("", "variable type"), antiDepsOfReadPath, oss, eos) > 0)
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": failed to parse variable type" << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
+
+                        varType = oss.str();
+
+                        for(size_t v=0; v<vars.size(); v++)
+                        {
+                            iss = std::istringstream(vars[v].first);
+                            oss.str("");
+                            oss.clear();
+
+                            indentAmount = "";
+
+                            if(read_and_process(0, iss, Path("", "variable name"), antiDepsOfReadPath, oss, eos) > 0)
+                            {
+                                os_mtx->lock();
+                                eos << "error: " << readPath << ": line " << lineNo << ": failed to parse variable name" << std::endl;
+                                os_mtx->unlock();
+                                return 1;
+                            }
+
+                            vars[v].first = oss.str();
+
+                            iss = std::istringstream(vars[v].second);
+                            oss.str("");
+                            oss.clear();
+
+                            indentAmount = "";
+
+                            if(read_and_process(0, iss, Path("", "variable value"), antiDepsOfReadPath, oss, eos) > 0)
+                            {
+                                os_mtx->lock();
+                                eos << "error: " << readPath << ": line " << lineNo << ": failed to parse variable value" << std::endl;
+                                os_mtx->unlock();
+                                return 1;
+                            }
+
+                            vars[v].second = oss.str();
+                        }
+
+                        indentAmount = oldIndent;
+                    }
+
+                    if(varType == "string")
+                    {
+                        for(size_t v=0; v<vars.size(); v++)
+                        {
+                            if(strings.count(vars[v].first))
+                            {
+                                os_mtx->lock();
+                                eos << "error: " << readPath << ": line " << lineNo << ": redeclaration of variable name '" << vars[v].first << "'" << std::endl;
+                                os_mtx->unlock();
+                                return 1;
+                            }
+                            else
+                                strings[vars[v].first] = vars[v].second;
+                        }
+                    }
+                    else
+                    {
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": line " << lineNo << ": do not recognise the type '" << varType << "'" << std::endl;
+                        eos << "note: more types including type defs will hopefully be coming soon" << std::endl; //can delete this later
+                        os_mtx->unlock();
+                    }
+                }
                 else if(inLine.substr(linePos, 11) == "@rawcontent")
                 {
                     contentAdded = 1;
-                    std::string replaceText = "@inputraw(" + quote(pageToBuild.contentPath.str()) + ")";
+                    std::string replaceText = "@inputraw(" + quote(toBuild.contentPath.str()) + ")";
                     inLine.replace(linePos, 11, replaceText);
                 }
                 else if(inLine.substr(linePos, 13) == "@inputcontent")
                 {
                     contentAdded = 1;
-                    std::string replaceText = "@input(" + quote(pageToBuild.contentPath.str()) + ")";
+                    std::string replaceText = "@input(" + quote(toBuild.contentPath.str()) + ")";
                     inLine.replace(linePos, 13, replaceText);
                 }
                 else if(inLine.substr(linePos, 10) == "@inputhead")
                 {
-                    Path headPath = pageToBuild.contentPath;
+                    Path headPath = toBuild.contentPath;
                     headPath.file = headPath.file.substr(0, headPath.file.find_first_of('.')) + ".head";
                     if(std::ifstream(headPath.str()))
                     {
@@ -796,7 +1248,7 @@ int PageBuilder::read_and_process(const bool& indent,
                     std::string output_filename = ".@userfilein" + std::to_string(sys_counter++);
                     int result;
 
-                    std::string contExtPath = ".siteinfo/" + siteDir + pageToBuild.pageName + ".ext";
+                    std::string contExtPath = ".nsm/" + outputDir + toBuild.name + ".ext";
 
                     if(std::ifstream(contExtPath))
                     {
@@ -906,9 +1358,9 @@ int PageBuilder::read_and_process(const bool& indent,
 
                     Path inputPath;
                     inputPath.set_file_path_from(inputPathStr);
-                    pageDeps.insert(inputPath);
+                    depFiles.insert(inputPath);
 
-                    if(inputPath == pageToBuild.contentPath)
+                    if(inputPath == toBuild.contentPath)
                         contentAdded = 1;
 
                     //ensures insert file exists
@@ -977,9 +1429,9 @@ int PageBuilder::read_and_process(const bool& indent,
 
                     Path inputPath;
                     inputPath.set_file_path_from(inputPathStr);
-                    pageDeps.insert(inputPath);
+                    depFiles.insert(inputPath);
 
-                    if(inputPath == pageToBuild.contentPath)
+                    if(inputPath == toBuild.contentPath)
                         contentAdded = 1;
 
                     //ensures insert file exists
@@ -1055,9 +1507,9 @@ int PageBuilder::read_and_process(const bool& indent,
 
                     Path depPath;
                     depPath.set_file_path_from(depPathStr);
-                    pageDeps.insert(depPath);
+                    depFiles.insert(depPath);
 
-                    if(depPath == pageToBuild.contentPath)
+                    if(depPath == toBuild.contentPath)
                         contentAdded = 1;
 
                     if(!std::ifstream(depPathStr))
@@ -1162,7 +1614,7 @@ int PageBuilder::read_and_process(const bool& indent,
 
                     Path scriptPath;
                     scriptPath.set_file_path_from(scriptPathStr);
-                    pageDeps.insert(scriptPath);
+                    depFiles.insert(scriptPath);
 
                     if(!std::ifstream(scriptPathStr))
                     {
@@ -1335,9 +1787,9 @@ int PageBuilder::read_and_process(const bool& indent,
 
                     Path scriptPath;
                     scriptPath.set_file_path_from(scriptPathStr);
-                    pageDeps.insert(scriptPath);
+                    depFiles.insert(scriptPath);
 
-                    if(scriptPath == pageToBuild.contentPath)
+                    if(scriptPath == toBuild.contentPath)
                         contentAdded = 1;
 
                     if(!std::ifstream(scriptPathStr))
@@ -1519,9 +1971,9 @@ int PageBuilder::read_and_process(const bool& indent,
 
                     Path scriptPath;
                     scriptPath.set_file_path_from(scriptPathStr);
-                    pageDeps.insert(scriptPath);
+                    depFiles.insert(scriptPath);
 
-                    if(scriptPath == pageToBuild.contentPath)
+                    if(scriptPath == toBuild.contentPath)
                         contentAdded = 1;
 
                     if(!std::ifstream(scriptPathStr))
@@ -1890,7 +2342,7 @@ int PageBuilder::read_and_process(const bool& indent,
                     #endif
 
                     contentAdded = 1;
-                    sys_call += " " + quote(pageToBuild.contentPath.str());
+                    sys_call += " " + quote(toBuild.contentPath.str());
 
                     //checks whether we're running from flatpak
                     int result;
@@ -1925,144 +2377,10 @@ int PageBuilder::read_and_process(const bool& indent,
 
                     remove_file(Path("./", output_filename));
                 }
-                else if(inLine.substr(linePos,11) == "@stringdef(" || inLine.substr(linePos,12) == "@stringdef*(")
-                {
-                    linePos+=std::string("@stringdef").length();
-                    std::string varName, varVal;
-
-                    if(inLine[linePos] == '*')
-                    {
-                        parseParams = 1;
-                        linePos++;
-                    }
-                    else
-                        parseParams = 0;
-
-                    linePos++;
-
-                    if(read_stringdef(varName, varVal, linePos, inLine, readPath, lineNo, "@stringdef()", eos))
-                        return 1;
-
-                    if(parseParams)
-                    {
-                        std::istringstream iss(varName);
-                        oss.str("");
-                        oss.clear();
-
-                        std::string oldIndent = indentAmount;
-                        indentAmount = "";
-
-                        if(read_and_process(0, iss, Path("", "variable name"), antiDepsOfReadPath, oss, eos) > 0)
-                        {
-                            os_mtx->lock();
-                            eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
-                            os_mtx->unlock();
-                            return 1;
-                        }
-
-                        varName = oss.str();
-
-                        iss = std::istringstream(varVal);
-                        oss.str("");
-                        oss.clear();
-
-                        indentAmount = "";
-
-                        if(read_and_process(0, iss, Path("", "variable value"), antiDepsOfReadPath, oss, eos) > 0)
-                        {
-                            os_mtx->lock();
-                            eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
-                            os_mtx->unlock();
-                            return 1;
-                        }
-
-                        varVal = oss.str();
-
-                        indentAmount = oldIndent;
-                    }
-
-                    if(strings.count(varName))
-                    {
-                        os_mtx->lock();
-                        eos << "error: " << readPath << ": line " << lineNo << ": redeclaration of string(" << quote(varName) << ")" << std::endl;
-                        os_mtx->unlock();
-                        return 1;
-                    }
-                    else
-                        strings[varName] = varVal;
-                }
-                else if(inLine.substr(linePos, 8) == "@string(" || inLine.substr(linePos, 9) == "@string*(")
-                {
-                    linePos+=std::string("@string").length();
-                    std::string varName;
-
-                    if(inLine[linePos] == '*')
-                    {
-                        parseParams = 1;
-                        linePos++;
-                    }
-                    else
-                        parseParams = 0;
-
-                    linePos++;
-
-                    if(read_var(varName, linePos, inLine, readPath, lineNo, "@string()", eos))
-                        return 1;
-
-                    if(parseParams)
-                    {
-                        std::istringstream iss(varName);
-                        oss.str("");
-                        oss.clear();
-
-                        std::string oldIndent = indentAmount;
-                        indentAmount = "";
-
-                        if(read_and_process(0, iss, Path("", "variable name"), antiDepsOfReadPath, oss, eos) > 0)
-                        {
-                            os_mtx->lock();
-                            eos << "error: " << readPath << ": line " << lineNo << ": read_and_process() failed here" << std::endl;
-                            os_mtx->unlock();
-                            return 1;
-                        }
-
-                        varName = oss.str();
-
-                        indentAmount = oldIndent;
-                    }
-
-                    if(strings.count(varName))
-                    {
-                        std::istringstream iss(strings[varName]);
-                        std::string ssLine, oldLine;
-                        int ssLineNo = 0;
-
-                        while(getline(iss, ssLine))
-                        {
-                            if(0 < ssLineNo++)
-                                os << "\n" << indentAmount;
-                            oldLine = ssLine;
-                            os << ssLine;
-                        }
-                        indentAmount += into_whitespace(oldLine);
-
-
-                        /*os << strings[varName];
-                        if(indent)
-                            indentAmount += into_whitespace(strings[varName]);*/
-                    }
-                    else
-                    {
-                        os_mtx->lock();
-                        eos << "error: " << readPath << ": line " << lineNo << ": string(" << quote(varName) << ") was not declared in this scope" << std::endl;
-                        os_mtx->unlock();
-                        return 1;
-                    }
-                }
                 else if(inLine.substr(linePos, 8) == "@pathto(" || inLine.substr(linePos, 9) == "@pathto*(")
                 {
                     linePos+=std::string("@pathto").length();
-                    Name targetPageName;
+                    Name targetName;
 
                     if(inLine[linePos] == '*')
                     {
@@ -2074,12 +2392,12 @@ int PageBuilder::read_and_process(const bool& indent,
 
                     linePos++;
 
-                    if(read_path(targetPageName, linePos, inLine, readPath, lineNo, "@pathto()", eos) > 0)
+                    if(read_path(targetName, linePos, inLine, readPath, lineNo, "@pathto()", eos) > 0)
                         return 1;
 
                     if(parseParams)
                     {
-                        std::istringstream iss(targetPageName);
+                        std::istringstream iss(targetName);
                         oss.str("");
                         oss.clear();
 
@@ -2094,27 +2412,27 @@ int PageBuilder::read_and_process(const bool& indent,
                             return 1;
                         }
 
-                        targetPageName = oss.str();
+                        targetName = oss.str();
 
                         indentAmount = oldIndent;
                     }
 
-                    //throws error if target targetPageName isn't being tracked by Nift
-                    PageInfo targetPageInfo;
-                    targetPageInfo.pageName = targetPageName;
-                    if(!pages->count(targetPageInfo))
+                    //throws error if target targetName isn't being tracked by Nift
+                    TrackedInfo targetInfo;
+                    targetInfo.name = targetName;
+                    if(!trackedAll->count(targetInfo))
                     {
                         os_mtx->lock();
-                        eos << "error: " << readPath << ": line " << lineNo << ": @pathto(" << targetPageName << ") failed, Nift not tracking " << targetPageName << std::endl;
+                        eos << "error: " << readPath << ": line " << lineNo << ": @pathto(" << targetName << ") failed, Nift not tracking " << targetName << std::endl;
                         os_mtx->unlock();
                         return 1;
                     }
 
 
-                    Path targetPath = pages->find(targetPageInfo)->pagePath;
+                    Path targetPath = trackedAll->find(targetInfo)->outputPath;
                     //targetPath.set_file_path_from(targetPathStr);
 
-                    Path pathToTarget(pathBetween(pageToBuild.pagePath.dir, targetPath.dir), targetPath.file);
+                    Path pathToTarget(pathBetween(toBuild.outputPath.dir, targetPath.dir), targetPath.file);
 
                     //adds path to target
                     os << pathToTarget.str();
@@ -2124,7 +2442,7 @@ int PageBuilder::read_and_process(const bool& indent,
                 else if(inLine.substr(linePos, 12) == "@pathtopage(" || inLine.substr(linePos, 13) == "@pathtopage*(")
                 {
                     linePos+=std::string("@pathtopage").length();
-                    Name targetPageName;
+                    Name targetName;
 
                     if(inLine[linePos] == '*')
                     {
@@ -2136,12 +2454,12 @@ int PageBuilder::read_and_process(const bool& indent,
 
                     linePos++;
 
-                    if(read_path(targetPageName, linePos, inLine, readPath, lineNo, "@pathtopage()", eos) > 0)
+                    if(read_path(targetName, linePos, inLine, readPath, lineNo, "@pathtopage()", eos) > 0)
                         return 1;
 
                     if(parseParams)
                     {
-                        std::istringstream iss(targetPageName);
+                        std::istringstream iss(targetName);
                         oss.str("");
                         oss.clear();
 
@@ -2156,27 +2474,27 @@ int PageBuilder::read_and_process(const bool& indent,
                             return 1;
                         }
 
-                        targetPageName = oss.str();
+                        targetName = oss.str();
 
                         indentAmount = oldIndent;
                     }
 
-                    //throws error if target targetPageName isn't being tracked by Nift
-                    PageInfo targetPageInfo;
-                    targetPageInfo.pageName = targetPageName;
-                    if(!pages->count(targetPageInfo))
+                    //throws error if target targetName isn't being tracked by Nift
+                    TrackedInfo targetInfo;
+                    targetInfo.name = targetName;
+                    if(!trackedAll->count(targetInfo))
                     {
                         os_mtx->lock();
-                        eos << "error: " << readPath << ": line " << lineNo << ": @pathtopage(" << targetPageName << ") failed, Nift not tracking " << targetPageName << std::endl;
+                        eos << "error: " << readPath << ": line " << lineNo << ": @pathtopage(" << targetName << ") failed, Nift not tracking " << targetName << std::endl;
                         os_mtx->unlock();
                         return 1;
                     }
 
 
-                    Path targetPath = pages->find(targetPageInfo)->pagePath;
+                    Path targetPath = trackedAll->find(targetInfo)->outputPath;
                     //targetPath.set_file_path_from(targetPathStr);
 
-                    Path pathToTarget(pathBetween(pageToBuild.pagePath.dir, targetPath.dir), targetPath.file);
+                    Path pathToTarget(pathBetween(toBuild.outputPath.dir, targetPath.dir), targetPath.file);
 
                     //adds path to target
                     os << pathToTarget.str();
@@ -2234,357 +2552,334 @@ int PageBuilder::read_and_process(const bool& indent,
                     Path targetPath;
                     targetPath.set_file_path_from(targetFilePath);
 
-                    Path pathToTarget(pathBetween(pageToBuild.pagePath.dir, targetPath.dir), targetPath.file);
+                    Path pathToTarget(pathBetween(toBuild.outputPath.dir, targetPath.dir), targetPath.file);
 
                     //adds path to target
                     os << pathToTarget.str();
                     if(indent)
                         indentAmount += into_whitespace(pathToTarget.str());
                 }
-                else if(inLine.substr(linePos, 10) == "@pagetitle")
+                else if(inLine.substr(linePos, 5) == "@ent(" || inLine.substr(linePos, 6) == "@ent*(")
                 {
-                    os << pageToBuild.pageTitle.str;
-                    if(indent)
-                        indentAmount += into_whitespace(pageToBuild.pageTitle.str);
-                    linePos += std::string("@pagetitle").length();
-                }
-                else if(inLine.substr(linePos, 11) == "@page-title")
-                {
-                    os << pageToBuild.pageTitle.str;
-                    if(indent)
-                        indentAmount += into_whitespace(pageToBuild.pageTitle.str);
-                    linePos += std::string("@page-title").length();
-                }
-                else if(inLine.substr(linePos, 9) == "@pagename")
-                {
-                    os << pageToBuild.pageName;
-                    if(indent)
-                        indentAmount += into_whitespace(pageToBuild.pageName);
-                    linePos += std::string("@pagename").length();
-                }
-                else if(inLine.substr(linePos, 9) == "@pagepath")
-                {
-                    os << pageToBuild.pagePath.str();
-                    if(indent)
-                        indentAmount += into_whitespace(pageToBuild.pagePath.str());
-                    linePos += std::string("@pagepath").length();
-                }
-                else if(inLine.substr(linePos, 12) == "@pagepageext")
-                {
-                    //checks for non-default page extension
-                    Path extPath = pageToBuild.pagePath.getInfoPath();
-                    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".pageExt";
+                    linePos+=std::string("@ent").length();
+                    std::string ent;
 
-                    if(std::ifstream(extPath.str()))
+                    if(inLine[linePos] == '*')
                     {
-                        std::string ext;
+                        parseParams = 1;
+                        linePos++;
+                    }
+                    else
+                        parseParams = 0;
 
-                        std::ifstream ifs(extPath.str());
-                        getline(ifs, ext);
-                        ifs.close();
+                    linePos++;
 
-                        os << ext;
+                    if(read_param(ent, linePos, inLine, readPath, lineNo, "@<..>", eos))
+                        return 1;
+
+                    if(parseParams)
+                    {
+                        std::istringstream iss(ent);
+                        oss.str("");
+                        oss.clear();
+
+                        std::string oldIndent = indentAmount;
+                        indentAmount = "";
+
+                        if(read_and_process(0, iss, Path("", "html entity"), antiDepsOfReadPath, oss, eos) > 0)
+                        {
+                            os_mtx->lock();
+                            eos << "error: " << readPath << ": line " << lineNo << ": failed to parse html entity string" << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
+
+                        ent = oss.str();
+
+                        indentAmount = oldIndent;
+                    }
+
+                    if(ent.size() == 1)
+                    {
+                        /*
+                            see http://dev.w3.org/html5/html-author/charref for
+                            more character references than you could ever need!
+                        */
+                        switch(ent[0])
+                        {
+                            case '`':
+                                os << "&grave;";
+                                if(indent)
+                                    indentAmount += std::string(7, ' ');
+                                break;
+                            case '~':
+                                os << "&tilde;";
+                                if(indent)
+                                    indentAmount += std::string(7, ' ');
+                                break;
+                            case '!':
+                                os << "&excl;";
+                                if(indent)
+                                    indentAmount += std::string(6, ' ');
+                                break;
+                            case '@':
+                                os << "&commat;";
+                                if(indent)
+                                    indentAmount += std::string(8, ' ');
+                                break;
+                            case '#':
+                                os << "&num;";
+                                if(indent)
+                                    indentAmount += std::string(5, ' ');
+                                break;
+                            case '$': //MUST HAVE MATHJAX HANDLE THIS WHEN \$
+                                os << "&dollar;";
+                                if(indent)
+                                    indentAmount += std::string(8, ' ');
+                                break;
+                            case '%':
+                                os << "&percnt;";
+                                if(indent)
+                                    indentAmount += std::string(8, ' ');
+                                break;
+                            case '^':
+                                os << "&Hat;";
+                                if(indent)
+                                    indentAmount += std::string(5, ' ');
+                                break;
+                            case '&':   //SEEMS TO BREAK SOME VALID JAVASCRIPT CODE WHEN \&
+                                        //CHECK DEVELOPERS PERSONAL SITE GENEALOGY PAGE
+                                        //FOR EXAMPLE (SEARCH FOR \&)
+                                os << "&amp;";
+                                if(indent)
+                                    indentAmount += std::string(5, ' ');
+                                break;
+                            case '*':
+                                os << "&ast;";
+                                if(indent)
+                                    indentAmount += std::string(5, ' ');
+                                break;
+                            case '?':
+                                os << "&quest;";
+                                if(indent)
+                                    indentAmount += std::string(7, ' ');
+                                break;
+                            case '<':
+                                os << "&lt;";
+                                if(indent)
+                                    indentAmount += std::string(4, ' ');
+                                break;
+                            case '>':
+                                os << "&gt;";
+                                if(indent)
+                                    indentAmount += std::string(4, ' ');
+                                break;
+                            case '(':
+                                os << "&lpar;";
+                                if(indent)
+                                    indentAmount += std::string(6, ' ');
+                                break;
+                            case ')':
+                                os << "&rpar;";
+                                if(indent)
+                                    indentAmount += std::string(6, ' ');
+                                break;
+                            case '[':
+                                os << "&lbrack;";
+                                if(indent)
+                                    indentAmount += std::string(8, ' ');
+                                break;
+                            case ']':
+                                os << "&rbrack;";
+                                if(indent)
+                                    indentAmount += std::string(8, ' ');
+                                break;
+                            case '{':
+                                os << "&lbrace;";
+                                if(indent)
+                                    indentAmount += std::string(8, ' ');
+                                break;
+                            case '}':
+                                os << "&rbrace;";
+                                if(indent)
+                                    indentAmount += std::string(8, ' ');
+                                break;
+                            case '-':
+                                os << "&minus;";
+                                if(indent)
+                                    indentAmount += std::string(7, ' ');
+                                break;
+                            case '_':
+                                os << "&lowbar;";
+                                if(indent)
+                                    indentAmount += std::string(8, ' ');
+                                break;
+                            case '=':
+                                os << "&equals;";
+                                if(indent)
+                                    indentAmount += std::string(8, ' ');
+                                break;
+                            case '+':
+                                os << "&plus;";
+                                if(indent)
+                                    indentAmount += std::string(6, ' ');
+                                break;
+                            case '|':
+                                os << "&vert;";
+                                if(indent)
+                                    indentAmount += std::string(6, ' ');
+                                break;
+                            case '\\':
+                                os << "&bsol;";
+                                if(indent)
+                                    indentAmount += std::string(6, ' ');
+                                break;
+                            case '/':
+                                os << "&sol;";
+                                if(indent)
+                                    indentAmount += std::string(5, ' ');
+                                break;
+                            case ';':
+                                os << "&semi;";
+                                if(indent)
+                                    indentAmount += std::string(6, ' ');
+                                break;
+                            case ':':
+                                os << "&colon;";
+                                if(indent)
+                                    indentAmount += std::string(7, ' ');
+                                break;
+                            case '\'':
+                                os << "&apos;";
+                                if(indent)
+                                    indentAmount += std::string(6, ' ');
+                                break;
+                            case '"':
+                                os << "&quot;";
+                                if(indent)
+                                    indentAmount += std::string(6, ' ');
+                                break;
+                            case ',':
+                                os << "&comma;";
+                                if(indent)
+                                    indentAmount += std::string(7, ' ');
+                                break;
+                            case '.':
+                                os << "&period;";
+                                if(indent)
+                                    indentAmount += std::string(8, ' ');
+                                break;
+                            default:
+                                os_mtx->lock();
+                                eos << "error: " << readPath << ": line " << lineNo << ": do not currently have an entity value for '" << ent << "'" << std::endl;
+                                os_mtx->unlock();
+                                return 1;
+                        }
+                    }
+                    else if(ent == "£")
+                    {
+                        os << "&pound;";
                         if(indent)
-                            indentAmount += into_whitespace(ext);
+                            indentAmount += std::string(7, ' ');
+                    }
+                    else if(ent == "¥")
+                    {
+                        os << "&yen;";
+                        if(indent)
+                            indentAmount += std::string(5, ' ');
+                    }
+                    else if(ent == "€")
+                    {
+                        os << "&euro;";
+                        if(indent)
+                            indentAmount += std::string(6, ' ');
+                    }
+                    else if(ent == "§" || ent == "section")
+                    {
+                        os << "&sect;";
+                        if(indent)
+                            indentAmount += std::string(6, ' ');
+                    }
+                    else if(ent == "+-")
+                    {
+                        os << "&pm;";
+                        if(indent)
+                            indentAmount += std::string(4, ' ');
+                    }
+                    else if(ent == "-+")
+                    {
+                        os << "&mp;";
+                        if(indent)
+                            indentAmount += std::string(4, ' ');
+                    }
+                    else if(ent == "!=")
+                    {
+                        os << "&ne;";
+                        if(indent)
+                            indentAmount += std::string(4, ' ');
+                    }
+                    else if(ent == "<=")
+                    {
+                        os << "&leq;";
+                        if(indent)
+                            indentAmount += std::string(5, ' ');
+                    }
+                    else if(ent == ">=")
+                    {
+                        os << "&geq;";
+                        if(indent)
+                            indentAmount += std::string(5, ' ');
+                    }
+                    else if(ent == "->")
+                    {
+                        os << "&rarr;";
+                        if(indent)
+                            indentAmount += std::string(6, ' ');
+                    }
+                    else if(ent == "<-")
+                    {
+                        os << "&larr;";
+                        if(indent)
+                            indentAmount += std::string(6, ' ');
+                    }
+                    else if(ent == "<->")
+                    {
+                        os << "&harr;";
+                        if(indent)
+                            indentAmount += std::string(6, ' ');
+                    }
+                    else if(ent == "==>")
+                    {
+                        os << "&rArr;";
+                        if(indent)
+                            indentAmount += std::string(6, ' ');
+                    }
+                    else if(ent == "<==")
+                    {
+                        os << "&lArr;";
+                        if(indent)
+                            indentAmount += std::string(6, ' ');
+                    }
+                    else if(ent == "<==>")
+                    {
+                        os << "&hArr;";
+                        if(indent)
+                            indentAmount += std::string(6, ' ');
+                    }
+                    else if(ent == "<=!=>")
+                    {
+                        os << "&nhArr;";
+                        if(indent)
+                            indentAmount += std::string(6, ' ');
                     }
                     else
                     {
-                        os << pageExt;
-                        if(indent)
-                            indentAmount += into_whitespace(pageExt);
+                        os_mtx->lock();
+                        eos << "error: " << readPath << ": line " << lineNo << ": do not currently have an entity value for '" << ent << "'" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
                     }
-
-                    linePos += std::string("@pagepageext").length();
                 }
-                else if(inLine.substr(linePos, 12) == "@contentpath")
-                {
-                    os << pageToBuild.contentPath.str();
-                    if(indent)
-                        indentAmount += into_whitespace(pageToBuild.contentPath.str());
-                    linePos += std::string("@contentpath").length();
-                }
-                else if(inLine.substr(linePos, 15) == "@pagecontentext")
-                {
-                    //checks for non-default content extension
-                    Path extPath = pageToBuild.pagePath.getInfoPath();
-                    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
-
-                    if(std::ifstream(extPath.str()))
-                    {
-                        std::string ext;
-
-                        std::ifstream ifs(extPath.str());
-                        getline(ifs, ext);
-                        ifs.close();
-
-                        os << ext;
-                        if(indent)
-                            indentAmount += into_whitespace(ext);
-                    }
-                    else
-                    {
-                        os << contentExt;
-                        if(indent)
-                            indentAmount += into_whitespace(contentExt);
-                    }
-
-                    linePos += std::string("@pagecontentext").length();
-                }
-                else if(inLine.substr(linePos, 14) == "@pagescriptext")
-                {
-                    //checks for non-default script extension
-                    Path extPath = pageToBuild.pagePath.getInfoPath();
-                    extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
-
-                    if(std::ifstream(extPath.str()))
-                    {
-                        std::string ext;
-
-                        std::ifstream ifs(extPath.str());
-                        getline(ifs, ext);
-                        ifs.close();
-
-                        os << ext;
-                        if(indent)
-                            indentAmount += into_whitespace(ext);
-                    }
-                    else
-                    {
-                        os << scriptExt;
-                        if(indent)
-                            indentAmount += into_whitespace(scriptExt);
-                    }
-
-                    linePos += std::string("@pagescriptext").length();
-                }
-                else if(inLine.substr(linePos, 13) == "@templatepath")
-                {
-                    os << pageToBuild.templatePath.str();
-                    if(indent)
-                        indentAmount += into_whitespace(pageToBuild.templatePath.str());
-                    linePos += std::string("@templatepath").length();
-                }
-                else if(inLine.substr(linePos, 11) == "@contentdir")
-                {
-                    if(contentDir.size() && (contentDir[contentDir.size()-1] == '/' || contentDir[contentDir.size()-1] == '\\'))
-                    {
-                        os << contentDir.substr(0, contentDir.size()-1);
-                        if(indent)
-                            indentAmount += into_whitespace(contentDir.substr(0, contentDir.size()-1));
-                    }
-                    else
-                    {
-                        os << contentDir;
-                        if(indent)
-                            indentAmount += into_whitespace(contentDir);
-                    }
-                    linePos += std::string("@contentdir").length();
-                }
-                else if(inLine.substr(linePos, 8) == "@sitedir")
-                {
-                    if(siteDir.size() && (siteDir[siteDir.size()-1] == '/' || siteDir[siteDir.size()-1] == '\\'))
-                    {
-                        os << siteDir.substr(0, siteDir.size()-1);
-                        if(indent)
-                            indentAmount += into_whitespace(siteDir.substr(0, siteDir.size()-1));
-                    }
-                    else
-                    {
-                        os << siteDir;
-                        if(indent)
-                            indentAmount += into_whitespace(siteDir);
-                    }
-                    linePos += std::string("@sitedir").length();
-                }
-                else if(inLine.substr(linePos, 11) == "@contentext")
-                {
-                    os << contentExt;
-                    if(indent)
-                        indentAmount += into_whitespace(contentExt);
-                    linePos += std::string("@contentext").length();
-                }
-                else if(inLine.substr(linePos, 8) == "@pageext")
-                {
-                    os << pageExt;
-                    if(indent)
-                        indentAmount += into_whitespace(pageExt);
-                    linePos += std::string("@pageExt").length();
-                }
-                else if(inLine.substr(linePos, 10) == "@scriptext")
-                {
-                    os << scriptExt;
-                    if(indent)
-                        indentAmount += into_whitespace(scriptExt);
-                    linePos += std::string("@scriptExt").length();
-                }
-                else if(inLine.substr(linePos, 16) == "@defaulttemplate")
-                {
-                    os << defaultTemplate.str();
-                    if(indent)
-                        indentAmount += into_whitespace(defaultTemplate.str());
-                    linePos += std::string("@defaulttemplate").length();
-                }
-                else if(inLine.substr(linePos, 14) == "@buildtimezone")
-                {
-                    os << dateTimeInfo.cTimezone;
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.cTimezone);
-                    linePos += std::string("@buildtimezone").length();
-                }
-                else if(inLine.substr(linePos, 13) == "@loadtimezone")
-                {
-                    os << "<script>document.write(new Date().toString().split(\"(\")[1].split(\")\")[0])</script>";
-                    if(indent)
-                        indentAmount += std::string(82, ' ');
-                    linePos += std::string("@loadtimezone").length();
-                }
-                else if(inLine.substr(linePos, 9) == "@timezone")
-                { //this is left for backwards compatibility
-                    os << dateTimeInfo.cTimezone;
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.cTimezone);
-                    linePos += std::string("@timezone").length();
-                }
-                else if(inLine.substr(linePos, 10) == "@buildtime")
-                {
-                    os << dateTimeInfo.cTime;
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.cTime);
-                    linePos += std::string("@buildtime").length();
-                }
-                else if(inLine.substr(linePos, 13) == "@buildUTCtime")
-                {
-                    os << dateTimeInfo.currentUTCTime();
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.currentUTCTime());
-                    linePos += std::string("@buildUTCtime").length();
-                }
-                else if(inLine.substr(linePos, 10) == "@builddate")
-                {
-                    os << dateTimeInfo.cDate;
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.cDate);
-                    linePos += std::string("@builddate").length();
-                }
-                else if(inLine.substr(linePos, 13) == "@buildUTCdate")
-                {
-                    os << dateTimeInfo.currentUTCDate();
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.currentUTCDate());
-                    linePos += std::string("@buildUTCdate").length();
-                }
-                else if(inLine.substr(linePos, 12) == "@currenttime")
-                { //this is left for backwards compatibility
-                    os << dateTimeInfo.cTime;
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.cTime);
-                    linePos += std::string("@currenttime").length();
-                }
-                else if(inLine.substr(linePos, 15) == "@currentUTCtime")
-                { //this is left for backwards compatibility
-                    os << dateTimeInfo.currentUTCTime();
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.currentUTCTime());
-                    linePos += std::string("@currentUTCtime").length();
-                }
-                else if(inLine.substr(linePos, 12) == "@currentdate")
-                { //this is left for backwards compatibility
-                    os << dateTimeInfo.cDate;
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.cDate);
-                    linePos += std::string("@currentdate").length();
-                }
-                else if(inLine.substr(linePos, 15) == "@currentUTCdate")
-                { //this is left for backwards compatibility
-                    os << dateTimeInfo.currentUTCDate();
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.currentUTCDate());
-                    linePos += std::string("@currentUTCdate").length();
-                }
-                else if(inLine.substr(linePos, 9) == "@loadtime")
-                {
-                    os << "<script>document.write((new Date().toLocaleString()).split(\",\")[1])</script>";
-                    if(indent)
-                        indentAmount += std::string(76, ' ');
-                    linePos += std::string("@loadtime").length();
-                }
-                else if(inLine.substr(linePos, 12) == "@loadUTCtime")
-                {
-                    os << "<script>document.write((new Date().toISOString()).split(\"T\")[1].split(\".\")[0])</script>";
-                    if(indent)
-                        indentAmount += std::string(87, ' ');
-                    linePos += std::string("@loadUTCtime").length();
-                }
-                else if(inLine.substr(linePos, 9) == "@loaddate")
-                {
-                    os << "<script>document.write((new Date().toLocaleString()).split(\",\")[0])</script>";
-                    if(indent)
-                        indentAmount += std::string(76, ' ');
-                    linePos += std::string("@loaddate").length();
-                }
-                else if(inLine.substr(linePos, 12) == "@loadUTCdate")
-                {
-                    os << "<script>document.write((new Date().toISOString()).split(\"T\")[0])</script>";
-                    if(indent)
-                        indentAmount += std::string(73, ' ');
-                    linePos += std::string("@loadUTCdate").length();
-                }
-                else if(inLine.substr(linePos, 10) == "@buildYYYY")
-                {
-                    os << dateTimeInfo.currentYYYY();
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.currentYYYY());
-                    linePos += std::string("@buildYYYY").length();
-                }
-                else if(inLine.substr(linePos, 8) == "@buildYY")
-                {
-                    os << dateTimeInfo.currentYY();
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.currentYY());
-                    linePos += std::string("@buildYY").length();
-                }
-                else if(inLine.substr(linePos, 12) == "@currentYYYY")
-                { //this is left for backwards compatibility
-                    os << dateTimeInfo.currentYYYY();
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.currentYYYY());
-                    linePos += std::string("@currentYYYY").length();
-                }
-                else if(inLine.substr(linePos, 10) == "@currentYY")
-                { //this is left for backwards compatibility
-                    os << dateTimeInfo.currentYY();
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.currentYY());
-                    linePos += std::string("@currentYY").length();
-                }
-                else if(inLine.substr(linePos, 9) == "@loadYYYY")
-                {
-                    os << "<script>document.write(new Date().getFullYear())</script>";
-                    if(indent)
-                        indentAmount += std::string(57, ' ');
-                    linePos += std::string("@loadYYYY").length();
-                }
-                else if(inLine.substr(linePos, 7) == "@loadYY")
-                {
-                    os << "<script>document.write(new Date().getFullYear()%100)</script>";
-                    if(indent)
-                        indentAmount += std::string(61, ' ');
-                    linePos += std::string("@loadYY").length();
-                }
-                else if(inLine.substr(linePos, 8) == "@buildOS")
-                {
-                    os << dateTimeInfo.currentOS();
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.currentOS());
-                    linePos += std::string("@buildOS").length();
-                }
-                else if(inLine.substr(linePos, 10) == "@currentOS")
-                { //this is left for backwards compatibility
-                    os << dateTimeInfo.currentOS();
-                    if(indent)
-                        indentAmount += into_whitespace(dateTimeInfo.currentOS());
-                    linePos += std::string("@currentOS").length();
-                } //I'm not sure how to do loadOS sorry!
                 else if(inLine.substr(linePos, 16) == "@faviconinclude(" || inLine.substr(linePos, 17) == "@faviconinclude*(") //checks for favicon include
                 {
                     linePos+=std::string("@faviconinclude").length();
@@ -2636,7 +2931,7 @@ int PageBuilder::read_and_process(const bool& indent,
                     Path faviconPath;
                     faviconPath.set_file_path_from(faviconPathStr);
 
-                    Path pathToFavicon(pathBetween(pageToBuild.pagePath.dir, faviconPath.dir), faviconPath.file);
+                    Path pathToFavicon(pathBetween(toBuild.outputPath.dir, faviconPath.dir), faviconPath.file);
 
                     std::string faviconInclude = "<link rel='icon' type='image/png' href='";
                     faviconInclude += pathToFavicon.str();
@@ -2697,7 +2992,7 @@ int PageBuilder::read_and_process(const bool& indent,
                     Path cssPath;
                     cssPath.set_file_path_from(cssPathStr);
 
-                    Path pathToCSSFile(pathBetween(pageToBuild.pagePath.dir, cssPath.dir), cssPath.file);
+                    Path pathToCSSFile(pathBetween(toBuild.outputPath.dir, cssPath.dir), cssPath.file);
 
                     std::string cssInclude = "<link rel='stylesheet' type='text/css' href='";
                     cssInclude += pathToCSSFile.str();
@@ -2758,7 +3053,7 @@ int PageBuilder::read_and_process(const bool& indent,
                     Path imgPath;
                     imgPath.set_file_path_from(imgPathStr);
 
-                    Path pathToIMGFile(pathBetween(pageToBuild.pagePath.dir, imgPath.dir), imgPath.file);
+                    Path pathToIMGFile(pathBetween(toBuild.outputPath.dir, imgPath.dir), imgPath.file);
 
                     std::string imgInclude = "<img src=\"" + pathToIMGFile.str() + "\">";
 
@@ -2817,7 +3112,7 @@ int PageBuilder::read_and_process(const bool& indent,
                     Path jsPath;
                     jsPath.set_file_path_from(jsPathStr);
 
-                    Path pathToJSFile(pathBetween(pageToBuild.pagePath.dir, jsPath.dir), jsPath.file);
+                    Path pathToJSFile(pathBetween(toBuild.outputPath.dir, jsPath.dir), jsPath.file);
 
                     //the type attribute is unnecessary for JavaScript resources.
                     //std::string jsInclude="<script type='text/javascript' src='";
@@ -2862,7 +3157,7 @@ int PageBuilder::read_and_process(const bool& indent,
     return 0;
 }
 
-int PageBuilder::read_path(std::string& pathRead,
+int Parser::read_path(std::string& pathRead,
                            size_t& linePos,
                            const std::string& inLine,
                            const Path& readPath,
@@ -2877,7 +3172,7 @@ int PageBuilder::read_path(std::string& pathRead,
         ++linePos;
 
     //throws error if either no closing bracket or a newline
-    if(linePos == inLine.size())
+    if(linePos >= inLine.size())
     {
         os_mtx->lock();
         os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl;
@@ -2898,15 +3193,26 @@ int PageBuilder::read_path(std::string& pathRead,
     if(inLine[linePos] == '\'')
     {
         ++linePos;
-        for(; inLine[linePos] != '\''; ++linePos)
+        for(; linePos < inLine.size() && inLine[linePos] != '\''; ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": path has no closing single quote or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
+                pathRead += '\n';
+                linePos++;
+                continue;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                pathRead += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
             pathRead += inLine[linePos];
         }
         ++linePos;
@@ -2914,33 +3220,68 @@ int PageBuilder::read_path(std::string& pathRead,
     else if(inLine[linePos] == '"')
     {
         ++linePos;
-        for(; inLine[linePos] != '"'; ++linePos)
+        for(; linePos < inLine.size() && inLine[linePos] != '"'; ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": path has no closing double quote \" or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
+                pathRead += '\n';
+                linePos++;
+                continue;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                pathRead += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
             pathRead += inLine[linePos];
         }
         ++linePos;
     }
     else
     {
+        int depth = 1;
+
         //reads path value
-        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+        for(; linePos < inLine.size(); ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == '(')
+                depth++;
+            else if(inLine[linePos] == ')')
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
+                if(depth == 1)
+                    break;
+                else
+                    depth--;
             }
+
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                pathRead += '\n';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                pathRead += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
             pathRead += inLine[linePos];
         }
+        strip_trailing_whitespace(pathRead);
     }
 
     //skips over hopefully trailing whitespace
@@ -2948,7 +3289,7 @@ int PageBuilder::read_path(std::string& pathRead,
         ++linePos;
 
     //throws error if new line is between the path and close bracket
-    if(linePos == inLine.size())
+    if(linePos >= inLine.size())
     {
         os_mtx->lock();
         os << "error: " << readPath << ": line " << lineNo << ": path has no closing bracket ) or newline inside " << callType << " call" << std::endl;
@@ -2970,7 +3311,7 @@ int PageBuilder::read_path(std::string& pathRead,
     return 0;
 }
 
-int PageBuilder::read_script_params(std::string& pathRead,
+int Parser::read_script_params(std::string& pathRead,
                                     std::string& paramStr,
                                     size_t& linePos,
                                     const std::string& inLine,
@@ -2986,7 +3327,7 @@ int PageBuilder::read_script_params(std::string& pathRead,
         ++linePos;
 
     //throws error if either no closing bracket or a newline
-    if(linePos == inLine.size())
+    if(linePos >= inLine.size())
     {
         os_mtx->lock();
         os << "error: " << readPath << ": line " << lineNo << ": script path has no closing bracket ) or newline inside " << callType << " call" << std::endl;
@@ -3007,15 +3348,26 @@ int PageBuilder::read_script_params(std::string& pathRead,
     if(inLine[linePos] == '\'')
     {
         ++linePos;
-        for(; inLine[linePos] != '\''; ++linePos)
+        for(; linePos < inLine.size() && inLine[linePos] != '\''; ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": script path has no closing single quote or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
+                pathRead += '\n';
+                linePos++;
+                continue;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                pathRead += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
             pathRead += inLine[linePos];
         }
         ++linePos;
@@ -3023,33 +3375,70 @@ int PageBuilder::read_script_params(std::string& pathRead,
     else if(inLine[linePos] == '"')
     {
         ++linePos;
-        for(; inLine[linePos] != '"'; ++linePos)
+        for(; linePos < inLine.size() && inLine[linePos] != '"'; ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": script path has no closing double quote \" or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
+                pathRead += '\n';
+                linePos++;
+                continue;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                pathRead += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
             pathRead += inLine[linePos];
         }
         ++linePos;
     }
     else
     {
+        int depth = 1;
+
         //reads path value
-        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+        for(; linePos < inLine.size() && inLine[linePos] != ','; ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == '(')
+                depth++;
+            else if(inLine[linePos] == ')')
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": script path has no closing bracket ) or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
+                if(depth == 1)
+                    break;
+                else
+                    depth--;
             }
+
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                pathRead += '\n';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                pathRead += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
             pathRead += inLine[linePos];
         }
+        strip_trailing_whitespace(pathRead);
+
+        //should we throw errors if depth > 1?
     }
 
     //skips over hopefully trailing whitespace
@@ -3057,7 +3446,7 @@ int PageBuilder::read_script_params(std::string& pathRead,
         ++linePos;
 
     //throws error if new line is between the path and close bracket
-    if(linePos == inLine.size())
+    if(linePos >= inLine.size())
     {
         os_mtx->lock();
         os << "error: " << readPath << ": line " << lineNo << ": script path has no closing bracket ) or newline inside " << callType << " call" << std::endl;
@@ -3074,7 +3463,7 @@ int PageBuilder::read_script_params(std::string& pathRead,
             ++linePos;
 
         //throws error if either no closing bracket or a newline
-        if(linePos == inLine.size())
+        if(linePos >= inLine.size())
         {
             os_mtx->lock();
             os << "error: " << readPath << ": line " << lineNo << ": script parameters have no closing bracket ) or newline inside " << callType << " call" << std::endl;
@@ -3095,15 +3484,26 @@ int PageBuilder::read_script_params(std::string& pathRead,
         if(inLine[linePos] == '\'')
         {
             ++linePos;
-            for(; inLine[linePos] != '\''; ++linePos)
+            for(; linePos < inLine.size() && inLine[linePos] != '\''; ++linePos)
             {
-                if(linePos == inLine.size())
+                if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
                 {
-                    os_mtx->lock();
-                    os << "error: " << readPath << ": line " << lineNo << ": script parameters have no closing single quote or newline inside " << callType << " call" << std::endl;
-                    os_mtx->unlock();
-                    return 1;
+                    paramStr += '\n';
+                    linePos++;
+                    continue;
                 }
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+                {
+                    paramStr += '\t';
+                    linePos++;
+                    continue;
+                }
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                    linePos++;
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                    linePos++;
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                    linePos++;
                 paramStr += inLine[linePos];
             }
             ++linePos;
@@ -3111,33 +3511,68 @@ int PageBuilder::read_script_params(std::string& pathRead,
         else if(inLine[linePos] == '"')
         {
             ++linePos;
-            for(; inLine[linePos] != '"'; ++linePos)
+            for(; linePos < inLine.size() && inLine[linePos] != '"'; ++linePos)
             {
-                if(linePos == inLine.size())
+                if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
                 {
-                    os_mtx->lock();
-                    os << "error: " << readPath << ": line " << lineNo << ": script parameters have no closing double quote \" or newline inside " << callType << " call" << std::endl;
-                    os_mtx->unlock();
-                    return 1;
+                    paramStr += '\n';
+                    linePos++;
+                    continue;
                 }
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+                {
+                    paramStr += '\t';
+                    linePos++;
+                    continue;
+                }
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                    linePos++;
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                    linePos++;
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                    linePos++;
                 paramStr += inLine[linePos];
             }
             ++linePos;
         }
         else
         {
+            int depth = 1;
+
             //reads path value
-            for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+            for(; linePos < inLine.size(); ++linePos)
             {
-                if(linePos == inLine.size())
+                if(inLine[linePos] == '(')
+                    depth++;
+                else if(inLine[linePos] == ')')
                 {
-                    os_mtx->lock();
-                    os << "error: " << readPath << ": line " << lineNo << ": script parameters have no closing bracket ) or newline inside " << callType << " call" << std::endl;
-                    os_mtx->unlock();
-                    return 1;
+                    if(depth == 1)
+                        break;
+                    else
+                        depth--;
                 }
+
+                if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+                {
+                    paramStr += '\n';
+                    linePos++;
+                    continue;
+                }
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+                {
+                    paramStr += '\t';
+                    linePos++;
+                    continue;
+                }
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                    linePos++;
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                    linePos++;
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                    linePos++;
                 paramStr += inLine[linePos];
             }
+            strip_trailing_whitespace(paramStr);
         }
 
         //skips over hopefully trailing whitespace
@@ -3145,7 +3580,7 @@ int PageBuilder::read_script_params(std::string& pathRead,
             ++linePos;
 
         //throws error if new line is between the path and close bracket
-        if(linePos == inLine.size())
+        if(linePos >= inLine.size())
         {
             os_mtx->lock();
             os << "error: " << readPath << ": line " << lineNo << ": script parameters have no closing bracket ) or newline inside " << callType << " call" << std::endl;
@@ -3168,7 +3603,7 @@ int PageBuilder::read_script_params(std::string& pathRead,
     return 0;
 }
 
-int PageBuilder::read_msg(std::string& msgRead,
+int Parser::read_msg(std::string& msgRead,
                           size_t& linePos,
                           const std::string& inLine,
                           const Path& readPath,
@@ -3183,7 +3618,7 @@ int PageBuilder::read_msg(std::string& msgRead,
         ++linePos;
 
     //throws error if either no closing bracket or a newline
-    if(linePos == inLine.size())
+    if(linePos >= inLine.size())
     {
         os_mtx->lock();
         os << "error: " << readPath << ": line " << lineNo << ": user input message has no closing bracket ) or newline inside " << callType << " call" << std::endl;
@@ -3204,21 +3639,22 @@ int PageBuilder::read_msg(std::string& msgRead,
     if(inLine[linePos] == '\'')
     {
         ++linePos;
-        for(; inLine[linePos] != '\''; ++linePos)
+        for(; linePos < inLine.size() && inLine[linePos] != '\''; ++linePos)
         {
-            if(linePos == inLine.size())
-            {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": user input message has no closing single quote or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
-            }
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
             {
                 msgRead += '\n';
                 linePos++;
                 continue;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                msgRead += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
@@ -3230,21 +3666,22 @@ int PageBuilder::read_msg(std::string& msgRead,
     else if(inLine[linePos] == '"')
     {
         ++linePos;
-        for(; inLine[linePos] != '"'; ++linePos)
+        for(; linePos < inLine.size() && inLine[linePos] != '"'; ++linePos)
         {
-            if(linePos == inLine.size())
-            {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": user input message has no closing double quote \" or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
-            }
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
             {
                 msgRead += '\n';
                 linePos++;
                 continue;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                msgRead += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
@@ -3255,10 +3692,42 @@ int PageBuilder::read_msg(std::string& msgRead,
     }
     else
     {
-        os_mtx->lock();
-        os << "error: " << readPath << ": line " << lineNo << ": user input message should be quoted inside " << callType << " call" << std::endl;
-        os_mtx->unlock();
-        return 1;
+        int depth = 1;
+
+        //reads path value
+        for(; linePos < inLine.size(); ++linePos)
+        {
+            if(inLine[linePos] == '(')
+                depth++;
+            else if(inLine[linePos] == ')')
+            {
+                if(depth == 1)
+                    break;
+                else
+                    depth--;
+            }
+
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                msgRead += '\n';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                msgRead += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                linePos++;
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                linePos++;
+            msgRead += inLine[linePos];
+        }
+        strip_trailing_whitespace(msgRead);
     }
 
     //skips over hopefully trailing whitespace
@@ -3266,7 +3735,7 @@ int PageBuilder::read_msg(std::string& msgRead,
         ++linePos;
 
     //throws error if new line is between the path and close bracket
-    if(linePos == inLine.size())
+    if(linePos >= inLine.size())
     {
         os_mtx->lock();
         os << "error: " << readPath << ": line " << lineNo << ": user input message has no closing bracket ) or newline inside " << callType << " call" << std::endl;
@@ -3288,7 +3757,7 @@ int PageBuilder::read_msg(std::string& msgRead,
     return 0;
 }
 
-int PageBuilder::read_sys_call(std::string& sys_call,
+int Parser::read_sys_call(std::string& sys_call,
                                size_t& linePos,
                                const std::string& inLine,
                                const Path& readPath,
@@ -3303,7 +3772,7 @@ int PageBuilder::read_sys_call(std::string& sys_call,
         ++linePos;
 
     //throws error if either no closing bracket or a newline
-    if(linePos == inLine.size())
+    if(linePos >= inLine.size())
     {
         os_mtx->lock();
         os << "error: " << readPath << ": line " << lineNo << ": system call has no closing bracket ) or newline inside " << callType << " call" << std::endl;
@@ -3324,15 +3793,22 @@ int PageBuilder::read_sys_call(std::string& sys_call,
     if(inLine[linePos] == '\'')
     {
         ++linePos;
-        for(; inLine[linePos] != '\''; ++linePos)
+        for(; linePos < inLine.size() && inLine[linePos] != '\''; ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": system call has no closing single quote or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
+                sys_call += '\n';
+                linePos++;
+                continue;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                sys_call += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
@@ -3344,15 +3820,22 @@ int PageBuilder::read_sys_call(std::string& sys_call,
     else if(inLine[linePos] == '"')
     {
         ++linePos;
-        for(; inLine[linePos] != '"'; ++linePos)
+        for(; linePos < inLine.size() && inLine[linePos] != '"'; ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": system call has no closing double quote \" or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
+                sys_call += '\n';
+                linePos++;
+                continue;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                sys_call += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
@@ -3363,21 +3846,40 @@ int PageBuilder::read_sys_call(std::string& sys_call,
     }
     else
     {
-        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+        int depth = 1;
+        for(; linePos < inLine.size(); ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == '(')
+                depth++;
+            else if(inLine[linePos] == ')')
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": system call has no closing bracket ) or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
+                if(depth == 1)
+                    break;
+                else
+                    depth--;
             }
+
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                sys_call += '\n';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                sys_call += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
                 linePos++;
             sys_call += inLine[linePos];
         }
+        strip_trailing_whitespace(sys_call);
     }
 
     //skips over hopefully trailing whitespace
@@ -3385,7 +3887,7 @@ int PageBuilder::read_sys_call(std::string& sys_call,
         ++linePos;
 
     //throws error if new line is between the system call and close bracket
-    if(linePos == inLine.size())
+    if(linePos >= inLine.size())
     {
         os_mtx->lock();
         os << "error: " << readPath << ": line " << lineNo << ": system call has no closing bracket ) or newline inside " << callType << " call" << std::endl;
@@ -3407,220 +3909,431 @@ int PageBuilder::read_sys_call(std::string& sys_call,
     return 0;
 }
 
-int PageBuilder::read_stringdef(std::string& varName,
-                                std::string& varVal,
-                                size_t& linePos,
-                                const std::string& inLine,
-                                const Path& readPath,
-                                const int& lineNo,
-                                const std::string& callType,
-                                std::ostream& os)
+int Parser::read_def(std::string& varType,
+                           std::vector<std::pair<std::string, std::string> >& vars,
+                           size_t& linePos,
+                           const std::string& inLine,
+                           const Path& readPath,
+                           const int& lineNo,
+                           const std::string& callType,
+                           std::ostream& os)
 {
-    varName = varVal = "";
+    varType = "";
+    vars.clear();
+    std::pair<std::string, std::string> newVar("", "");
 
     //skips over leading whitespace
     while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
         ++linePos;
 
-    //throws error if either no closing bracket or a newline or no variable definition
-    if(linePos == inLine.size() || inLine[linePos] == ')')
+    //throws error if either no closing bracket or a newline
+    if(linePos >= inLine.size())
     {
         os_mtx->lock();
-        os << "error: " << readPath << ": line " << lineNo << ": no variable definition provided inside " << callType << " call" << std::endl;
+        os << "error: " << readPath << ": line " << lineNo << ": definition has no closing bracket ) or newline inside " << callType << " call" << std::endl;
         os_mtx->unlock();
         return 1;
     }
 
-    //reads variable name
+    //throws error if no variable definition
+    if(inLine[linePos] == ')')
+    {
+        os_mtx->lock();
+        os << "error: " << readPath << ": line " << lineNo << ": no variable definition inside " << callType << " call" << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
+
+    //reads variable type
     if(inLine[linePos] == '\'')
     {
         ++linePos;
-        for(; inLine[linePos] != '\''; ++linePos)
+        for(; linePos < inLine.size() && inLine[linePos] != '\''; ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing single quote or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
-            }
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
-            {
-                varName += '\n';
+                varType += '\n';
                 linePos++;
                 continue;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                varType += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
                 linePos++;
-            varName += inLine[linePos];
+            varType += inLine[linePos];
         }
         ++linePos;
     }
     else if(inLine[linePos] == '"')
     {
         ++linePos;
-        for(; inLine[linePos] != '"'; ++linePos)
+        for(; linePos < inLine.size() && inLine[linePos] != '"'; ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing double quote \" or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
-            }
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
-            {
-                varName += '\n';
+                varType += '\n';
                 linePos++;
                 continue;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                varType += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
                 linePos++;
-            varName += inLine[linePos];
+            varType += inLine[linePos];
         }
         ++linePos;
     }
     else
     {
-        for(; inLine[linePos] != ')' && inLine[linePos] != '=' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+        int depth = 1;
+
+        for(; linePos < inLine.size() && inLine[linePos] != ','; ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == '(')
+                depth++;
+            else if(inLine[linePos] == ')')
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing bracket ) or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
+                if(depth == 1)
+                    break;
+                else
+                    depth--;
             }
+
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                varType += '\n';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                varType += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
                 linePos++;
-            varName += inLine[linePos];
+            varType += inLine[linePos];
         }
+        strip_trailing_whitespace(varType);
     }
 
     //skips over whitespace
     while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
         ++linePos;
 
-    if(linePos == inLine.size() || inLine[linePos] == ')')
+    //throws error if either no closing bracket or a newline
+    if(linePos >= inLine.size())
     {
         os_mtx->lock();
-        os << "error: " << readPath << ": line " << lineNo << ": incomplete variable definition inside " << callType << " call" << std::endl;
-        os_mtx->unlock();
-        return 1;
-    }
-    else if(inLine[linePos] != '=')
-    {
-        os_mtx->lock();
-        os << "error: " << readPath << ": line " << lineNo << ": variable definition has no = between variable name and value inside " << callType << " call" << std::endl;
+        os << "error: " << readPath << ": line " << lineNo << ": definition has no closing bracket ) or newline inside " << callType << " call" << std::endl;
         os_mtx->unlock();
         return 1;
     }
 
-    linePos++;
-
-    //skips over whitespace
-    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
-        ++linePos;
-
-    if(linePos == inLine.size() || inLine[linePos] == ')')
+    //throws error if no variable definition
+    if(inLine[linePos] == ')')
     {
         os_mtx->lock();
-        os << "error: " << readPath << ": line " << lineNo << ": incomplete variable definition inside " << callType << " call" << std::endl;
+        os << "error: " << readPath << ": line " << lineNo << ": no variable definition inside " << callType << " call" << std::endl;
         os_mtx->unlock();
         return 1;
     }
 
-    //reads the variable value
-    if(inLine[linePos] == '\'')
+    if(inLine[linePos] != ',')
     {
-        ++linePos;
-        for(; inLine[linePos] != '\''; ++linePos)
-        {
-            if(linePos == inLine.size())
-            {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": variable value has no closing single quote or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
-            }
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
-            {
-                varVal += '\n';
-                linePos++;
-                continue;
-            }
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
-                linePos++;
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
-                linePos++;
-            varVal += inLine[linePos];
-        }
-        ++linePos;
-    }
-    else if(inLine[linePos] == '"')
-    {
-        ++linePos;
-        for(; inLine[linePos] != '"'; ++linePos)
-        {
-            if(linePos == inLine.size())
-            {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": variable value has no closing double quote \" or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
-            }
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
-            {
-                varVal += '\n';
-                linePos++;
-                continue;
-            }
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
-                linePos++;
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
-                linePos++;
-            varVal += inLine[linePos];
-        }
-        ++linePos;
-    }
-    else
-    {
-        //reads variable value
-        for(; inLine[linePos] != ')' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
-        {
-            if(linePos == inLine.size())
-            {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": variable value has no closing bracket ) or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
-            }
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
-            {
-                varVal += '\n';
-                linePos++;
-                continue;
-            }
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
-                linePos++;
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
-                linePos++;
-            varVal += inLine[linePos];
-        }
+        os_mtx->lock();
+        os << "error: " << readPath << ": line " << lineNo << ": " << callType << " : variable definition has no comma between variable type and variables" << std::endl;
+        os_mtx->unlock();
+        return 1;
     }
 
-    //skips over hopefully trailing whitespace
-    while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
-        ++linePos;
+    while(inLine[linePos] == ',')
+    {
+        newVar.first = newVar.second = "";
+
+        linePos++;
+
+        //skips over whitespace
+        while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+            ++linePos;
+
+        //throws error if either no closing bracket or a newline
+        if(linePos >= inLine.size())
+        {
+            os_mtx->lock();
+            os << "error: " << readPath << ": line " << lineNo << ": definition has no closing bracket ) or newline inside " << callType << " call" << std::endl;
+            os_mtx->unlock();
+            return 1;
+        }
+
+        //throws error if no variable definition
+        if(inLine[linePos] == ')')
+        {
+            os_mtx->lock();
+            os << "error: " << readPath << ": line " << lineNo << ": incomplete variable definition inside " << callType << " call" << std::endl;
+            os_mtx->unlock();
+            return 1;
+        }
+
+        //reads variable name
+        if(inLine[linePos] == '\'')
+        {
+            ++linePos;
+            for(; linePos < inLine.size() && inLine[linePos] != '\''; ++linePos)
+            {
+                if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+                {
+                    newVar.first += '\n';
+                    linePos++;
+                    continue;
+                }
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+                {
+                    newVar.first += '\t';
+                    linePos++;
+                    continue;
+                }
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                    linePos++;
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                    linePos++;
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                    linePos++;
+                newVar.first += inLine[linePos];
+            }
+            ++linePos;
+        }
+        else if(inLine[linePos] == '"')
+        {
+            ++linePos;
+            for(; linePos < inLine.size() && inLine[linePos] != '"'; ++linePos)
+            {
+                if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+                {
+                    newVar.first += '\n';
+                    linePos++;
+                    continue;
+                }
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+                {
+                    newVar.first += '\t';
+                    linePos++;
+                    continue;
+                }
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                    linePos++;
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                    linePos++;
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                    linePos++;
+                newVar.first += inLine[linePos];
+            }
+            ++linePos;
+        }
+        else
+        {
+            int depth = 1;
+
+            for(; linePos < inLine.size() && inLine[linePos] != ',' && inLine[linePos] != '='; ++linePos)
+            {
+                if(inLine[linePos] == '(')
+                    depth++;
+                else if(inLine[linePos] == ')')
+                {
+                    if(depth == 1)
+                        break;
+                    else
+                        depth--;
+                }
+
+                if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+                {
+                    newVar.first += '\n';
+                    linePos++;
+                    continue;
+                }
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+                {
+                    newVar.first += '\t';
+                    linePos++;
+                    continue;
+                }
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                    linePos++;
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                    linePos++;
+                else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                    linePos++;
+                newVar.first += inLine[linePos];
+            }
+            strip_trailing_whitespace(newVar.first);
+        }
+
+        //skips over whitespace
+        while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+            ++linePos;
+
+        if(linePos < inLine.size() && inLine[linePos] == '=') //reads variable value
+        {
+            linePos++;
+
+            //skips over whitespace
+            while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+                ++linePos;
+
+            //throws error if either no closing bracket or a newline
+            if(linePos >= inLine.size())
+            {
+                os_mtx->lock();
+                os << "error: " << readPath << ": line " << lineNo << ": definition has no closing bracket ) or newline inside " << callType << " call" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+
+            //throws error if no variable definition
+            if(inLine[linePos] == ')')
+            {
+                os_mtx->lock();
+                os << "error: " << readPath << ": line " << lineNo << ": incomplete variable definition inside " << callType << " call" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+
+            //reads the variable value
+            if(inLine[linePos] == '\'')
+            {
+                ++linePos;
+                for(; linePos < inLine.size() && inLine[linePos] != '\''; ++linePos)
+                {
+                    if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+                    {
+                        newVar.second += '\n';
+                        linePos++;
+                        continue;
+                    }
+                    else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+                    {
+                        newVar.second += '\t';
+                        linePos++;
+                        continue;
+                    }
+                    else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                        linePos++;
+                    else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                        linePos++;
+                    else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                        linePos++;
+                    newVar.second += inLine[linePos];
+                }
+                ++linePos;
+            }
+            else if(inLine[linePos] == '"')
+            {
+                ++linePos;
+                for(; linePos < inLine.size() && inLine[linePos] != '"'; ++linePos)
+                {
+                    if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+                    {
+                        newVar.second += '\n';
+                        linePos++;
+                        continue;
+                    }
+                    else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+                    {
+                        newVar.second += '\t';
+                        linePos++;
+                        continue;
+                    }
+                    else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                        linePos++;
+                    else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                        linePos++;
+                    else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                        linePos++;
+                    newVar.second += inLine[linePos];
+                }
+                ++linePos;
+            }
+            else
+            {
+                int depth = 1;
+
+                //reads variable value
+                for(; linePos < inLine.size() && inLine[linePos] != ','; ++linePos)
+                {
+                    if(inLine[linePos] == '(')
+                        depth++;
+                    else if(inLine[linePos] == ')')
+                    {
+                        if(depth == 1)
+                            break;
+                        else
+                            depth--;
+                    }
+
+                    if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+                    {
+                        newVar.second += '\n';
+                        linePos++;
+                        continue;
+                    }
+                    else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+                    {
+                        newVar.second += '\t';
+                        linePos++;
+                        continue;
+                    }
+                    else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                        linePos++;
+                    else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
+                        linePos++;
+                    else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
+                        linePos++;
+                    newVar.second += inLine[linePos];
+                }
+                strip_trailing_whitespace(newVar.second);
+            }
+
+            //skips over hopefully trailing whitespace
+            while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
+                ++linePos;
+
+            //throws error if new line is between the variable definition and close bracket
+            if(linePos >= inLine.size())
+            {
+                os_mtx->lock();
+                os << "error: " << readPath << ": line " << lineNo << ": variable definition has no closing bracket ) or newline inside " << callType << " call" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+        }
+
+        vars.push_back(newVar);
+    }
 
     //throws error if new line is between the variable definition and close bracket
-    if(linePos == inLine.size())
+    if(linePos >= inLine.size()) //probably don't need this
     {
         os_mtx->lock();
         os << "error: " << readPath << ": line " << lineNo << ": variable definition has no closing bracket ) or newline inside " << callType << " call" << std::endl;
@@ -3642,7 +4355,7 @@ int PageBuilder::read_stringdef(std::string& varName,
     return 0;
 }
 
-int PageBuilder::read_var(std::string& varName,
+int Parser::read_param(std::string& param,
                           size_t& linePos,
                           const std::string& inLine,
                           const Path& readPath,
@@ -3650,17 +4363,63 @@ int PageBuilder::read_var(std::string& varName,
                           const std::string& callType,
                           std::ostream& os)
 {
-    varName = "";
+    char closeBracket, openBracket;
+    param = "";
+
+    if(linePos <= 0)
+    {
+        os_mtx->lock();
+        os << "error: " << readPath << ": line " << lineNo << ": requested parameter be read from linePos <= 0 with " << callType << " call" << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
+    else if(inLine[linePos-1] == '<')
+    {
+        openBracket = '<';
+        closeBracket = '>';
+    }
+    else if(inLine[linePos-1] == '(')
+    {
+        openBracket = '(';
+        closeBracket = ')';
+    }
+    else if(inLine[linePos-1] == '[')
+    {
+        openBracket = '[';
+        closeBracket = ']';
+    }
+    else if(inLine[linePos-1] == '{')
+    {
+        openBracket = '{';
+        closeBracket = '}';
+    }
+    else
+    {
+        os_mtx->lock();
+        os << "error: " << readPath << ": line " << lineNo << ": could not determine open bracket type with " << callType << " call" << std::endl;
+        os << "note: make sure read_param is called with linePos one past the open bracket" << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
 
     //skips over leading whitespace
     while(linePos < inLine.size() && (inLine[linePos] == ' ' || inLine[linePos] == '\t'))
         ++linePos;
 
-    //throws error if either no closing bracket or a newline or no variable name
-    if(linePos == inLine.size() || inLine[linePos] == ')')
+    //throws error if either no closing bracket or a newline
+    if(linePos >= inLine.size())
     {
         os_mtx->lock();
-        os << "error: " << readPath << ": line " << lineNo << ": no variable name provided inside " << callType << " call" << std::endl;
+        os << "error: " << readPath << ": line " << lineNo << ": parameter has no closing bracket ) or newline inside " << callType << " call" << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
+
+    //throws error if no variable definition
+    if(inLine[linePos] == closeBracket)
+    {
+        os_mtx->lock();
+        os << "error: " << readPath << ": line " << lineNo << ": no parameter inside " << callType << " call" << std::endl;
         os_mtx->unlock();
         return 1;
     }
@@ -3669,72 +4428,94 @@ int PageBuilder::read_var(std::string& varName,
     if(inLine[linePos] == '\'')
     {
         ++linePos;
-        for(; inLine[linePos] != '\''; ++linePos)
+        for(; linePos < inLine.size() && inLine[linePos] != '\''; ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing single quote or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
-            }
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
-            {
-                varName += '\n';
+                param += '\n';
                 linePos++;
                 continue;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                param += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
                 linePos++;
-            varName += inLine[linePos];
+            param += inLine[linePos];
         }
         ++linePos;
     }
     else if(inLine[linePos] == '"')
     {
         ++linePos;
-        for(; inLine[linePos] != '"'; ++linePos)
+        for(; linePos < inLine.size() && inLine[linePos] != '"'; ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing double quote \" or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
-            }
-            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
-            {
-                varName += '\n';
+                param += '\n';
                 linePos++;
                 continue;
             }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                param += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
                 linePos++;
-            varName += inLine[linePos];
+            param += inLine[linePos];
         }
         ++linePos;
     }
     else
     {
-        for(; inLine[linePos] != ')' && inLine[linePos] != '=' && inLine[linePos] != ' ' && inLine[linePos] != '\t'; ++linePos)
+        int depth = 1;
+
+        for(; linePos < inLine.size(); ++linePos)
         {
-            if(linePos == inLine.size())
+            if(inLine[linePos] == openBracket)
+                depth++;
+            else if(inLine[linePos] == closeBracket)
             {
-                os_mtx->lock();
-                os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing bracket ) or newline inside " << callType << " call" << std::endl;
-                os_mtx->unlock();
-                return 1;
+                if(depth == 1)
+                    break;
+                else
+                    depth--;
             }
+
+            if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 'n')
+            {
+                param += '\n';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == 't')
+            {
+                param += '\t';
+                linePos++;
+                continue;
+            }
+            else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\\')
+                linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '\'')
                 linePos++;
             else if(inLine[linePos] == '\\' && linePos+1 < inLine.size() && inLine[linePos+1] == '"')
                 linePos++;
-            varName += inLine[linePos];
+            param += inLine[linePos];
         }
+        strip_trailing_whitespace(param);
     }
 
     //skips over hopefully trailing whitespace
@@ -3742,19 +4523,19 @@ int PageBuilder::read_var(std::string& varName,
         ++linePos;
 
     //throws error if new line is between the variable name and close bracket
-    if(linePos == inLine.size())
+    if(linePos >= inLine.size())
     {
         os_mtx->lock();
-        os << "error: " << readPath << ": line " << lineNo << ": variable name has no closing bracket ) or newline inside " << callType << " call" << std::endl;
+        os << "error: " << readPath << ": line " << lineNo << ": no closing bracket ) for parameter or newline inside " << callType << " call" << std::endl;
         os_mtx->unlock();
         return 1;
     }
 
-    //throws error if the variable name is invalid
-    if(inLine[linePos] != ')')
+    //throws error if the parameter is invalid
+    if(inLine[linePos] != closeBracket)
     {
         os_mtx->lock();
-        os << "error: " << readPath << ": line " << lineNo << ": invalid variable name inside " << callType << " call" << std::endl;
+        os << "error: " << readPath << ": line " << lineNo << ": invalid parameter inside " << callType << " call" << std::endl;
         os_mtx->unlock();
         return 1;
     }
