@@ -364,12 +364,22 @@ int Parser::read_and_process(const bool& indent,
 
         for(size_t linePos=0; linePos<inLine.length();)
         {
-            if(inLine.substr(linePos, 2) == "\\@") //checks whether to escape
+            if(inLine[linePos] == '\\') //checks whether to escape
             {
-                os << "@";
-                linePos += 2;
-                if(indent)
-                    indentAmount += " ";
+                linePos++;
+                if(inLine[linePos] == '@')
+                {
+                    os << "@";
+                    linePos++;
+                    if(indent)
+                        indentAmount += " ";
+                }
+                else
+                {
+                    os << "\\";
+                    if(indent)
+                        indentAmount += " ";
+                }
             }
             else if(inLine[linePos] == '<') //checks about code blocks and html comments opening
             {
