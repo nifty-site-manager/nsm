@@ -5,8 +5,10 @@ Nift Release Notes
 TODO List (not in order of priority)
 * [TODO] add multi-threading to Nift command `status`
 
-* [TODO] output @system/@script without piping to file if using std::cout (don't forget to use os_mtx)
+* [TODO] output @system/@script without piping to file if using std::cout and 1 build thread (don't forget to use os_mtx)
 	- https://stackoverflow.com/questions/3318714/check-if-ostream-object-is-cout-or-ofstream-c
+
+* [TODO] build output file if it doesn't already exist when tracking, makes sure other files with paths to it don't fail to build before they are successfully built themselves
 
 * [TODO] add project name to ProjectInfo.h, .nsm/nift.config etc. with @[projectname] variable/syntax
 
@@ -14,13 +16,22 @@ TODO List (not in order of priority)
 
 * [TODO] add error handling for rename etc. throughout
 
+* [TODO] add @into(vars) and @>>(istream, vars)
+
+* [TODO] add \a, \0 and \r escape characters when reading parameters
 * [TODO] add more html entities (try to be similar to latex)
 * [TODO] add @char/@ch syntax to template language (do both latex and html equivalents)
 
 * [TODO] need syntax in the template language to ensure existence of a file given relative path from the page
 * [TODO] further clean up reading parameters and parsing them
-* [TODO] implement better variable types with scoping
+* [TODO] implement better variable types with scoping, constants and privates (with privates say you have x.first and x.second, only allow x.* functions to modify x.[first/second] .. but how to do that, and what about ??
+	- https://www.geeksforgeeks.org/regex-regular-expression-in-c/
+	- https://www.regular-expressions.info/stdregex.html
 * [TODO] implement type defs and function defs
+* [TODO] can we add run_function() function for multithreading, including hard-coded functions?
+
+* [TODO] consider using file hashes for incremental builds, or even just keep a copy of files to compare against
+	- eg. https://github.com/d-bahr/CRCpp
 
 * [TODO] add no template option when building
 * [TODO] add way to build non-tracked pages (including without even being a site, and/or without having a page to output to)
@@ -31,6 +42,23 @@ TODO List (not in order of priority)
 		- nsm render-name name
 		- nsm run cont-path (template-path)
 		- nsm run-name name
+
+Version 2.0 of Nift
+* changed @inputcontent to @content()
+* changed @inputraw(file-path) to @input{raw}(file-path)
+* addded if-exists/raw option to @input(file-path) and @content()
+* added file/name options to @pathto
+* changed @userin(msg) to @in(msg) and @userfilein(msg) to @in{from-file}(msg)
+* added if-exists/inject/raw/content options to @script/@system
+* changed from using @[varname] and @{varname} to @[varname] and @<varname> when printing variables
+* changed to @funcname{options}(params) for function call syntax
+* changed from using * option to parse params to {!p} option to NOT parse function name, options and params
+* changed from using ^ option to not backup scripts to {!bs} option
+* added read_params
+* fixup up read_def and read_func_name
+* fixed multi-line comments
+
+============
 
 Version 1.25 of Nift
 * changed the way @ is escaped and removed most escape characters (too likely to conflict in other places)

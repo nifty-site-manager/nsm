@@ -183,7 +183,7 @@ int main(int argc, char* argv[])
     //Nift commands that can run from anywhere
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v1.25" << std::endl;
+        std::cout << "Nift (aka nsm) v2.0" << std::endl;
 
         return 0;
     }
@@ -476,11 +476,11 @@ int main(int argc, char* argv[])
         ofs.open("template/page.template");
         ofs << "<html>" << std::endl;
         ofs << "    <head>" << std::endl;
-        ofs << "        @input(template/head.content)" << std::endl;
+        ofs << "        @input{!p}(template/head.content)" << std::endl;
         ofs << "    </head>" << std::endl;
         ofs << std::endl;
         ofs << "    <body>" << std::endl;
-        ofs << "        @inputcontent" << std::endl;
+        ofs << "        @content{!p}()" << std::endl;
         ofs << "    </body>" << std::endl;
         ofs << "</html>" << std::endl;
         ofs << std::endl;
@@ -488,9 +488,9 @@ int main(int argc, char* argv[])
 
         ofs.open("template/head.content");
         if(noParams == 1)
-            ofs << "<title>empty site - @title</title>" << std::endl;
+            ofs << "<title>empty site - @[title]</title>" << std::endl;
         else if(noParams > 1)
-            ofs << "<title>" << argv[2] << " - @title</title>" << std::endl;
+            ofs << "<title>" << argv[2] << " - @[title]</title>" << std::endl;
         ofs.close();
 
         ProjectInfo project;

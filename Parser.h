@@ -27,7 +27,6 @@ struct Parser
     std::string indentAmount;
     bool contentAdded, parseParams;
     std::stringstream parsedText;
-    std::ostringstream oss;
     std::set<Path> depFiles;
     std::map<std::string, std::string> strings;
 
@@ -62,57 +61,53 @@ struct Parser
                          std::ostream& os,
                          std::ostream& eos);
 
-    int read_path(std::string& pathRead,
-                  size_t& linePos,
-                  const std::string& inLine,
-                  const Path& readPath,
-                  const int& lineNo,
-                  const std::string& callType,
-                  std::ostream& os);
-    int read_script_params(std::string& pathRead,
-                           std::string& paramStr,
-                           size_t& linePos,
-                           const std::string& inLine,
-                           const Path& readPath,
-                           const int& lineNo,
-                           const std::string& callType,
-                           std::ostream& os);
-    int read_msg(std::string& msgRead,
-                 size_t& linePos,
-                 const std::string& inLine,
-                 const Path& readPath,
-                 const int& lineNo,
-                 const std::string& callType,
-                 std::ostream& os);
-	int read_sys_call(std::string& sys_call,
-	                  size_t& linePos,
-	                  const std::string& inLine,
-	                  const Path& readPath,
-	                  const int& lineNo,
-	                  const std::string& callType,
-	                  std::ostream& os);
-    int read_def(std::string& varType,
-                       std::vector<std::pair<std::string, std::string> >& vars,
-                       size_t& linePos,
-                       const std::string& inLine,
-                       const Path& readPath,
-                       const int& lineNo,
-                       const std::string& callType,
-                       std::ostream& os);
-    int read_var(std::string& varName,
-                 size_t& linePos,
-                 const std::string& inLine,
-                 const Path& readPath,
-                 const int& lineNo,
-                 const std::string& callType,
-                 std::ostream& os);
-    int read_param(std::string& param,
-                   size_t& linePos,
-                   const std::string& inLine,
+    int parse_replace(std::string& str,
+                   const std::string& strType,
                    const Path& readPath,
+                   const std::set<Path>& antiDepsOfReadPath,
                    const int& lineNo,
                    const std::string& callType,
                    std::ostream& os);
+    int parse_replace(std::vector<std::string>& strs,
+                   const std::string& strType,
+                   const Path& readPath,
+                   const std::set<Path>& antiDepsOfReadPath,
+                   const int& lineNo,
+                   const std::string& callType,
+                   std::ostream& os);
+
+    int read_func_name(std::string& funcName,
+                   size_t& linePos,
+                   std::string& inLine,
+                   const Path& readPath,
+                   int& lineNo,
+                   std::ostream& os,
+                   std::istream& is);
+    int read_def(std::string& varType,
+                       std::vector<std::pair<std::string, std::string> >& vars,
+                       size_t& linePos,
+                       std::string& inLine,
+                       const Path& readPath,
+                       int& lineNo,
+                       const std::string& callType,
+                       std::ostream& os,
+                       std::istream& is);
+    int read_params(std::vector<std::string>& params,
+                   size_t& linePos,
+                   std::string& inLine,
+                   const Path& readPath,
+                   int& lineNo,
+                   const std::string& callType,
+                   std::ostream& os,
+                   std::istream& is);
+    int read_options(std::vector<std::string>& options,
+                   size_t& linePos,
+                   std::string& inLine,
+                   const Path& readPath,
+                   int& lineNo,
+                   const std::string& callType,
+                   std::ostream& os,
+                   std::istream& is);
 };
 
 #endif //PARSER_H_
