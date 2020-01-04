@@ -15,8 +15,7 @@ BINDIR=${DESTDIR}${PREFIX}/bin
 all: nsm
 
 nsm: $(objects)
-	$(CXX) $(CXXFLAGS) $(cppfiles) -o nsm $(LINK)
-	$(CXX) $(CXXFLAGS) $(cppfiles) -o nift $(LINK)
+	$(CXX) $(CXXFLAGS) $(objects) -o nsm $(LINK)
 
 nsm.o: nsm.cpp GitInfo.o ProjectInfo.o Timer.h
 	$(CXX) $(CXXFLAGS) -c -o $@ $< $(LINK)
@@ -64,8 +63,8 @@ linux-gedit-highlighting:
 install:
 	mkdir -p ${BINDIR}
 	chmod 755 nsm
-	mv nift ${BINDIR}
 	mv nsm ${BINDIR}
+	ln ${BINDIR}/nsm ${BINDIR}/nift
 
 uninstall:
 	rm ${BINDIR}/nift
@@ -73,8 +72,8 @@ uninstall:
 
 git-bash-install:
 	chmod 755 nsm
-	mv nift ~/bin
 	mv nsm ~/bin
+	ln ~/bin/nsm ~/bin/nift
 
 git-bash-uninstall:
 	rm ~/bin/nift
@@ -82,8 +81,8 @@ git-bash-uninstall:
 
 gitbash-install:
 	chmod 755 nsm
-	mv nift ~/bin
 	mv nsm ~/bin
+	ln ~/bin/nsm ~/bin/nift
 
 gitbash-uninstall:
 	rm ~/bin/nift
