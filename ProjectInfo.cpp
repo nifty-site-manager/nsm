@@ -2172,7 +2172,7 @@ int ProjectInfo::new_template(const Path& newTemplatePath)
     }
     ifs.close();
     ofs.close();
-    remove_path(Path(".nsm/", "tracking.list-old"));
+    remove_file(Path(".nsm/", "tracking.list-old"));
 
     //sets new template
     defaultTemplate = newTemplatePath;

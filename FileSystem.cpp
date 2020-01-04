@@ -188,7 +188,7 @@ int cpDir(const std::string& sourceDir, const std::string& targetDir)
     if(ret_val)
         ret_val = system(("echo d | xcopy " + sourceDir + " " + targetDir + " /E /H > /dev/null 2>&1 >nul 2>&1").c_str());
     if(std::ifstream("./nul"))
-        remove_path(Path("./", "nul"));
+        remove_file(Path("./", "nul"));
     if(ret_val)
         std::cout << "error: FileSystem.cpp: cpDir(" << quote(sourceDir) << ", " << quote(targetDir) << "): copy failed" << std::endl;
     return ret_val;

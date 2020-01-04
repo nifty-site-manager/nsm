@@ -138,7 +138,7 @@ int serve()
         usleep(sleepTime);
     }
 
-    remove_path(Path("./", ".serve-build-log.txt"));
+    remove_file(Path("./", ".serve-build-log.txt"));
 
     return 0;
 }
@@ -183,7 +183,7 @@ int main(int argc, char* argv[])
     //Nift commands that can run from anywhere
     if(cmd == "version" || cmd == "-version" || cmd == "--version")
     {
-        std::cout << "Nift (aka nsm) v2.0" << std::endl;
+        std::cout << "Nift (aka nsm) v2.0.1" << std::endl;
 
         return 0;
     }
@@ -661,7 +661,7 @@ int main(int argc, char* argv[])
             checkoutCmnd = "git checkout " + *branch + " > /dev/null 2>&1 >nul 2>&1";
             ret_val = system(checkoutCmnd.c_str());
             if(std::ifstream("./nul"))
-                remove_path(Path("./", "nul"));
+                remove_file(Path("./", "nul"));
             if(ret_val)
             {
                 std::cout << "error: nsm.cpp: clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
@@ -721,7 +721,7 @@ int main(int argc, char* argv[])
 
                     ret_val = system("git checkout -- . > /dev/null 2>&1 >nul 2>&1");
                     if(std::ifstream("./nul"))
-                        remove_path(Path("./", "nul"));
+                        remove_file(Path("./", "nul"));
                     if(ret_val)
                     {
                         std::cout << "error: nsm.cpp: clone: system('git checkout -- .') failed in " << quote(get_pwd()) << std::endl;
@@ -731,7 +731,7 @@ int main(int argc, char* argv[])
                     checkoutCmnd = "git checkout " + project.outputBranch + " > /dev/null 2>&1 >nul 2>&1";
                     ret_val = system(checkoutCmnd.c_str());
                     if(std::ifstream("./nul"))
-                        remove_path(Path("./", "nul"));
+                        remove_file(Path("./", "nul"));
                     if(ret_val)
                     {
                         std::cout << "error: nsm.cpp: clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
@@ -786,7 +786,7 @@ int main(int argc, char* argv[])
         checkoutCmnd = "git checkout " + obranch + " > /dev/null 2>&1 >nul 2>&1";
         ret_val = system(checkoutCmnd.c_str());
         if(std::ifstream("./nul"))
-            remove_path(Path("./", "nul"));
+            remove_file(Path("./", "nul"));
         if(ret_val)
         {
             std::cout << "error: nsm.cpp: clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;

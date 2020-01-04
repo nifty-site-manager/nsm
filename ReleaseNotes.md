@@ -43,6 +43,9 @@ TODO List (not in order of priority)
 		- nsm run cont-path (template-path)
 		- nsm run-name name
 
+Version 2.0.1 of Nift
+* fixed bug when cloning a website repository from an empty directory (and any other similar bugs from using remove_path where remove_file is more appropriate, ie. when creating temporary text files)
+
 Version 2.0 of Nift
 * changed @inputcontent to @content()
 * changed @inputraw(file-path) to @input{raw}(file-path)
