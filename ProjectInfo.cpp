@@ -1,8 +1,144 @@
 #include "ProjectInfo.h"
 
+int create_default_html_template(const Path& templatePath)
+{
+    templatePath.ensureDirExists();
+
+    std::ofstream ofs(templatePath.str());
+    ofs << "<html>" << std::endl;
+    ofs << "\t<head>" << std::endl;
+    ofs << "\t\t@input(\"" <<  templatePath.dir << "head.content\")" << std::endl;
+    ofs << "\t</head>" << std::endl << std::endl;
+    ofs << "\t<body>" << std::endl;
+    ofs << "\t\t@content()" << std::endl;
+    ofs << "\t</body>" << std::endl;
+    ofs << "</html>" << std::endl << std::endl;
+    ofs.close();
+
+    ofs.open(Path(templatePath.dir, "head.content").str());
+    ofs << "<title>empty site - $[title]</title>" << std::endl;
+    ofs.close();
+
+    return 0;
+}
+
+int create_blank_template(const Path& templatePath)
+{
+    templatePath.ensureDirExists();
+
+    std::ofstream ofs(templatePath.str());
+    ofs << "@content()" << std::endl;
+    ofs.close();
+
+    return 0;
+}
+
+int create_config_file(const Path& configPath, const std::string& outputExt, bool global)
+{
+    configPath.ensureDirExists();
+
+    ProjectInfo project;
+
+    if(!global)
+    {
+        project.contentDir = "content/";
+        project.contentExt = ".content";
+        project.outputDir = "output/";
+        project.outputExt = outputExt;
+        project.scriptExt = ".f";
+    }
+
+    if(global)
+    {
+        project.defaultTemplate = Path(app_dir() + "/.nift/template/", "global.template");
+        create_default_html_template(project.defaultTemplate);
+    }
+    else if(outputExt == ".html" || outputExt == ".php")
+        project.defaultTemplate = Path("template/", "page.template");
+    else
+        project.defaultTemplate = Path("template/", "project.template");
+
+    project.backupScripts = 1;
+
+    project.buildThreads = -1;
+
+    project.unixTextEditor = "nano";
+    project.winTextEditor = "notepad";
+
+    if(global)
+    {
+        if(dir_exists(".git/")) //should really be checking if outputDir exists and has .git directory
+            project.rootBranch = project.outputBranch = get_pb();
+        else
+            project.rootBranch = project.outputBranch = "##unset##";
+    }
+
+    project.save_config(configPath.str(), global);
+
+    return 0;
+}
+
+bool upgradeProject()
+{
+    start_warn(std::cout) << "attempting to upgrade project for newer version of Nift" << std::endl;
+
+    if(rename(".siteinfo/", ".nsm/"))
+    {
+        start_err(std::cout) << "upgrade: failed to move config directory '.siteinfo/' to '.nsm/'" << std::endl;
+        return 1;
+    }
+
+    if(rename(".nsm/nsm.config", ".nsm/nift.config"))
+    {
+        start_err(std::cout) << "upgrade: failed to move config file '.nsm/nsm.config' to '.nsm/nift.config'" << std::endl;
+        return 1;
+    }
+
+    if(rename(".nsm/pages.list", ".nsm/tracking.list"))
+    {
+        start_err(std::cout) << "upgrade: failed to move pages list file '.nsm/pages.list' to tracking list file '.nsm/tracking.list'" << std::endl;
+        return 1;
+    }
+
+    ProjectInfo project;
+    if(project.open_local_config())
+    {
+        start_err(std::cout) << "upgrade: failed, was unable to open configuration file" << std::endl;
+        return 1;
+    }
+    else if(project.open_tracking()) //this needs to change
+    {
+        start_err(std::cout) << "upgrade: failed, was unable to open tracking list" << std::endl;
+        return 1;
+    }
+
+    //need to update output extension files
+    Path oldExtPath, newExtPath;
+    for(auto tInfo=project.trackedAll.begin(); tInfo!=project.trackedAll.end(); tInfo++)
+    {
+        oldExtPath = newExtPath = tInfo->outputPath.getInfoPath();
+        oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".pageExt";
+        newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".outputExt";
+
+        if(file_exists(oldExtPath.str()))
+        {
+            if(rename(oldExtPath.str().c_str(), newExtPath.str().c_str()))
+            {
+                start_err(std::cout) << "upgrade: failed to move output extension file " << quote(oldExtPath.str()) << " to new extension file " <<  quote(newExtPath.str()) << std::endl;
+                return 1;
+            }
+        }
+    }
+
+    std::cout << "Successfully upgraded project configuration for newer version of Nift" << std::endl;
+    std::cout << c_purple << "note" << c_white << ": the syntax to input page and project/site information has also changed, please check the content files page of the docs" << std::endl;
+
+    return 0;
+}
+
 int ProjectInfo::open()
 {
-    if(open_config())
+    if(open_local_config())
         return 1;
     if(open_tracking())
         return 1;
@@ -10,14 +146,25 @@ int ProjectInfo::open()
     return 0;
 }
 
-int ProjectInfo::open_config()
+int ProjectInfo::open_config(const Path& configPath, bool global)
 {
-    if(!std::ifstream(".nsm/nift.config"))
+    if(!file_exists(configPath.str()))
     {
-        //this should never happen!
-        std::cout << "error: ProjectInfo.cpp: open_config(): could not open Nift config file as '" << get_pwd() <<  "/.nsm/nift.config' does not exist" << std::endl;
+        if(global)
+            create_config_file(configPath, ".html", 1);
+        else
+            start_err(std::cout) << "open_config(): could not open Nift project config file as '" << get_pwd() <<  "/.nsm/nift.config' does not exist" << std::endl;
         return 1;
     }
+
+    std::cout << "opening ";
+    if(global)
+        std::cout << "global ";
+    else
+        std::cout << "project ";
+    std::cout << "config file: " << configPath;
+    //std::cout << std::flush;
+    std::fflush(stdout);
 
     contentDir = outputDir = "";
     backupScripts = 1;
@@ -26,7 +173,7 @@ int ProjectInfo::open_config()
     defaultTemplate = Path("", "");
 
     //reads Nift config file
-    std::ifstream ifs(".nsm/nift.config");
+    std::ifstream ifs(configPath.str());
     bool configChanged = 0;
     std::string inLine, inType, str = "";
     int lineNo = 0;
@@ -57,7 +204,7 @@ int ProjectInfo::open_config()
                 read_quoted(iss, outputDir);
                 outputDir = comparable(outputDir);
                 configChanged = 1;
-                //std::cout << "warning: .nsm/nift.config: updated siteDir to outputDir" << std::endl;
+                //start_warn(std::cout, Path(".nsm/", "nift.config"), lineNo) << "updated siteDir to outputDir" << std::endl;
             }
             else if(inType == "outputExt")
                 read_quoted(iss, outputExt);
@@ -65,7 +212,7 @@ int ProjectInfo::open_config()
             {
                 read_quoted(iss, outputExt);
                 configChanged = 1;
-                //std::cout << "warning: .nsm/nift.config: updated pageExt to outputExt" << std::endl;
+                //start_warn(std::cout, Path(".nsm/", "nift.config"), lineNo) << "updated pageExt to outputExt" << std::endl;
             }
             else if(inType == "scriptExt")
                 read_quoted(iss, scriptExt);
@@ -87,75 +234,81 @@ int ProjectInfo::open_config()
             {
                 read_quoted(iss, outputBranch);
                 configChanged = 1;
-                //std::cout << "warning: .nsm/nift.config: updated siteBranch to outputBranch" << std::endl;
+                std::cout << std::endl;
+                start_warn(std::cout, configPath, lineNo) << "updated siteBranch to outputBranch" << std::endl;
             }
             else
             {
                 continue;
                 //if we throw error here can't compile projects for newer versions with older versions of Nift
-                //std::cout << "error: .nsm/nift.config: line " << lineNo << ": do not recognise confirguration parameter " << inType << std::endl;
+                //std::cout << std::endl;
+                //start_err(std::cout, configPath, lineNo) << "do not recognise confirguration parameter " << inType << std::endl;
                 //return 1;
             }
 
             iss >> str;
             if(str != "" && str[0] != '#')
             {
-                std::cout << "error: .nsm/nift.config: line " << lineNo << ": was not expecting anything on this line from '" << unquote(str) << "' onwards" << std::endl;
-                std::cout << "note: you can comment out the remainder of a line with #" << std::endl;
+                std::cout << std::endl;
+                start_err(std::cout, configPath, lineNo) << "was not expecting anything on this line from " << c_light_blue << quote(str) << c_white << " onwards" << std::endl;
+                std::cout << c_aqua << "note: " << c_white << "you can comment out the remainder of a line with #" << std::endl;
+
+                ifs.close();
                 return 1;
             }
         }
     }
     ifs.close();
 
-    if(contentExt == "" || contentExt[0] != '.')
+    if(!global)
     {
-        std::cout << "error: .nsm/nift.config: content extension must start with a fullstop" << std::endl;
-        return 1;
-    }
+        if(contentDir == "")
+        {
+            std::cout << std::endl;
+            start_err(std::cout, configPath) << "content directory not specified" << std::endl;
+            return 1;
+        }
+        if(contentExt == "" || contentExt[0] != '.')
+        {
+            std::cout << std::endl;
+            start_err(std::cout, configPath) << "content extension must start with a fullstop" << std::endl;
+            return 1;
+        }
 
-    if(outputExt == "" || outputExt[0] != '.')
-    {
-        std::cout << "error: .nsm/nift.config: output extension must start with a fullstop" << std::endl;
-        return 1;
-    }
+        if(outputDir == "")
+        {
+            std::cout << std::endl;
+            start_err(std::cout, configPath) << "output directory not specified" << std::endl;
+            return 1;
+        }
+        if(outputExt == "" || outputExt[0] != '.')
+        {
+            std::cout << std::endl;
+            start_err(std::cout, configPath) << "output extension must start with a fullstop" << std::endl;
+            return 1;
+        }
 
-    if(scriptExt != "" && scriptExt [0] != '.')
-    {
-        std::cout << "error: .nsm/nift.config: script extension must start with a fullstop" << std::endl;
-        return 1;
-    }
+        if(scriptExt != "" && scriptExt [0] != '.')
+        {
+            std::cout << std::endl;
+            start_err(std::cout, configPath) << "script extension must start with a fullstop" << std::endl;
+            return 1;
+        }
+        else if(scriptExt == "")
+        {
+            std::cout << std::endl;
+            start_warn(std::cout, configPath) << "script extension not detected, set to default of '.f'" << std::endl;
 
-    if(defaultTemplate == Path("", ""))
-    {
-        std::cout << "error: .nsm/nift.config: default template is not specified" << std::endl;
-        return 1;
-    }
+            scriptExt = ".f";
 
-    if(contentDir == "")
-    {
-        std::cout << "error: .nsm/nift.config: content directory not specified" << std::endl;
-        return 1;
-    }
-
-    if(outputDir == "")
-    {
-        std::cout << "error: .nsm/nift.config: output directory not specified" << std::endl;
-        return 1;
-    }
-
-    if(scriptExt == "")
-    {
-        std::cout << "warning: .nsm/nift.config: script extension not detected, set to default of '.py'" << std::endl;
-
-        scriptExt = ".py";
-
-        configChanged = 1;
+            configChanged = 1;
+        }
     }
 
     if(buildThreads == 0)
     {
-        std::cout << "warning: .nsm/nift.config: number of build threads not detected or invalid, set to default of -1 (number of cores)" << std::endl;
+        std::cout << std::endl;
+        start_warn(std::cout, configPath) << "number of build threads not detected or invalid, set to default of -1 (number of cores)" << std::endl;
 
         buildThreads = -1;
 
@@ -165,7 +318,8 @@ int ProjectInfo::open_config()
     //code to set unixTextEditor if not present
     if(unixTextEditor == "")
     {
-        std::cout << "warning: .nsm/nift.config: unix text editor not detected, set to default of 'nano'" << std::endl;
+        std::cout << std::endl;
+        start_warn(std::cout, configPath) << "unix text editor not detected, set to default of 'nano'" << std::endl;
 
         unixTextEditor = "nano";
 
@@ -175,59 +329,80 @@ int ProjectInfo::open_config()
     //code to set winTextEditor if not present
     if(winTextEditor == "")
     {
-        std::cout << "warning: .nsm/nift.config: windows text editor not detected, set to default of 'notepad'" << std::endl;
+        std::cout << std::endl;
+        start_warn(std::cout, configPath) << "windows text editor not detected, set to default of 'notepad'" << std::endl;
 
         winTextEditor = "notepad";
 
         configChanged = 1;
     }
 
-    //code to figure out rootBranch and outputBranch if not present
-    if(rootBranch == "" || outputBranch == "")
+    if(!global)
     {
-        std::cout << "warning: .nsm/nift.config: root or output branch not detected, have attempted to determine them, ensure values in config file are correct" << std::endl;
-
-        if(std::ifstream(".git"))
+        //code to figure out rootBranch and outputBranch if not present
+        if(rootBranch == "" || outputBranch == "")
         {
-            std::set<std::string> branches = get_git_branches();
+            std::cout << std::endl;
+            start_warn(std::cout, configPath) << "root or output branch not detected, have attempted to determine them, ensure values in config file are correct" << std::endl;
 
-            if(branches.count("stage"))
+            if(dir_exists(".git"))
             {
-                rootBranch = "stage";
-                outputBranch = "master";
+                std::set<std::string> branches = get_git_branches();
+
+                if(branches.count("stage"))
+                {
+                    rootBranch = "stage";
+                    outputBranch = "master";
+                }
+                else
+                    rootBranch = outputBranch = "master";
             }
             else
-                rootBranch = outputBranch = "master";
-        }
-        else
-            rootBranch = outputBranch = "##unset##";
+                rootBranch = outputBranch = "##unset##";
 
-        configChanged = 1;
+            configChanged = 1;
+        }
     }
 
+    clear_console_line();
+
     if(configChanged)
-        save_config();
+        save_config(configPath.str(), global);
 
     return 0;
 }
 
+int ProjectInfo::open_global_config()
+{
+    return open_config(Path(app_dir() + "/.nift/", "nift.config"), 1);
+}
+
+int ProjectInfo::open_local_config()
+{
+    return open_config(Path(".nsm/", "nift.config"), 0);
+}
+
 int ProjectInfo::open_tracking()
 {
+    std::cout << "opening project tracking file..";
+    //std::cout << std::flush;
+    std::fflush(stdout);
+
     trackedAll.clear();
 
-    if(!std::ifstream(".nsm/tracking.list"))
+    if(!file_exists(".nsm/tracking.list"))
     {
-        //this should never happen!
-        std::cout << "error: ProjectInfo.cpp: open(): could not open tracking information as '" << get_pwd() << "/.nsm/tracking.list' does not exist" << std::endl;
+        std::cout << std::endl;
+        start_err(std::cout) << "open_tracking(): could not open tracking information as '" << get_pwd() << "/.nsm/tracking.list' does not exist" << std::endl;
         return 1;
     }
 
     //reads tracking list file
-    std::ifstream ifs(".nsm/tracking.list");
+    std::ifstream ifs(".nsm/tracking.list"), 
+                  ifsx;
     Name inName;
     Title inTitle;
     Path inTemplatePath;
-    std::ifstream ifsx;
     std::string inExt;
     while(read_quoted(ifs, inName))
     {
@@ -240,7 +415,7 @@ int ProjectInfo::open_tracking()
         Path extPath = inInfo.outputPath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
 
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             ifsx.open(extPath.str());
 
@@ -254,7 +429,7 @@ int ProjectInfo::open_tracking()
         extPath = inInfo.outputPath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
 
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             ifsx.open(extPath.str());
 
@@ -267,9 +442,11 @@ int ProjectInfo::open_tracking()
         //checks that content and template files aren't the same
         if(inInfo.contentPath == inInfo.templatePath)
         {
-            std::cout << "error: failed to open .nsm/tracking.list" << std::endl;
-            std::cout << "reason: " << inInfo.name << " has same content and template path" << inInfo.templatePath << std::endl;
+            std::cout << std::endl;
+            start_err(std::cout) << "failed to open .nsm/tracking.list" << std::endl;
+            std::cout << c_purple << "reason: " << c_white << quote(inInfo.name) << " has same content and template path " << inInfo.templatePath << std::endl;
 
+            ifs.close();
             return 1;
         }
 
@@ -278,8 +455,9 @@ int ProjectInfo::open_tracking()
         {
             TrackedInfo cInfo = *(trackedAll.find(inInfo));
 
-            std::cout << "error: failed to open .nsm/tracking.list" << std::endl;
-            std::cout << "reason: duplicate entry for " << inInfo.name << std::endl;
+            std::cout << std::endl;
+            start_err(std::cout) << "failed to open .nsm/tracking.list" << std::endl;
+            std::cout << c_purple << "reason: " << c_white << "duplicate entry for " << inInfo.name << std::endl;
             std::cout << std::endl;
             std::cout << "----- first entry -----" << std::endl;
             std::cout << "        title: " << cInfo.title << std::endl;
@@ -295,6 +473,7 @@ int ProjectInfo::open_tracking()
             std::cout << "template path: " << inInfo.templatePath << std::endl;
             std::cout << "--------------------------------" << std::endl;
 
+            ifs.close();
             return 1;
         }
 
@@ -303,27 +482,45 @@ int ProjectInfo::open_tracking()
 
     ifs.close();
 
+    clear_console_line();
+
     return 0;
 }
 
-int ProjectInfo::save_config()
+int ProjectInfo::save_config(const std::string& configPathStr, bool global)
 {
-    std::ofstream ofs(".nsm/nift.config");
-    ofs << "contentDir " << quote(contentDir) << "\n";
-    ofs << "contentExt " << quote(contentExt) << "\n";
-    ofs << "outputDir " << quote(outputDir) << "\n";
-    ofs << "outputExt " << quote(outputExt) << "\n";
-    ofs << "scriptExt " << quote(scriptExt) << "\n";
+    std::ofstream ofs(configPathStr);
+    if(!global)
+    {
+        ofs << "contentDir " << quote(contentDir) << "\n";
+        ofs << "contentExt " << quote(contentExt) << "\n";
+        ofs << "outputDir " << quote(outputDir) << "\n";
+        ofs << "outputExt " << quote(outputExt) << "\n";
+        ofs << "scriptExt " << quote(scriptExt) << "\n";
+    }
     ofs << "defaultTemplate " << defaultTemplate << "\n\n";
     ofs << "backupScripts " << backupScripts << "\n\n";
     ofs << "buildThreads " << buildThreads << "\n\n";
     ofs << "unixTextEditor " << quote(unixTextEditor) << "\n";
     ofs << "winTextEditor " << quote(winTextEditor) << "\n\n";
-    ofs << "rootBranch " << quote(rootBranch) << "\n";
-    ofs << "outputBranch " << quote(outputBranch) << "\n";
+    if(!global)
+    {
+        ofs << "rootBranch " << quote(rootBranch) << "\n";
+        ofs << "outputBranch " << quote(outputBranch) << "\n";
+    }
     ofs.close();
 
     return 0;
+}
+
+int ProjectInfo::save_global_config()
+{
+    return save_config(app_dir() + "/.nift/nift.config", 1);
+}
+
+int ProjectInfo::save_local_config()
+{
+    return save_config(".nsm/nift.config", 0);
 }
 
 int ProjectInfo::save_tracking()
@@ -357,7 +554,7 @@ TrackedInfo ProjectInfo::make_info(const Name& name)
     std::string inExt;
     Path extPath = trackedInfo.outputPath.getInfoPath();
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
-    if(std::ifstream(extPath.str()))
+    if(file_exists(extPath.str()))
     {
         std::ifstream ifs(extPath.str());
         getline(ifs, inExt);
@@ -366,7 +563,7 @@ TrackedInfo ProjectInfo::make_info(const Name& name)
         trackedInfo.contentPath.file = trackedInfo.contentPath.file.substr(0, trackedInfo.contentPath.file.find_first_of('.')) + inExt;
     }
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
-    if(std::ifstream(extPath.str()))
+    if(file_exists(extPath.str()))
     {
         std::ifstream ifs(extPath.str());
         getline(ifs, inExt);
@@ -397,7 +594,7 @@ TrackedInfo ProjectInfo::make_info(const Name& name, const Title& title)
     std::string inExt;
     Path extPath = trackedInfo.outputPath.getInfoPath();
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
-    if(std::ifstream(extPath.str()))
+    if(file_exists(extPath.str()))
     {
         std::ifstream ifs(extPath.str());
         getline(ifs, inExt);
@@ -406,7 +603,7 @@ TrackedInfo ProjectInfo::make_info(const Name& name, const Title& title)
         trackedInfo.contentPath.file = trackedInfo.contentPath.file.substr(0, trackedInfo.contentPath.file.find_first_of('.')) + inExt;
     }
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
-    if(std::ifstream(extPath.str()))
+    if(file_exists(extPath.str()))
     {
         std::ifstream ifs(extPath.str());
         getline(ifs, inExt);
@@ -437,7 +634,7 @@ TrackedInfo ProjectInfo::make_info(const Name& name, const Title& title, const P
     std::string inExt;
     Path extPath = trackedInfo.outputPath.getInfoPath();
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
-    if(std::ifstream(extPath.str()))
+    if(file_exists(extPath.str()))
     {
         std::ifstream ifs(extPath.str());
         getline(ifs, inExt);
@@ -446,7 +643,7 @@ TrackedInfo ProjectInfo::make_info(const Name& name, const Title& title, const P
         trackedInfo.contentPath.file = trackedInfo.contentPath.file.substr(0, trackedInfo.contentPath.file.find_first_of('.')) + inExt;
     }
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
-    if(std::ifstream(extPath.str()))
+    if(file_exists(extPath.str()))
     {
         std::ifstream ifs(extPath.str());
         getline(ifs, inExt);
@@ -458,7 +655,13 @@ TrackedInfo ProjectInfo::make_info(const Name& name, const Title& title, const P
     return trackedInfo;
 }
 
-TrackedInfo make_info(const Name& name, const Title& title, const Path& templatePath, const Directory& contentDir, const Directory& outputDir, const std::string& contentExt, const std::string& outputExt)
+TrackedInfo make_info(const Name& name, 
+                      const Title& title, 
+                      const Path& templatePath, 
+                      const Directory& contentDir, 
+                      const Directory& outputDir, 
+                      const std::string& contentExt, 
+                      const std::string& outputExt)
 {
     TrackedInfo trackedInfo;
 
@@ -492,7 +695,7 @@ TrackedInfo ProjectInfo::get_info(const Name& name)
 int ProjectInfo::info(const std::vector<Name>& names)
 {
     std::cout << std::endl;
-    std::cout << "------ information on specified names ------" << std::endl;
+    std::cout << "---- info on specified names ----" << std::endl;
     for(auto name=names.begin(); name!=names.end(); name++)
     {
         if(name != names.begin())
@@ -503,7 +706,7 @@ int ProjectInfo::info(const std::vector<Name>& names)
         if(trackedAll.count(cInfo))
         {
             cInfo = *(trackedAll.find(cInfo));
-            std::cout << "         name: " << quote(cInfo.name) << std::endl;
+            std::cout << "         name: " << c_green << quote(cInfo.name) << c_white << std::endl;
             std::cout << "        title: " << cInfo.title << std::endl;
             std::cout << "  output path: " << cInfo.outputPath << std::endl;
             std::cout << "   output ext: " << quote(get_output_ext(cInfo)) << std::endl;
@@ -515,29 +718,29 @@ int ProjectInfo::info(const std::vector<Name>& names)
         else
             std::cout << "Nift is not tracking " << *name << std::endl;
     }
-    std::cout << "--------------------------------------------" << std::endl;
+    std::cout << "---------------------------------" << std::endl;
 
     return 0;
 }
 
 int ProjectInfo::info_all()
 {
-    if(std::ifstream(".nsm/.watchinfo/watching.list"))
+    if(file_exists(".nsm/.watchinfo/watching.list"))
     {
         WatchList wl;
         if(wl.open())
         {
-            std::cout << "error: info-all: failed to open watch list" << std::endl;
+            start_err(std::cout) << "info-all: failed to open watch list" << std::endl;
             return 1;
         }
 
         std::cout << std::endl;
-        std::cout << "------ all watched directories ------" << std::endl;
+        std::cout << "---- all watched directories ----" << std::endl;
         for(auto wd=wl.dirs.begin(); wd!=wl.dirs.end(); wd++)
         {
             if(wd != wl.dirs.begin())
                 std::cout << std::endl;
-            std::cout << "  watch directory: " << quote(wd->watchDir) << std::endl;
+            std::cout << "  watch directory: " << c_green << quote(wd->watchDir) << c_white << std::endl;
             for(auto ext=wd->contExts.begin(); ext!=wd->contExts.end(); ext++)
             {
                 std::cout << "content extension: " << quote(*ext) << std::endl;
@@ -545,16 +748,16 @@ int ProjectInfo::info_all()
                 std::cout << " output extension: " << wd->outputExts.at(*ext) << std::endl;
             }
         }
-        std::cout << "-------------------------------------" << std::endl;
+        std::cout << "---------------------------------" << std::endl;
     }
 
     std::cout << std::endl;
-    std::cout << "--------- all tracked names ---------" << std::endl;
+    std::cout << "---- all tracked names ----" << std::endl;
     for(auto trackedInfo=trackedAll.begin(); trackedInfo!=trackedAll.end(); trackedInfo++)
     {
         if(trackedInfo != trackedAll.begin())
             std::cout << std::endl;
-        std::cout << "         name: " << quote(trackedInfo->name) << std::endl;
+        std::cout << "         name: " << c_green << quote(trackedInfo->name) << c_white << std::endl;
         std::cout << "        title: " << trackedInfo->title << std::endl;
         std::cout << "  output path: " << trackedInfo->outputPath << std::endl;
         std::cout << "   output ext: " << quote(get_output_ext(*trackedInfo)) << std::endl;
@@ -563,7 +766,7 @@ int ProjectInfo::info_all()
         std::cout << "   script ext: " << quote(get_script_ext(*trackedInfo)) << std::endl;
         std::cout << "template path: " << trackedInfo->templatePath << std::endl;
     }
-    std::cout << "------------------------------------" << std::endl;
+    std::cout << "---------------------------" << std::endl;
 
     return 0;
 }
@@ -571,22 +774,22 @@ int ProjectInfo::info_all()
 int ProjectInfo::info_names()
 {
     std::cout << std::endl;
-    std::cout << "--------- all tracked names ---------" << std::endl;
+    std::cout << "---- all tracked names ----" << std::endl;
     for(auto trackedInfo=trackedAll.begin(); trackedInfo!=trackedAll.end(); trackedInfo++)
-        std::cout << trackedInfo->name << std::endl;
-    std::cout << "------------------------------------------" << std::endl;
+        std::cout << " " << c_green << trackedInfo->name << c_white << std::endl;
+    std::cout << "---------------------------" << std::endl;
 
     return 0;
 }
 
 int ProjectInfo::info_tracking()
 {
-    std::cout << "--------- all tracked names ---------" << std::endl;
+    std::cout << "---- all tracked names ----" << std::endl;
     for(auto trackedInfo=trackedAll.begin(); trackedInfo!=trackedAll.end(); trackedInfo++)
     {
         if(trackedInfo != trackedAll.begin())
             std::cout << std::endl;
-        std::cout << "         name: " << quote(trackedInfo->name) << std::endl;
+        std::cout << "         name: " << c_green << quote(trackedInfo->name) << c_white << std::endl;
         std::cout << "        title: " << trackedInfo->title << std::endl;
         std::cout << "  output path: " << trackedInfo->outputPath << std::endl;
         std::cout << "   output ext: " << quote(get_output_ext(*trackedInfo)) << std::endl;
@@ -595,19 +798,19 @@ int ProjectInfo::info_tracking()
         std::cout << "   script ext: " << quote(get_script_ext(*trackedInfo)) << std::endl;
         std::cout << "template path: " << trackedInfo->templatePath << std::endl;
     }
-    std::cout << "------------------------------------" << std::endl;
+    std::cout << "---------------------------" << std::endl;
 
     return 0;
 }
 
 int ProjectInfo::info_watching()
 {
-    if(std::ifstream(".nsm/.watchinfo/watching.list"))
+    if(file_exists(".nsm/.watchinfo/watching.list"))
     {
         WatchList wl;
         if(wl.open())
         {
-            std::cout << "error: info-watching: failed to open watch list" << std::endl;
+            start_err(std::cout) << "info-watching: failed to open watch list" << std::endl;
             return 1;
         }
 
@@ -617,7 +820,7 @@ int ProjectInfo::info_watching()
         {
             if(wd != wl.dirs.begin())
                 std::cout << std::endl;
-            std::cout << "  watch directory: " << quote(wd->watchDir) << std::endl;
+            std::cout << "  watch directory: " << c_green << quote(wd->watchDir) << c_white << std::endl;
             for(auto ext=wd->contExts.begin(); ext!=wd->contExts.end(); ext++)
             {
                 std::cout << "content extension: " << quote(*ext) << std::endl;
@@ -643,7 +846,7 @@ std::string ProjectInfo::get_ext(const TrackedInfo& trackedInfo, const std::stri
     Path extPath = trackedInfo.outputPath.getInfoPath();
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + extType;
 
-    if(std::ifstream(extPath.str()))
+    if(file_exists(extPath.str()))
     {
         std::ifstream ifs(extPath.str());
         getline(ifs, ext);
@@ -690,18 +893,18 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
 {
     if(name.find('.') != std::string::npos)
     {
-        std::cout << "error: names cannot contain '.'" << std::endl;
-        std::cout << "note: you can add post-build scripts to move built/output files to paths containing . other than for extensions if you want" << std::endl;
+        start_err(std::cout) << "names cannot contain '.'" << std::endl;
+        std::cout << c_purple << "note: " << c_white << "you can add post-build scripts to move built/output files to paths containing . other than for extensions if you want" << std::endl;
         return 1;
     }
-    else if(name == "" || title.str == "" || templatePath == Path("", ""))
+    else if(name == "" || title.str == "")
     {
-        std::cout << "error: name, title and template path must all be non-empty strings" << std::endl;
+        start_err(std::cout) << "name and title must all be non-empty strings" << std::endl;
         return 1;
     }
     if(unquote(name)[unquote(name).size()-1] == '/' || unquote(name)[unquote(name).size()-1] == '\\')
     {
-        std::cout << "error: name " << quote(name) << " cannot end in '/' or '\\'" << std::endl;
+        start_err(std::cout) << "name " << quote(name) << " cannot end in '/' or '\\'" << std::endl;
         return 1;
     }
     else if(
@@ -710,7 +913,7 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
                 (unquote(templatePath.str()).find('"') != std::string::npos && unquote(templatePath.str()).find('\'') != std::string::npos)
             )
     {
-        std::cout << "error: name, title and template path cannot contain both single and double quotes" << std::endl;
+        start_err(std::cout) << "name, title and template path cannot contain both single and double quotes" << std::endl;
         return 1;
     }
 
@@ -718,7 +921,7 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
 
     if(newInfo.contentPath == newInfo.templatePath)
     {
-        std::cout << "error: content and template paths cannot be the same, not tracked" << std::endl;
+        start_err(std::cout) << "content and template paths cannot be the same, not tracked" << std::endl;
         return 1;
     }
 
@@ -726,39 +929,43 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
     {
         TrackedInfo cInfo = *(trackedAll.find(newInfo));
 
-        std::cout << "error: Nift is already tracking " << newInfo.outputPath << std::endl;
-        std::cout << "----- current tracked details -----" << std::endl;
+        start_err(std::cout) << "Nift is already tracking " << newInfo.outputPath << std::endl;
+        std::cout << "---- current tracked details ----" << std::endl;
         std::cout << "        title: " << cInfo.title << std::endl;
         std::cout << "  output path: " << cInfo.outputPath << std::endl;
         std::cout << " content path: " << cInfo.contentPath << std::endl;
         std::cout << "template path: " << cInfo.templatePath << std::endl;
-        std::cout << "--------------------------------" << std::endl;
+        std::cout << "---------------------------------" << std::endl;
 
         return 1;
     }
+
+    bool blankTemplate = 0;
+    if(newInfo.templatePath.str() == "")
+        blankTemplate = 1;
 
     //throws error if template path doesn't exist
-    if(!std::ifstream(newInfo.templatePath.str()))
+    if(!blankTemplate && !file_exists(newInfo.templatePath.str()))
     {
-        std::cout << "error: template path " << newInfo.templatePath << " does not exist" << std::endl;
+        start_err(std::cout) << "template path " << newInfo.templatePath << " does not exist" << std::endl;
         return 1;
     }
 
-    if(std::ifstream(newInfo.outputPath.str()))
+    if(path_exists(newInfo.outputPath.str()))
     {
-        std::cout << "error: new output path " << newInfo.outputPath << " already exists" << std::endl;
+        start_err(std::cout) << "new output path " << newInfo.outputPath << " already exists" << std::endl;
         return 1;
     }
 
-    if(!std::ifstream(newInfo.contentPath.str()))
+    if(!file_exists(newInfo.contentPath.str()))
     {
         newInfo.contentPath.ensureFileExists();
         //chmod(newInfo.contentPath.str().c_str(), 0666);
     }
 
     //ensures directories for output file and info file exist
-    newInfo.outputPath.ensureDirExists();
-    newInfo.outputPath.getInfoPath().ensureDirExists();
+    //newInfo.outputPath.ensureDirExists();
+    //newInfo.outputPath.getInfoPath().ensureDirExists();
 
     //inserts new info into set of trackedAll
     trackedAll.insert(newInfo);
@@ -774,9 +981,9 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
 
 int ProjectInfo::track_from_file(const std::string& filePath)
 {
-    if(!std::ifstream(filePath))
+    if(!file_exists(filePath))
     {
-        std::cout << "error: track-from-file: track-file " << quote(filePath) << " does not exist" << std::endl;
+        start_err(std::cout) << "track-from-file: track-file " << quote(filePath) << " does not exist" << std::endl;
         return 1;
     }
 
@@ -822,18 +1029,18 @@ int ProjectInfo::track_from_file(const std::string& filePath)
 
         if(name.find('.') != std::string::npos)
         {
-            std::cout << "error: name " << quote(name) << " cannot contain '.'" << std::endl;
-            std::cout << "note: you can add post-build scripts to move built built/output files to paths containing . other than for extensions if you want" << std::endl;
+            start_err(std::cout) << "name " << quote(name) << " cannot contain '.'" << std::endl;
+            std::cout << c_purple << "note: " << c_white << "you can add post-build scripts to move built built/output files to paths containing . other than for extensions if you want" << std::endl;
             return 1;
         }
-        else if(name == "" || title.str == "" || templatePath == Path("", "") || cExt == "" || oExt == "")
+        else if(name == "" || title.str == "" || cExt == "" || oExt == "")
         {
-            std::cout << "error: names, titles, template paths, content extensions and output extensions must all be non-empty strings" << std::endl;
+            start_err(std::cout) << "names, titles, content extensions and output extensions must all be non-empty strings" << std::endl;
             return 1;
         }
         if(unquote(name)[unquote(name).size()-1] == '/' || unquote(name)[unquote(name).size()-1] == '\\')
         {
-            std::cout << "error: name " << quote(name) << " cannot end in '/' or '\\'" << std::endl;
+            start_err(std::cout) << "name " << quote(name) << " cannot end in '/' or '\\'" << std::endl;
             return 1;
         }
         else if(
@@ -842,18 +1049,18 @@ int ProjectInfo::track_from_file(const std::string& filePath)
                     (unquote(templatePath.str()).find('"') != std::string::npos && unquote(templatePath.str()).find('\'') != std::string::npos)
                 )
         {
-            std::cout << "error: names, titles and template paths cannot contain both single and double quotes" << std::endl;
+            start_err(std::cout) << "names, titles and template paths cannot contain both single and double quotes" << std::endl;
             return 1;
         }
 
         if(cExt == "" || cExt[0] != '.')
         {
-            std::cout << "error: track-from-file: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
+            start_err(std::cout) << "track-from-file: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
             return 1;
         }
         else if(oExt == "" || oExt[0] != '.')
         {
-            std::cout << "error: track-from-file: output extension " << quote(oExt) << " must start with a fullstop" << std::endl;
+            start_err(std::cout) << "track-from-file: output extension " << quote(oExt) << " must start with a fullstop" << std::endl;
             return 1;
         }
 
@@ -867,7 +1074,7 @@ int ProjectInfo::track_from_file(const std::string& filePath)
 
         if(newInfo.contentPath == newInfo.templatePath)
         {
-            std::cout << "error: content and template paths cannot be the same, " << newInfo.name << " not tracked" << std::endl;
+            start_err(std::cout) << "content and template paths cannot be the same, " << newInfo.name << " not tracked" << std::endl;
             return 1;
         }
 
@@ -875,27 +1082,30 @@ int ProjectInfo::track_from_file(const std::string& filePath)
         {
             TrackedInfo cInfo = *(trackedAll.find(newInfo));
 
-            std::cout << "error: Nift is already tracking " << newInfo.outputPath << std::endl;
-            std::cout << "----- current tracked details -----" << std::endl;
+            start_err(std::cout) << "Nift is already tracking " << newInfo.outputPath << std::endl;
+            std::cout << "---- current tracked details ----" << std::endl;
             std::cout << "        title: " << cInfo.title << std::endl;
             std::cout << "  output path: " << cInfo.outputPath << std::endl;
             std::cout << " content path: " << cInfo.contentPath << std::endl;
             std::cout << "template path: " << cInfo.templatePath << std::endl;
-            std::cout << "--------------------------------" << std::endl;
+            std::cout << "---------------------------------" << std::endl;
 
             return 1;
         }
 
         //throws error if template path doesn't exist
-        if(!std::ifstream(newInfo.templatePath.str()))
+        bool blankTemplate = 0;
+        if(newInfo.templatePath.str() == "")
+            blankTemplate = 1;
+        if(!blankTemplate && !file_exists(newInfo.templatePath.str()))
         {
-            std::cout << "error: template path " << newInfo.templatePath << " does not exist" << std::endl;
+            start_err(std::cout) << "template path " << newInfo.templatePath << " does not exist" << std::endl;
             return 1;
         }
 
-        if(std::ifstream(newInfo.outputPath.str()))
+        if(path_exists(newInfo.outputPath.str()))
         {
-            std::cout << "error: new output path " << newInfo.outputPath << " already exists" << std::endl;
+            start_err(std::cout) << "new output path " << newInfo.outputPath << " already exists" << std::endl;
             return 1;
         }
 
@@ -916,6 +1126,7 @@ int ProjectInfo::track_from_file(const std::string& filePath)
         {
             Path extPath = newInfo.outputPath.getInfoPath();
             extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+            extPath.ensureFileExists();
             std::ofstream ofs(extPath.str());
             ofs << cExt << std::endl;
             ofs.close();
@@ -925,17 +1136,18 @@ int ProjectInfo::track_from_file(const std::string& filePath)
         {
             Path extPath = newInfo.outputPath.getInfoPath();
             extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
+            extPath.ensureFileExists();
             std::ofstream ofs(extPath.str());
             ofs << oExt << std::endl;
             ofs.close();
         }
 
-        if(!std::ifstream(newInfo.contentPath.str()))
+        if(!file_exists(newInfo.contentPath.str()))
             newInfo.contentPath.ensureFileExists();
 
         //ensures directories for output file and info file exist
-        newInfo.outputPath.ensureDirExists();
-        newInfo.outputPath.getInfoPath().ensureDirExists();
+        //newInfo.outputPath.ensureDirExists();
+        //newInfo.outputPath.getInfoPath().ensureDirExists();
 
         //inserts new info into trackedAll set
         trackedAll.insert(newInfo);
@@ -951,38 +1163,44 @@ int ProjectInfo::track_from_file(const std::string& filePath)
     return 0;
 }
 
-int ProjectInfo::track_dir(const Path& dirPath, const std::string& cExt, const Path& templatePath, const std::string& oExt)
+int ProjectInfo::track_dir(const Path& dirPath, 
+                           const std::string& cExt, 
+                           const Path& templatePath, 
+                           const std::string& oExt)
 {
     if(dirPath.file != "")
     {
-        std::cout << "error: track-dir: directory path " << dirPath << " is to a file not a directory" << std::endl;
+        start_err(std::cout) << "track-dir: directory path " << dirPath << " is to a file not a directory" << std::endl;
         return 1;
     }
     else if(dirPath.comparableStr().substr(0, contentDir.size()) != contentDir)
     {
-        std::cout << "error: track-dir: cannot track files from directory " << dirPath << " as it is not a subdirectory of the project-wide content directory " << quote(contentDir) << std::endl;
+        start_err(std::cout) << "track-dir: cannot track files from directory " << dirPath << " as it is not a subdirectory of the project-wide content directory " << quote(contentDir) << std::endl;
         return 1;
     }
-    else if(!std::ifstream(dirPath.str()))
+    else if(!dir_exists(dirPath.str()))
     {
-        std::cout << "error: track-dir: directory path " << dirPath << " does not exist" << std::endl;
+        start_err(std::cout) << "track-dir: directory path " << dirPath << " does not exist" << std::endl;
         return 1;
     }
 
     if(cExt == "" || cExt[0] != '.')
     {
-        std::cout << "error: track-dir: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
+        start_err(std::cout) << "track-dir: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
         return 1;
     }
     else if(oExt == "" || oExt[0] != '.')
     {
-        std::cout << "error: track-dir: output extension " << quote(oExt) << " must start with a fullstop" << std::endl;
+        start_err(std::cout) << "track-dir: output extension " << quote(oExt) << " must start with a fullstop" << std::endl;
         return 1;
     }
 
-    if(!std::ifstream(templatePath.str()))
+    bool blankTemplate = 0;
+    if(templatePath.str() == "")
+        blankTemplate = 1;
+    if(!blankTemplate && !file_exists(templatePath.str()))
     {
-        std::cout << "error: track-dir: template path " << templatePath << " does not exist" << std::endl;
+        start_err(std::cout) << "track-dir: template path " << templatePath << " does not exist" << std::endl;
         return 1;
     }
 
@@ -1014,22 +1232,26 @@ int ProjectInfo::track_dir(const Path& dirPath, const std::string& cExt, const P
     return 0;
 }
 
-int ProjectInfo::track(const Name& name, const Title& title, const Path& templatePath, const std::string& cExt, const std::string& oExt)
+int ProjectInfo::track(const Name& name, 
+                       const Title& title, 
+                       const Path& templatePath, 
+                       const std::string& cExt, 
+                       const std::string& oExt)
 {
     if(name.find('.') != std::string::npos)
     {
-        std::cout << "error: names cannot contain '.'" << std::endl;
-        std::cout << "note: you can add post-build scripts to move built/output files to paths containing . other than for extensions if you want" << std::endl;
+        start_err(std::cout) << "names cannot contain '.'" << std::endl;
+        std::cout << c_purple << "note: " << c_white << "you can add post-build scripts to move built/output files to paths containing . other than for extensions if you want" << std::endl;
         return 1;
     }
-    else if(name == "" || title.str == "" || templatePath == Path("", "") || cExt == "" || oExt == "")
+    else if(name == "" || title.str == "" || cExt == "" || oExt == "")
     {
-        std::cout << "error: name, title, template path, content extension and output extension must all be non-empty strings" << std::endl;
+        start_err(std::cout) << "name, title, content extension and output extension must all be non-empty strings" << std::endl;
         return 1;
     }
     if(unquote(name)[unquote(name).size()-1] == '/' || unquote(name)[unquote(name).size()-1] == '\\')
     {
-        std::cout << "error: name " << quote(name) << " cannot end in '/' or '\\'" << std::endl;
+        start_err(std::cout) << "name " << quote(name) << " cannot end in '/' or '\\'" << std::endl;
         return 1;
     }
     else if(
@@ -1038,18 +1260,18 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
                 (unquote(templatePath.str()).find('"') != std::string::npos && unquote(templatePath.str()).find('\'') != std::string::npos)
             )
     {
-        std::cout << "error: name, title and template path cannot contain both single and double quotes" << std::endl;
+        start_err(std::cout) << "name, title and template path cannot contain both single and double quotes" << std::endl;
         return 1;
     }
 
     if(cExt == "" || cExt[0] != '.')
     {
-        std::cout << "error: track: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
+        start_err(std::cout) << "track: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
         return 1;
     }
     else if(oExt == "" || oExt[0] != '.')
     {
-        std::cout << "error: track: output extension " << quote(oExt) << " must start with a fullstop" << std::endl;
+        start_err(std::cout) << "track: output extension " << quote(oExt) << " must start with a fullstop" << std::endl;
         return 1;
     }
 
@@ -1063,7 +1285,7 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
 
     if(newInfo.contentPath == newInfo.templatePath)
     {
-        std::cout << "error: content and template paths cannot be the same, " << newInfo.name << " not tracked" << std::endl;
+        start_err(std::cout) << "content and template paths cannot be the same, " << newInfo.name << " not tracked" << std::endl;
         return 1;
     }
 
@@ -1071,27 +1293,30 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
     {
         TrackedInfo cInfo = *(trackedAll.find(newInfo));
 
-        std::cout << "error: Nift is already tracking " << newInfo.outputPath << std::endl;
-        std::cout << "----- current tracked details -----" << std::endl;
+        start_err(std::cout) << "Nift is already tracking " << newInfo.outputPath << std::endl;
+        std::cout << "---- current tracked details ----" << std::endl;
         std::cout << "        title: " << cInfo.title << std::endl;
         std::cout << "  output path: " << cInfo.outputPath << std::endl;
         std::cout << " content path: " << cInfo.contentPath << std::endl;
         std::cout << "template path: " << cInfo.templatePath << std::endl;
-        std::cout << "--------------------------------" << std::endl;
+        std::cout << "---------------------------------" << std::endl;
 
         return 1;
     }
 
     //throws error if template path doesn't exist
-    if(!std::ifstream(newInfo.templatePath.str()))
+    bool blankTemplate = 0;
+    if(newInfo.templatePath.str() == "")
+        blankTemplate = 1;
+    if(!blankTemplate && !file_exists(newInfo.templatePath.str()))
     {
-        std::cout << "error: template path " << newInfo.templatePath << " does not exist" << std::endl;
+        start_err(std::cout) << "template path " << newInfo.templatePath << " does not exist" << std::endl;
         return 1;
     }
 
-    if(std::ifstream(newInfo.outputPath.str()))
+    if(path_exists(newInfo.outputPath.str()))
     {
-        std::cout << "error: new output path " << newInfo.outputPath << " already exists" << std::endl;
+        start_err(std::cout) << "new output path " << newInfo.outputPath << " already exists" << std::endl;
         return 1;
     }
 
@@ -1099,6 +1324,7 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
     {
         Path extPath = newInfo.outputPath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+        extPath.ensureFileExists();
         std::ofstream ofs(extPath.str());
         ofs << cExt << std::endl;
         ofs.close();
@@ -1108,20 +1334,21 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
     {
         Path extPath = newInfo.outputPath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
+        extPath.ensureFileExists();
         std::ofstream ofs(extPath.str());
         ofs << oExt << std::endl;
         ofs.close();
     }
 
-    if(!std::ifstream(newInfo.contentPath.str()))
+    if(!file_exists(newInfo.contentPath.str()))
     {
         newInfo.contentPath.ensureFileExists();
         //chmod(newInfo.contentPath.str().c_str(), 0666);
     }
 
     //ensures directories for output file and info file exist
-    newInfo.outputPath.ensureDirExists();
-    newInfo.outputPath.getInfoPath().ensureDirExists();
+    //newInfo.outputPath.ensureDirExists();
+    //newInfo.outputPath.getInfoPath().ensureDirExists();
 
     //inserts new info into trackedAll set
     trackedAll.insert(newInfo);
@@ -1152,18 +1379,18 @@ int ProjectInfo::track(const std::vector<InfoToTrack>& toTrack)
 
         if(name.find('.') != std::string::npos)
         {
-            std::cout << "error: name " << quote(name) << " cannot contain '.'" << std::endl;
-            std::cout << "note: you can add post-build scripts to move built/output files to paths containing . other than for extensions if you want" << std::endl;
+            start_err(std::cout) << "name " << quote(name) << " cannot contain '.'" << std::endl;
+            std::cout << c_purple << "note: " << c_white << "you can add post-build scripts to move built/output files to paths containing . other than for extensions if you want" << std::endl;
             return 1;
         }
-        else if(name == "" || title.str == "" || templatePath == Path("", "") || cExt == "" || oExt == "")
+        else if(name == "" || title.str == "" || cExt == "" || oExt == "")
         {
-            std::cout << "error: names, titles, template paths, content extensions and output extensions must all be non-empty strings" << std::endl;
+            start_err(std::cout) << "names, titles, content extensions and output extensions must all be non-empty strings" << std::endl;
             return 1;
         }
         if(unquote(name)[unquote(name).size()-1] == '/' || unquote(name)[unquote(name).size()-1] == '\\')
         {
-            std::cout << "error: name " << quote(name) << " cannot end in '/' or '\\'" << std::endl;
+            start_err(std::cout) << "name " << quote(name) << " cannot end in '/' or '\\'" << std::endl;
             return 1;
         }
         else if(
@@ -1172,18 +1399,18 @@ int ProjectInfo::track(const std::vector<InfoToTrack>& toTrack)
                     (unquote(templatePath.str()).find('"') != std::string::npos && unquote(templatePath.str()).find('\'') != std::string::npos)
                 )
         {
-            std::cout << "error: names, titles and template paths cannot contain both single and double quotes" << std::endl;
+            start_err(std::cout) << "names, titles and template paths cannot contain both single and double quotes" << std::endl;
             return 1;
         }
 
         if(cExt == "" || cExt[0] != '.')
         {
-            std::cout << "error: track-dir: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
+            start_err(std::cout) << "track-dir: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
             return 1;
         }
         else if(oExt == "" || oExt[0] != '.')
         {
-            std::cout << "error: track-dir: output extension " << quote(oExt) << " must start with a fullstop" << std::endl;
+            start_err(std::cout) << "track-dir: output extension " << quote(oExt) << " must start with a fullstop" << std::endl;
             return 1;
         }
 
@@ -1197,7 +1424,7 @@ int ProjectInfo::track(const std::vector<InfoToTrack>& toTrack)
 
         if(newInfo.contentPath == newInfo.templatePath)
         {
-            std::cout << "error: content and template paths cannot be the same, not tracked" << std::endl;
+            start_err(std::cout) << "content and template paths cannot be the same, not tracked" << std::endl;
             return 1;
         }
 
@@ -1205,27 +1432,30 @@ int ProjectInfo::track(const std::vector<InfoToTrack>& toTrack)
         {
             TrackedInfo cInfo = *(trackedAll.find(newInfo));
 
-            std::cout << "error: Nift is already tracking " << newInfo.outputPath << std::endl;
-            std::cout << "----- current tracked details -----" << std::endl;
+            start_err(std::cout) << "Nift is already tracking " << newInfo.outputPath << std::endl;
+            std::cout << "---- current tracked details ----" << std::endl;
             std::cout << "        title: " << cInfo.title << std::endl;
             std::cout << "  output path: " << cInfo.outputPath << std::endl;
             std::cout << " content path: " << cInfo.contentPath << std::endl;
             std::cout << "template path: " << cInfo.templatePath << std::endl;
-            std::cout << "--------------------------------" << std::endl;
+            std::cout << "---------------------------------" << std::endl;
 
             return 1;
         }
 
         //throws error if template path doesn't exist
-        if(!std::ifstream(newInfo.templatePath.str()))
+        bool blankTemplate = 0;
+        if(newInfo.templatePath.str() == "")
+            blankTemplate = 1;
+        if(!blankTemplate && !file_exists(newInfo.templatePath.str()))
         {
-            std::cout << "error: template path " << newInfo.templatePath << " does not exist" << std::endl;
+            start_err(std::cout) << "template path " << newInfo.templatePath << " does not exist" << std::endl;
             return 1;
         }
 
-        if(std::ifstream(newInfo.outputPath.str()))
+        if(path_exists(newInfo.outputPath.str()))
         {
-            std::cout << "error: new output path " << newInfo.outputPath << " already exists" << std::endl;
+            start_err(std::cout) << "new output path " << newInfo.outputPath << " already exists" << std::endl;
             return 1;
         }
     }
@@ -1246,6 +1476,7 @@ int ProjectInfo::track(const std::vector<InfoToTrack>& toTrack)
 
             Path extPath = newInfo.outputPath.getInfoPath();
             extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
+            extPath.ensureFileExists();
             std::ofstream ofs(extPath.str());
             ofs << cExt << std::endl;
             ofs.close();
@@ -1257,20 +1488,21 @@ int ProjectInfo::track(const std::vector<InfoToTrack>& toTrack)
 
             Path extPath = newInfo.outputPath.getInfoPath();
             extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
+            extPath.ensureFileExists();
             std::ofstream ofs(extPath.str());
             ofs << oExt << std::endl;
             ofs.close();
         }
 
-        if(!std::ifstream(newInfo.contentPath.str()))
+        if(!file_exists(newInfo.contentPath.str()))
         {
             newInfo.contentPath.ensureFileExists();
             //chmod(newInfo.contentPath.str().c_str(), 0666);
         }
 
         //ensures directories for output file and info file exist
-        newInfo.outputPath.ensureDirExists();
-        newInfo.outputPath.getInfoPath().ensureDirExists();
+        //newInfo.outputPath.ensureDirExists();
+        //newInfo.outputPath.getInfoPath().ensureDirExists();
 
         //inserts new info into trackedAll set
         trackedAll.insert(newInfo);
@@ -1290,7 +1522,7 @@ int ProjectInfo::untrack(const Name& nameToUntrack)
     //checks that name is being tracked
     if(!tracking(nameToUntrack))
     {
-        std::cout << "error: Nift is not tracking " << nameToUntrack << std::endl;
+        start_err(std::cout) << "Nift is not tracking " << nameToUntrack << std::endl;
         return 1;
     }
 
@@ -1299,33 +1531,33 @@ int ProjectInfo::untrack(const Name& nameToUntrack)
     //removes the extension files if they exist
     Path extPath = toErase.outputPath.getInfoPath();
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
-    if(std::ifstream(extPath.str()))
+    if(file_exists(extPath.str()))
     {
         chmod(extPath.str().c_str(), 0666);
         remove_path(extPath);
     }
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
-    if(std::ifstream(extPath.str()))
+    if(file_exists(extPath.str()))
     {
         chmod(extPath.str().c_str(), 0666);
         remove_path(extPath);
     }
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
-    if(std::ifstream(extPath.str()))
+    if(file_exists(extPath.str()))
     {
         chmod(extPath.str().c_str(), 0666);
         remove_path(extPath);
     }
 
     //removes info file and containing dirs if now empty
-    if(std::ifstream(toErase.outputPath.getInfoPath().dir))
+    if(file_exists(toErase.outputPath.getInfoPath().str()))
     {
         chmod(toErase.outputPath.getInfoPath().str().c_str(), 0666);
         remove_path(toErase.outputPath.getInfoPath());
     }
 
     //removes output file and containing dirs if now empty
-    if(std::ifstream(toErase.outputPath.dir))
+    if(file_exists(toErase.outputPath.str()))
     {
         chmod(toErase.outputPath.str().c_str(), 0666);
         remove_path(toErase.outputPath);
@@ -1352,7 +1584,7 @@ int ProjectInfo::untrack(const std::vector<Name>& namesToUntrack)
         //checks that name is being tracked
         if(!tracking(namesToUntrack[p]))
         {
-            std::cout << "error: Nift is not tracking " << namesToUntrack[p] << std::endl;
+            start_err(std::cout) << "Nift is not tracking " << namesToUntrack[p] << std::endl;
             return 1;
         }
     }
@@ -1364,33 +1596,33 @@ int ProjectInfo::untrack(const std::vector<Name>& namesToUntrack)
         //removes the extension files if they exist
         Path extPath = toErase.outputPath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             chmod(extPath.str().c_str(), 0666);
             remove_path(extPath);
         }
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             chmod(extPath.str().c_str(), 0666);
             remove_path(extPath);
         }
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             chmod(extPath.str().c_str(), 0666);
             remove_path(extPath);
         }
 
         //removes info file and containing dirs if now empty
-        if(std::ifstream(toErase.outputPath.getInfoPath().dir))
+        if(file_exists(toErase.outputPath.getInfoPath().str()))
         {
             chmod(toErase.outputPath.getInfoPath().str().c_str(), 0666);
             remove_path(toErase.outputPath.getInfoPath());
         }
 
         //removes output file and containing dirs if now empty
-        if(std::ifstream(toErase.outputPath.dir))
+        if(file_exists(toErase.outputPath.str()))
         {
             chmod(toErase.outputPath.str().c_str(), 0666);
             remove_path(toErase.outputPath);
@@ -1411,9 +1643,9 @@ int ProjectInfo::untrack(const std::vector<Name>& namesToUntrack)
 
 int ProjectInfo::untrack_from_file(const std::string& filePath)
 {
-    if(!std::ifstream(filePath))
+    if(!file_exists(filePath))
     {
-        std::cout << "error: untrack-from-file: untrack-file " << quote(filePath) << " does not exist" << std::endl;
+        start_err(std::cout) << "untrack-from-file: untrack-file " << quote(filePath) << " does not exist" << std::endl;
         return 1;
     }
 
@@ -1434,7 +1666,7 @@ int ProjectInfo::untrack_from_file(const std::string& filePath)
         //checks that name is being tracked
         if(!tracking(nameToUntrack))
         {
-            std::cout << "error: Nift is not tracking " << nameToUntrack << std::endl;
+            start_err(std::cout) << "Nift is not tracking " << nameToUntrack << std::endl;
             return 1;
         }
 
@@ -1449,33 +1681,33 @@ int ProjectInfo::untrack_from_file(const std::string& filePath)
         //removes the extension files if they exist
         Path extPath = toErase.outputPath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             chmod(extPath.str().c_str(), 0666);
             remove_path(extPath);
         }
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             chmod(extPath.str().c_str(), 0666);
             remove_path(extPath);
         }
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             chmod(extPath.str().c_str(), 0666);
             remove_path(extPath);
         }
 
         //removes info file and containing dirs if now empty
-        if(std::ifstream(toErase.outputPath.getInfoPath().dir))
+        if(file_exists(toErase.outputPath.getInfoPath().str()))
         {
             chmod(toErase.outputPath.getInfoPath().str().c_str(), 0666);
             remove_path(toErase.outputPath.getInfoPath());
         }
 
         //removes output file and containing dirs if now empty
-        if(std::ifstream(toErase.outputPath.dir))
+        if(file_exists(toErase.outputPath.str()))
         {
             chmod(toErase.outputPath.str().c_str(), 0666);
             remove_path(toErase.outputPath);
@@ -1500,23 +1732,23 @@ int ProjectInfo::untrack_dir(const Path& dirPath, const std::string& cExt)
 {
     if(dirPath.file != "")
     {
-        std::cout << "error: untrack-dir: directory path " << dirPath << " is to a file not a directory" << std::endl;
+        start_err(std::cout) << "untrack-dir: directory path " << dirPath << " is to a file not a directory" << std::endl;
         return 1;
     }
     else if(dirPath.comparableStr().substr(0, contentDir.size()) != contentDir)
     {
-        std::cout << "error: untrack-dir: cannot untrack from directory " << dirPath << " as it is not a subdirectory of the project-wide content directory " << quote(contentDir) << std::endl;
+        start_err(std::cout) << "untrack-dir: cannot untrack from directory " << dirPath << " as it is not a subdirectory of the project-wide content directory " << quote(contentDir) << std::endl;
         return 1;
     }
-    else if(!std::ifstream(dirPath.str()))
+    else if(!dir_exists(dirPath.str()))
     {
-        std::cout << "error: untrack-dir: directory path " << dirPath << " does not exist" << std::endl;
+        start_err(std::cout) << "untrack-dir: directory path " << dirPath << " does not exist" << std::endl;
         return 1;
     }
 
     if(cExt == "" || cExt[0] != '.')
     {
-        std::cout << "error: untrack-dir: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
+        start_err(std::cout) << "untrack-dir: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
         return 1;
     }
 
@@ -1550,9 +1782,9 @@ int ProjectInfo::untrack_dir(const Path& dirPath, const std::string& cExt)
 
 int ProjectInfo::rm_from_file(const std::string& filePath)
 {
-    if(!std::ifstream(filePath))
+    if(!file_exists(filePath))
     {
-        std::cout << "error: rm-from-file: rm-file " << quote(filePath) << " does not exist" << std::endl;
+        start_err(std::cout) << "rm-from-file: rm-file " << quote(filePath) << " does not exist" << std::endl;
         return 1;
     }
 
@@ -1573,7 +1805,7 @@ int ProjectInfo::rm_from_file(const std::string& filePath)
         //checks that name is being tracked
         if(!tracking(nameToRemove))
         {
-            std::cout << "error: Nift is not tracking " << nameToRemove << std::endl;
+            start_err(std::cout) << "Nift is not tracking " << nameToRemove << std::endl;
             return 1;
         }
 
@@ -1588,40 +1820,40 @@ int ProjectInfo::rm_from_file(const std::string& filePath)
         //removes the extension files if they exist
         Path extPath = toErase.outputPath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             chmod(extPath.str().c_str(), 0666);
             remove_path(extPath);
         }
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             chmod(extPath.str().c_str(), 0666);
             remove_path(extPath);
         }
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             chmod(extPath.str().c_str(), 0666);
             remove_path(extPath);
         }
 
         //removes info file and containing dirs if now empty
-        if(std::ifstream(toErase.outputPath.getInfoPath().dir))
+        if(file_exists(toErase.outputPath.getInfoPath().str()))
         {
             chmod(toErase.outputPath.getInfoPath().str().c_str(), 0666);
             remove_path(toErase.outputPath.getInfoPath());
         }
 
         //removes output file and containing dirs if now empty
-        if(std::ifstream(toErase.outputPath.dir))
+        if(file_exists(toErase.outputPath.str()))
         {
             chmod(toErase.outputPath.str().c_str(), 0666);
             remove_path(toErase.outputPath);
         }
 
         //removes content file and containing dirs if now empty
-        if(std::ifstream(toErase.contentPath.dir))
+        if(file_exists(toErase.contentPath.str()))
         {
             chmod(toErase.contentPath.str().c_str(), 0666);
             remove_path(toErase.contentPath);
@@ -1646,23 +1878,23 @@ int ProjectInfo::rm_dir(const Path& dirPath, const std::string& cExt)
 {
     if(dirPath.file != "")
     {
-        std::cout << "error: rm-dir: directory path " << dirPath << " is to a file not a directory" << std::endl;
+        start_err(std::cout) << "rm-dir: directory path " << dirPath << " is to a file not a directory" << std::endl;
         return 1;
     }
     else if(dirPath.comparableStr().substr(0, contentDir.size()) != contentDir)
     {
-        std::cout << "error: rm-dir: cannot remove from directory " << dirPath << " as it is not a subdirectory of the project-wide content directory " << quote(contentDir) << std::endl;
+        start_err(std::cout) << "rm-dir: cannot remove from directory " << dirPath << " as it is not a subdirectory of the project-wide content directory " << quote(contentDir) << std::endl;
         return 1;
     }
-    else if(!std::ifstream(dirPath.str()))
+    else if(!dir_exists(dirPath.str()))
     {
-        std::cout << "error: rm-dir: directory path " << dirPath << " does not exist" << std::endl;
+        start_err(std::cout) << "rm-dir: directory path " << dirPath << " does not exist" << std::endl;
         return 1;
     }
 
     if(cExt == "" || cExt[0] != '.')
     {
-        std::cout << "error: rm-dir: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
+        start_err(std::cout) << "rm-dir: content extension " << quote(cExt) << " must start with a fullstop" << std::endl;
         return 1;
     }
 
@@ -1699,7 +1931,7 @@ int ProjectInfo::rm(const Name& nameToRemove)
     //checks that name is being tracked
     if(!tracking(nameToRemove))
     {
-        std::cout << "error: Nift is not tracking " << nameToRemove << std::endl;
+        start_err(std::cout) << "Nift is not tracking " << nameToRemove << std::endl;
         return 1;
     }
 
@@ -1708,40 +1940,40 @@ int ProjectInfo::rm(const Name& nameToRemove)
     //removes the extension files if they exist
     Path extPath = toErase.outputPath.getInfoPath();
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
-    if(std::ifstream(extPath.str()))
+    if(file_exists(extPath.str()))
     {
         chmod(extPath.str().c_str(), 0666);
         remove_path(extPath);
     }
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
-    if(std::ifstream(extPath.str()))
+    if(file_exists(extPath.str()))
     {
         chmod(extPath.str().c_str(), 0666);
         remove_path(extPath);
     }
     extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
-    if(std::ifstream(extPath.str()))
+    if(file_exists(extPath.str()))
     {
         chmod(extPath.str().c_str(), 0666);
         remove_path(extPath);
     }
 
     //removes info file and containing dirs if now empty
-    if(std::ifstream(toErase.outputPath.getInfoPath().dir))
+    if(file_exists(toErase.outputPath.getInfoPath().str()))
     {
         chmod(toErase.outputPath.getInfoPath().str().c_str(), 0666);
         remove_path(toErase.outputPath.getInfoPath());
     }
 
     //removes output file and containing dirs if now empty
-    if(std::ifstream(toErase.outputPath.dir))
+    if(file_exists(toErase.outputPath.str()))
     {
         chmod(toErase.outputPath.str().c_str(), 0666);
         remove_path(toErase.outputPath);
     }
 
     //removes content file and containing dirs if now empty
-    if(std::ifstream(toErase.contentPath.dir))
+    if(file_exists(toErase.contentPath.str()))
     {
         chmod(toErase.contentPath.str().c_str(), 0666);
         remove_path(toErase.contentPath);
@@ -1768,7 +2000,7 @@ int ProjectInfo::rm(const std::vector<Name>& namesToRemove)
         //checks that name is being tracked
         if(!tracking(namesToRemove[p]))
         {
-            std::cout << "error: Nift is not tracking " << namesToRemove[p] << std::endl;
+            start_err(std::cout) << "Nift is not tracking " << namesToRemove[p] << std::endl;
             return 1;
         }
     }
@@ -1780,40 +2012,40 @@ int ProjectInfo::rm(const std::vector<Name>& namesToRemove)
         //removes the extension files if they exist
         extPath = toErase.outputPath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             chmod(extPath.str().c_str(), 0666);
             remove_path(extPath);
         }
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             chmod(extPath.str().c_str(), 0666);
             remove_path(extPath);
         }
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             chmod(extPath.str().c_str(), 0666);
             remove_path(extPath);
         }
 
         //removes info file and containing dirs if now empty
-        if(std::ifstream(toErase.outputPath.getInfoPath().dir))
+        if(file_exists(toErase.outputPath.getInfoPath().str()))
         {
             chmod(toErase.outputPath.getInfoPath().str().c_str(), 0666);
             remove_path(toErase.outputPath.getInfoPath());
         }
 
         //removes output file and containing dirs if now empty
-        if(std::ifstream(toErase.outputPath.dir))
+        if(file_exists(toErase.outputPath.str()))
         {
             chmod(toErase.outputPath.str().c_str(), 0666);
             remove_path(toErase.outputPath);
         }
 
         //removes content file and containing dirs if now empty
-        if(std::ifstream(toErase.contentPath.dir))
+        if(file_exists(toErase.contentPath.str()))
         {
             chmod(toErase.contentPath.str().c_str(), 0666);
             remove_path(toErase.contentPath);
@@ -1836,27 +2068,27 @@ int ProjectInfo::mv(const Name& oldName, const Name& newName)
 {
     if(newName.find('.') != std::string::npos)
     {
-        std::cout << "error: new name cannot contain '.'" << std::endl;
+        start_err(std::cout) << "new name cannot contain '.'" << std::endl;
         return 1;
     }
     else if(newName == "")
     {
-        std::cout << "error: new name must be a non-empty string" << std::endl;
+        start_err(std::cout) << "new name must be a non-empty string" << std::endl;
         return 1;
     }
     else if(unquote(newName).find('"') != std::string::npos && unquote(newName).find('\'') != std::string::npos)
     {
-        std::cout << "error: new name cannot contain both single and double quotes" << std::endl;
+        start_err(std::cout) << "new name cannot contain both single and double quotes" << std::endl;
         return 1;
     }
     else if(!tracking(oldName)) //checks old name is being tracked
     {
-        std::cout << "error: Nift is not tracking " << oldName << std::endl;
+        start_err(std::cout) << "Nift is not tracking " << oldName << std::endl;
         return 1;
     }
     else if(tracking(newName)) //checks new name isn't already tracked
     {
-        std::cout << "error: Nift is already tracking " << newName << std::endl;
+        start_err(std::cout) << "Nift is already tracking " << newName << std::endl;
         return 1;
     }
 
@@ -1867,14 +2099,14 @@ int ProjectInfo::mv(const Name& oldName, const Name& newName)
                 cOutputExt = outputExt;
 
     oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".contExt";
-    if(std::ifstream(oldExtPath.str()))
+    if(file_exists(oldExtPath.str()))
     {
         std::ifstream ifs(oldExtPath.str());
         getline(ifs, cContExt);
         ifs.close();
     }
     oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".outputExt";
-    if(std::ifstream(oldExtPath.str()))
+    if(file_exists(oldExtPath.str()))
     {
         std::ifstream ifs(oldExtPath.str());
         getline(ifs, cOutputExt);
@@ -1891,14 +2123,14 @@ int ProjectInfo::mv(const Name& oldName, const Name& newName)
         newInfo.title = oldInfo.title;
     newInfo.templatePath = oldInfo.templatePath;
 
-    if(std::ifstream(newInfo.contentPath.str()))
+    if(path_exists(newInfo.contentPath.str()))
     {
-        std::cout << "error: new content path " << newInfo.contentPath << " already exists" << std::endl;
+        start_err(std::cout) << "new content path " << newInfo.contentPath << " already exists" << std::endl;
         return 1;
     }
-    else if(std::ifstream(newInfo.outputPath.str()))
+    else if(path_exists(newInfo.outputPath.str()))
     {
-        std::cout << "error: new output path " << newInfo.outputPath << " already exists" << std::endl;
+        start_err(std::cout) << "new output path " << newInfo.outputPath << " already exists" << std::endl;
         return 1;
     }
 
@@ -1906,55 +2138,58 @@ int ProjectInfo::mv(const Name& oldName, const Name& newName)
     newInfo.contentPath.ensureDirExists();
     if(rename(oldInfo.contentPath.str().c_str(), newInfo.contentPath.str().c_str()))
     {
-        std::cout << "error: mv: failed to move " << oldInfo.contentPath << " to " << newInfo.contentPath << std::endl;
+        start_err(std::cout) << "mv: failed to move " << oldInfo.contentPath << " to " << newInfo.contentPath << std::endl;
         return 1;
     }
 
     //moves extension files if they exist
     Path newExtPath = newInfo.outputPath.getInfoPath();
     oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".contExt";
-    if(std::ifstream(oldExtPath.str()))
+    if(file_exists(oldExtPath.str()))
     {
         newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".contExt";
         newExtPath.ensureDirExists();
+        chmod(oldExtPath.str().c_str(), 0666);
         if(rename(oldExtPath.str().c_str(), newExtPath.str().c_str()))
         {
-            std::cout << "error: mv: failed to move " << oldExtPath << " to " << newExtPath << std::endl;
+            start_err(std::cout) << "mv: failed to move " << oldExtPath << " to " << newExtPath << std::endl;
             return 1;
         }
     }
     oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".outputExt";
-    if(std::ifstream(oldExtPath.str()))
+    if(file_exists(oldExtPath.str()))
     {
         newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".outputExt";
         newExtPath.ensureDirExists();
+        chmod(oldExtPath.str().c_str(), 0666);
         if(rename(oldExtPath.str().c_str(), newExtPath.str().c_str()))
         {
-            std::cout << "error: mv: failed to move " << oldExtPath << " to " << newExtPath << std::endl;
+            start_err(std::cout) << "mv: failed to move " << oldExtPath << " to " << newExtPath << std::endl;
             return 1;
         }
     }
     oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".scriptExt";
-    if(std::ifstream(oldExtPath.str()))
+    if(file_exists(oldExtPath.str()))
     {
         newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".scriptExt";
         newExtPath.ensureDirExists();
+        chmod(oldExtPath.str().c_str(), 0666);
         if(rename(oldExtPath.str().c_str(), newExtPath.str().c_str()))
         {
-            std::cout << "error: mv: failed to move " << oldExtPath << " to " << newExtPath << std::endl;
+            start_err(std::cout) << "mv: failed to move " << oldExtPath << " to " << newExtPath << std::endl;
             return 1;
         }
     }
 
     //removes info file and containing dirs if now empty
-    if(std::ifstream(oldInfo.outputPath.getInfoPath().dir))
+    if(file_exists(oldInfo.outputPath.getInfoPath().str()))
     {
         chmod(oldInfo.outputPath.getInfoPath().str().c_str(), 0666);
         remove_path(oldInfo.outputPath.getInfoPath());
     }
 
     //removes output file and containing dirs if now empty
-    if(std::ifstream(oldInfo.outputPath.dir))
+    if(file_exists(oldInfo.outputPath.str()))
     {
         chmod(oldInfo.outputPath.str().c_str(), 0666);
         remove_path(oldInfo.outputPath);
@@ -1978,27 +2213,27 @@ int ProjectInfo::cp(const Name& trackedName, const Name& newName)
 {
     if(newName.find('.') != std::string::npos)
     {
-        std::cout << "error: new name cannot contain '.'" << std::endl;
+        start_err(std::cout) << "new name cannot contain '.'" << std::endl;
         return 1;
     }
     else if(newName == "")
     {
-        std::cout << "error: new name must be a non-empty string" << std::endl;
+        start_err(std::cout) << "new name must be a non-empty string" << std::endl;
         return 1;
     }
     else if(unquote(newName).find('"') != std::string::npos && unquote(newName).find('\'') != std::string::npos)
     {
-        std::cout << "error: new name cannot contain both single and double quotes" << std::endl;
+        start_err(std::cout) << "new name cannot contain both single and double quotes" << std::endl;
         return 1;
     }
     else if(!tracking(trackedName)) //checks old name is being tracked
     {
-        std::cout << "error: Nift is not tracking " << trackedName << std::endl;
+        start_err(std::cout) << "Nift is not tracking " << trackedName << std::endl;
         return 1;
     }
     else if(tracking(newName)) //checks new name isn't already tracked
     {
-        std::cout << "error: Nift is already tracking " << newName << std::endl;
+        start_err(std::cout) << "Nift is already tracking " << newName << std::endl;
         return 1;
     }
 
@@ -2009,14 +2244,14 @@ int ProjectInfo::cp(const Name& trackedName, const Name& newName)
                 cOutputExt = outputExt;
 
     oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".contExt";
-    if(std::ifstream(oldExtPath.str()))
+    if(file_exists(oldExtPath.str()))
     {
         std::ifstream ifs(oldExtPath.str());
         getline(ifs, cContExt);
         ifs.close();
     }
     oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".outputExt";
-    if(std::ifstream(oldExtPath.str()))
+    if(file_exists(oldExtPath.str()))
     {
         std::ifstream ifs(oldExtPath.str());
         getline(ifs, cOutputExt);
@@ -2033,58 +2268,58 @@ int ProjectInfo::cp(const Name& trackedName, const Name& newName)
         newInfo.title = trackedInfo.title;
     newInfo.templatePath = trackedInfo.templatePath;
 
-    if(std::ifstream(newInfo.contentPath.str()))
+    if(path_exists(newInfo.contentPath.str()))
     {
-        std::cout << "error: new content path " << newInfo.contentPath << " already exists" << std::endl;
+        start_err(std::cout) << "new content path " << newInfo.contentPath << " already exists" << std::endl;
         return 1;
     }
-    else if(std::ifstream(newInfo.outputPath.str()))
+    else if(path_exists(newInfo.outputPath.str()))
     {
-        std::cout << "error: new output path " << newInfo.outputPath << " already exists" << std::endl;
+        start_err(std::cout) << "new output path " << newInfo.outputPath << " already exists" << std::endl;
         return 1;
     }
 
     //copies content file
     if(cpFile(trackedInfo.contentPath.str(), newInfo.contentPath.str()))
     {
-        std::cout << "error: cp: failed to copy " << trackedInfo.contentPath << " to " << newInfo.contentPath << std::endl;
+        start_err(std::cout) << "cp: failed to copy " << trackedInfo.contentPath << " to " << newInfo.contentPath << std::endl;
         return 1;
     }
 
     //copies extension files if they exist
     Path newExtPath = newInfo.outputPath.getInfoPath();
     oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".contExt";
-    if(std::ifstream(oldExtPath.str()))
+    if(file_exists(oldExtPath.str()))
     {
         newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".contExt";
         newExtPath.ensureDirExists();
         if(cpFile(oldExtPath.str(), newExtPath.str()))
         {
-            std::cout << "error: cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
+            start_err(std::cout) << "cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
             return 1;
         }
         chmod(newExtPath.str().c_str(), 0444);
     }
     oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".outputExt";
-    if(std::ifstream(oldExtPath.str()))
+    if(file_exists(oldExtPath.str()))
     {
         newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".outputExt";
         newExtPath.ensureDirExists();
         if(cpFile(oldExtPath.str(), newExtPath.str()))
         {
-            std::cout << "error: cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
+            start_err(std::cout) << "cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
             return 1;
         }
         chmod(newExtPath.str().c_str(), 0444);
     }
     oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".scriptExt";
-    if(std::ifstream(oldExtPath.str()))
+    if(file_exists(oldExtPath.str()))
     {
         newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".scriptExt";
         newExtPath.ensureDirExists();
         if(cpFile(oldExtPath.str(), newExtPath.str()))
         {
-            std::cout << "error: cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
+            start_err(std::cout) << "cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
             return 1;
         }
         chmod(newExtPath.str().c_str(), 0444);
@@ -2106,12 +2341,12 @@ int ProjectInfo::new_title(const Name& name, const Title& newTitle)
 {
     if(newTitle.str == "")
     {
-        std::cout << "error: new title must be a non-empty string" << std::endl;
+        start_err(std::cout) << "new title must be a non-empty string" << std::endl;
         return 1;
     }
     else if(unquote(newTitle.str).find('"') != std::string::npos && unquote(newTitle.str).find('\'') != std::string::npos)
     {
-        std::cout << "error: new title cannot contain both single and double quotes" << std::endl;
+        start_err(std::cout) << "new title cannot contain both single and double quotes" << std::endl;
         return 1;
     }
 
@@ -2132,7 +2367,7 @@ int ProjectInfo::new_title(const Name& name, const Title& newTitle)
     }
     else
     {
-        std::cout << "error: Nift is not tracking " << quote(name) << std::endl;
+        start_err(std::cout) << "Nift is not tracking " << quote(name) << std::endl;
         return 1;
     }
 
@@ -2141,14 +2376,17 @@ int ProjectInfo::new_title(const Name& name, const Title& newTitle)
 
 int ProjectInfo::new_template(const Path& newTemplatePath)
 {
+    bool blankTemplate = 0;
     if(newTemplatePath == Path("", ""))
-    {
-        std::cout << "error: new template path must be a non-empty string" << std::endl;
-        return 1;
-    }
+        blankTemplate = 1;
     else if(unquote(newTemplatePath.str()).find('"') != std::string::npos && unquote(newTemplatePath.str()).find('\'') != std::string::npos)
     {
-        std::cout << "error: new template path cannot contain both single and double quotes" << std::endl;
+        start_err(std::cout) << "new template path cannot contain both single and double quotes" << std::endl;
+        return 1;
+    }
+    else if(defaultTemplate == newTemplatePath)
+    {
+        start_err(std::cout) << "default template path is already " << defaultTemplate << std::endl;
         return 1;
     }
 
@@ -2178,10 +2416,10 @@ int ProjectInfo::new_template(const Path& newTemplatePath)
     defaultTemplate = newTemplatePath;
 
     //saves new default template to Nift config file
-    save_config();
+    save_local_config();
 
     //warns user if new template path doesn't exist
-    if(!std::ifstream(newTemplatePath.str()))
+    if(!blankTemplate && !file_exists(newTemplatePath.str()))
         std::cout << "warning: new template path " << newTemplatePath << " does not exist" << std::endl;
 
     std::cout << "successfully changed default template to " << newTemplatePath << std::endl;
@@ -2191,14 +2429,12 @@ int ProjectInfo::new_template(const Path& newTemplatePath)
 
 int ProjectInfo::new_template(const Name& name, const Path& newTemplatePath)
 {
+    bool blankTemplate = 0;
     if(newTemplatePath == Path("", ""))
-    {
-        std::cout << "error: new template path must be a non-empty string" << std::endl;
-        return 1;
-    }
+        blankTemplate = 1;
     else if(unquote(newTemplatePath.str()).find('"') != std::string::npos && unquote(newTemplatePath.str()).find('\'') != std::string::npos)
     {
-        std::cout << "error: new template path cannot contain both single and double quotes" << std::endl;
+        start_err(std::cout) << "new template path cannot contain both single and double quotes" << std::endl;
         return 1;
     }
 
@@ -2207,6 +2443,13 @@ int ProjectInfo::new_template(const Name& name, const Path& newTemplatePath)
     if(trackedAll.count(cInfo))
     {
         cInfo = *(trackedAll.find(cInfo));
+
+        if(cInfo.templatePath == newTemplatePath)
+        {
+            start_err(std::cout) << "template path for " << name << " is already " << newTemplatePath << std::endl;
+            return 1;
+        }
+
         trackedAll.erase(cInfo);
         cInfo.templatePath = newTemplatePath;
         trackedAll.insert(cInfo);
@@ -2214,12 +2457,12 @@ int ProjectInfo::new_template(const Name& name, const Path& newTemplatePath)
         save_tracking();
 
         //warns user if new template path doesn't exist
-        if(!std::ifstream(newTemplatePath.str()))
+        if(!blankTemplate && !file_exists(newTemplatePath.str()))
             std::cout << "warning: new template path " << newTemplatePath << " does not exist" << std::endl;
     }
     else
     {
-        std::cout << "error: Nift is not tracking " << name << std::endl;
+        start_err(std::cout) << "Nift is not tracking " << name << std::endl;
         return 1;
     }
 
@@ -2230,38 +2473,38 @@ int ProjectInfo::new_output_dir(const Directory& newOutputDir)
 {
     if(newOutputDir == "")
     {
-        std::cout << "error: new output directory cannot be the empty string" << std::endl;
+        start_err(std::cout) << "new output directory cannot be the empty string" << std::endl;
         return 1;
     }
     else if(unquote(newOutputDir).find('"') != std::string::npos && unquote(newOutputDir).find('\'') != std::string::npos)
     {
-        std::cout << "error: new output directory cannot contain both single and double quotes" << std::endl;
+        start_err(std::cout) << "new output directory cannot contain both single and double quotes" << std::endl;
         return 1;
     }
 
     if(newOutputDir[newOutputDir.size()-1] != '/' && newOutputDir[newOutputDir.size()-1] != '\\')
     {
-        std::cout << "error: new output directory should end in \\ or /" << std::endl;
+        start_err(std::cout) << "new output directory should end in \\ or /" << std::endl;
         return 1;
     }
 
     if(newOutputDir == outputDir)
     {
-        std::cout << "error: output directory is already " << quote(newOutputDir) << std::endl;
+        start_err(std::cout) << "output directory is already " << quote(newOutputDir) << std::endl;
         return 1;
     }
 
-    if(std::ifstream(newOutputDir) || std::ifstream(newOutputDir.substr(0, newOutputDir.size()-1)))
+    if(path_exists(newOutputDir) || path_exists(newOutputDir.substr(0, newOutputDir.size()-1)))
     {
-        std::cout << "error: new output directory location " << quote(newOutputDir) << " already exists" << std::endl;
+        start_err(std::cout) << "new output directory location " << quote(newOutputDir) << " already exists" << std::endl;
         return 1;
     }
 
     std::string newInfoDir = ".nsm/" + newOutputDir;
 
-    if(std::ifstream(newInfoDir) || std::ifstream(newInfoDir.substr(0, newInfoDir.size()-1)))
+    if(path_exists(newInfoDir) || path_exists(newInfoDir.substr(0, newInfoDir.size()-1)))
     {
-        std::cout << "error: new info directory location " << quote(newInfoDir) << " already exists" << std::endl;
+        start_err(std::cout) << "new info directory location " << quote(newInfoDir) << " already exists" << std::endl;
         return 1;
     }
 
@@ -2273,14 +2516,14 @@ int ProjectInfo::new_output_dir(const Directory& newOutputDir)
     int ret_val = chdir(outputDir.c_str());
     if(ret_val)
     {
-        std::cout << "error: ProjectInfo.cpp: new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(outputDir) << " from " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(outputDir) << " from " << quote(get_pwd()) << std::endl;
         return ret_val;
     }
 
     ret_val = chdir(parDir.c_str());
     if(ret_val)
     {
-        std::cout << "error: ProjectInfo.cpp: new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
         return ret_val;
     }
 
@@ -2288,7 +2531,7 @@ int ProjectInfo::new_output_dir(const Directory& newOutputDir)
     ret_val = chdir(projectRootDir.c_str());
     if(ret_val)
     {
-        std::cout << "error: ProjectInfo.cpp: new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
         return ret_val;
     }
 
@@ -2304,7 +2547,7 @@ int ProjectInfo::new_output_dir(const Directory& newOutputDir)
     //deletes any remaining empty directories
     if(remove_path(Path(delDir, "")))
     {
-        std::cout << "error: ProjectInfo.cpp: new_output_dir(" << quote(newOutputDir) << "): failed to remove " << quote(delDir) << std::endl;
+        start_err(std::cout) << "new_output_dir(" << quote(newOutputDir) << "): failed to remove " << quote(delDir) << std::endl;
         return 1;
     }
 
@@ -2312,21 +2555,21 @@ int ProjectInfo::new_output_dir(const Directory& newOutputDir)
     ret_val = chdir(projectRootDir.c_str());
     if(ret_val)
     {
-        std::cout << "error: ProjectInfo.cpp: new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
         return ret_val;
     }
 
     ret_val = chdir((".nsm/" + outputDir).c_str());
     if(ret_val)
     {
-        std::cout << "error: ProjectInfo.cpp: new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(".nsm/" + outputDir) << " from " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(".nsm/" + outputDir) << " from " << quote(get_pwd()) << std::endl;
         return ret_val;
     }
 
     ret_val = chdir(parDir.c_str());
     if(ret_val)
     {
-        std::cout << "error: ProjectInfo.cpp: new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
         return ret_val;
     }
 
@@ -2334,7 +2577,7 @@ int ProjectInfo::new_output_dir(const Directory& newOutputDir)
     ret_val = chdir(projectRootDir.c_str());
     if(ret_val)
     {
-        std::cout << "error: ProjectInfo.cpp: new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
         return ret_val;
     }
 
@@ -2350,7 +2593,7 @@ int ProjectInfo::new_output_dir(const Directory& newOutputDir)
     //deletes any remaining empty directories
     if(remove_path(Path(delDir, "")))
     {
-        std::cout << "error: ProjectInfo.cpp: new_output_dir(" << quote(newOutputDir) << "): failed to remove " << quote(delDir) << std::endl;
+        start_err(std::cout) << "new_output_dir(" << quote(newOutputDir) << "): failed to remove " << quote(delDir) << std::endl;
         return 1;
     }
 
@@ -2358,7 +2601,7 @@ int ProjectInfo::new_output_dir(const Directory& newOutputDir)
     ret_val = chdir(projectRootDir.c_str());
     if(ret_val)
     {
-        std::cout << "error: ProjectInfo.cpp: new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "new_output_dir(" << quote(newOutputDir) << "): failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
         return ret_val;
     }
 
@@ -2366,7 +2609,7 @@ int ProjectInfo::new_output_dir(const Directory& newOutputDir)
     outputDir = newOutputDir;
 
     //saves new output directory to Nift config file
-    save_config();
+    save_local_config();
 
     std::cout << "successfully changed output directory to " << quote(newOutputDir) << std::endl;
 
@@ -2377,30 +2620,30 @@ int ProjectInfo::new_content_dir(const Directory& newContDir)
 {
     if(newContDir == "")
     {
-        std::cout << "error: new content directory cannot be the empty string" << std::endl;
+        start_err(std::cout) << "new content directory cannot be the empty string" << std::endl;
         return 1;
     }
     else if(unquote(newContDir).find('"') != std::string::npos && unquote(newContDir).find('\'') != std::string::npos)
     {
-        std::cout << "error: new content directory cannot contain both single and double quotes" << std::endl;
+        start_err(std::cout) << "new content directory cannot contain both single and double quotes" << std::endl;
         return 1;
     }
 
     if(newContDir[newContDir.size()-1] != '/' && newContDir[newContDir.size()-1] != '\\')
     {
-        std::cout << "error: new content directory should end in \\ or /" << std::endl;
+        start_err(std::cout) << "new content directory should end in \\ or /" << std::endl;
         return 1;
     }
 
     if(newContDir == contentDir)
     {
-        std::cout << "error: content directory is already " << quote(newContDir) << std::endl;
+        start_err(std::cout) << "content directory is already " << quote(newContDir) << std::endl;
         return 1;
     }
 
-    if(std::ifstream(newContDir) || std::ifstream(newContDir.substr(0, newContDir.size()-1)))
+    if(path_exists(newContDir) || path_exists(newContDir.substr(0, newContDir.size()-1)))
     {
-        std::cout << "error: new content directory location " << quote(newContDir) << " already exists" << std::endl;
+        start_err(std::cout) << "new content directory location " << quote(newContDir) << " already exists" << std::endl;
         return 1;
     }
 
@@ -2412,14 +2655,14 @@ int ProjectInfo::new_content_dir(const Directory& newContDir)
     int ret_val = chdir(contentDir.c_str());
     if(ret_val)
     {
-        std::cout << "error: ProjectInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(contentDir) << " from " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(contentDir) << " from " << quote(get_pwd()) << std::endl;
         return ret_val;
     }
 
     ret_val = chdir(parDir.c_str());
     if(ret_val)
     {
-        std::cout << "error: ProjectInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
         return ret_val;
     }
 
@@ -2427,7 +2670,7 @@ int ProjectInfo::new_content_dir(const Directory& newContDir)
     ret_val = chdir(projectRootDir.c_str());
     if(ret_val)
     {
-        std::cout << "error: ProjectInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
         return ret_val;
     }
 
@@ -2443,7 +2686,7 @@ int ProjectInfo::new_content_dir(const Directory& newContDir)
     //deletes any remaining empty directories
     if(remove_path(Path(delDir, "")))
     {
-        std::cout << "error: ProjectInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to remove " << quote(delDir) << std::endl;
+        start_err(std::cout) << "new_content_dir(" << quote(newContDir) << "): failed to remove " << quote(delDir) << std::endl;
         return 1;
     }
 
@@ -2451,7 +2694,7 @@ int ProjectInfo::new_content_dir(const Directory& newContDir)
     ret_val = chdir(projectRootDir.c_str());
     if(ret_val)
     {
-        std::cout << "error: ProjectInfo.cpp: new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "new_content_dir(" << quote(newContDir) << "): failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
         return ret_val;
     }
 
@@ -2459,7 +2702,7 @@ int ProjectInfo::new_content_dir(const Directory& newContDir)
     contentDir = newContDir;
 
     //saves new content directory to Nift config file
-    save_config();
+    save_local_config();
 
     std::cout << "successfully changed content directory to " << quote(newContDir) << std::endl;
 
@@ -2470,13 +2713,13 @@ int ProjectInfo::new_content_ext(const std::string& newExt)
 {
     if(newExt == "" || newExt[0] != '.')
     {
-        std::cout << "error: content extension must start with a fullstop" << std::endl;
+        start_err(std::cout) << "content extension must start with a fullstop" << std::endl;
         return 1;
     }
 
     if(newExt == contentExt)
     {
-        std::cout << "error: content extension is already " << quote(contentExt) << std::endl;
+        start_err(std::cout) << "content extension is already " << quote(contentExt) << std::endl;
         return 1;
     }
 
@@ -2487,9 +2730,9 @@ int ProjectInfo::new_content_ext(const std::string& newExt)
         newContPath = trackedInfo->contentPath;
         newContPath.file = newContPath.file.substr(0, newContPath.file.find_first_of('.')) + newExt;
 
-        if(std::ifstream(newContPath.str()))
+        if(path_exists(newContPath.str()))
         {
-            std::cout << "error: new content path " << newContPath << " already exists" << std::endl;
+            start_err(std::cout) << "new content path " << newContPath << " already exists" << std::endl;
             return 1;
         }
     }
@@ -2500,7 +2743,7 @@ int ProjectInfo::new_content_ext(const std::string& newExt)
         extPath = trackedInfo->outputPath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
 
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             std::ifstream ifs(extPath.str());
             std::string oldExt;
@@ -2517,7 +2760,7 @@ int ProjectInfo::new_content_ext(const std::string& newExt)
         else
         {
             //moves the content file
-            if(std::ifstream(trackedInfo->contentPath.str()))
+            if(file_exists(trackedInfo->contentPath.str())) //should we throw an error here if it doesn't exit?
             {
                 newContPath = trackedInfo->contentPath;
                 newContPath.file = newContPath.file.substr(0, newContPath.file.find_first_of('.')) + newExt;
@@ -2529,7 +2772,7 @@ int ProjectInfo::new_content_ext(const std::string& newExt)
 
     contentExt = newExt;
 
-    save_config();
+    save_local_config();
 
     //informs user that content extension was successfully changed
     std::cout << "successfully changed content extension to " << quote(newExt) << std::endl;
@@ -2541,7 +2784,7 @@ int ProjectInfo::new_content_ext(const Name& name, const std::string& newExt)
 {
     if(newExt == "" || newExt[0] != '.')
     {
-        std::cout << "error: content extension must start with a fullstop" << std::endl;
+        start_err(std::cout) << "content extension must start with a fullstop" << std::endl;
         return 1;
     }
 
@@ -2556,21 +2799,21 @@ int ProjectInfo::new_content_ext(const Name& name, const std::string& newExt)
 
         if(oldExt == newExt)
         {
-            std::cout << "error: content extension for " << quote(name) << " is already " << quote(oldExt) << std::endl;
+            start_err(std::cout) << "content extension for " << quote(name) << " is already " << quote(oldExt) << std::endl;
             return 1;
         }
 
         //throws error if new content file already exists
         newContPath = cInfo.contentPath;
         newContPath.file = newContPath.file.substr(0, newContPath.file.find_first_of('.')) + newExt;
-        if(std::ifstream(newContPath.str()))
+        if(path_exists(newContPath.str()))
         {
-            std::cout << "error: new content path " << newContPath << " already exists" << std::endl;
+            start_err(std::cout) << "new content path " << newContPath << " already exists" << std::endl;
             return 1;
         }
 
         //moves the content file
-        if(std::ifstream(cInfo.contentPath.str()))
+        if(file_exists(cInfo.contentPath.str()))
         {
             if(newContPath.str() != cInfo.contentPath.str())
                 rename(cInfo.contentPath.str().c_str(), newContPath.str().c_str());
@@ -2584,6 +2827,7 @@ int ProjectInfo::new_content_ext(const Name& name, const std::string& newExt)
             //makes sure we can write to ext file
             chmod(extPath.str().c_str(), 0644);
 
+            extPath.ensureFileExists();
             std::ofstream ofs(extPath.str());
             ofs << newExt << "\n";
             ofs.close();
@@ -2593,16 +2837,17 @@ int ProjectInfo::new_content_ext(const Name& name, const std::string& newExt)
         }
         else
         {
-            if(remove_path(extPath))
+            chmod(extPath.str().c_str(), 0644);
+            if(file_exists(extPath.str()) && remove_path(extPath))
             {
-                std::cout << "error: faield to remove content extension path " << extPath << std::endl;
+                start_err(std::cout) << "faield to remove content extension path " << extPath << std::endl;
                 return 1;
             }
         }
     }
     else
     {
-        std::cout << "error: Nift is not tracking " << quote(name) << std::endl;
+        start_err(std::cout) << "Nift is not tracking " << quote(name) << std::endl;
         return 1;
     }
 
@@ -2613,13 +2858,13 @@ int ProjectInfo::new_output_ext(const std::string& newExt)
 {
     if(newExt == "" || newExt[0] != '.')
     {
-        std::cout << "error: output extension must start with a fullstop" << std::endl;
+        start_err(std::cout) << "output extension must start with a fullstop" << std::endl;
         return 1;
     }
 
     if(newExt == outputExt)
     {
-        std::cout << "error: output extension is already " << quote(outputExt) << std::endl;
+        start_err(std::cout) << "output extension is already " << quote(outputExt) << std::endl;
         return 1;
     }
 
@@ -2630,9 +2875,9 @@ int ProjectInfo::new_output_ext(const std::string& newExt)
         newOutputPath = trackedInfo->outputPath;
         newOutputPath.file = newOutputPath.file.substr(0, newOutputPath.file.find_first_of('.')) + newExt;
 
-        if(std::ifstream(newOutputPath.str()))
+        if(path_exists(newOutputPath.str()))
         {
-            std::cout << "error: new output path " << newOutputPath << " already exists" << std::endl;
+            start_err(std::cout) << "new output path " << newOutputPath << " already exists" << std::endl;
             return 1;
         }
     }
@@ -2643,7 +2888,7 @@ int ProjectInfo::new_output_ext(const std::string& newExt)
         extPath = trackedInfo->outputPath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
 
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             std::ifstream ifs(extPath.str());
             std::string oldExt;
@@ -2660,7 +2905,7 @@ int ProjectInfo::new_output_ext(const std::string& newExt)
         else
         {
             //moves the output file
-            if(std::ifstream(trackedInfo->outputPath.str()))
+            if(file_exists(trackedInfo->outputPath.str()))
             {
                 newOutputPath = trackedInfo->outputPath;
                 newOutputPath.file = newOutputPath.file.substr(0, newOutputPath.file.find_first_of('.')) + newExt;
@@ -2672,7 +2917,7 @@ int ProjectInfo::new_output_ext(const std::string& newExt)
 
     outputExt = newExt;
 
-    save_config();
+    save_local_config();
 
     //informs user that output extension was successfully changed
     std::cout << "successfully changed output extension to " << quote(newExt) << std::endl;
@@ -2684,7 +2929,7 @@ int ProjectInfo::new_output_ext(const Name& name, const std::string& newExt)
 {
     if(newExt == "" || newExt[0] != '.')
     {
-        std::cout << "error: output extension must start with a fullstop" << std::endl;
+        start_err(std::cout) << "output extension must start with a fullstop" << std::endl;
         return 1;
     }
 
@@ -2700,21 +2945,21 @@ int ProjectInfo::new_output_ext(const Name& name, const std::string& newExt)
 
         if(oldExt == newExt)
         {
-            std::cout << "error: output extension for " << quote(name) << " is already " << quote(oldExt) << std::endl;
+            start_err(std::cout) << "output extension for " << quote(name) << " is already " << quote(oldExt) << std::endl;
             return 1;
         }
 
         //throws error if new output file already exists
         newOutputPath = cInfo.outputPath;
         newOutputPath.file = newOutputPath.file.substr(0, newOutputPath.file.find_first_of('.')) + newExt;
-        if(std::ifstream(newOutputPath.str()))
+        if(path_exists(newOutputPath.str()))
         {
-            std::cout << "error: new output path " << newOutputPath << " already exists" << std::endl;
+            start_err(std::cout) << "new output path " << newOutputPath << " already exists" << std::endl;
             return 1;
         }
 
         //moves the output file
-        if(std::ifstream(cInfo.outputPath.str()))
+        if(file_exists(cInfo.outputPath.str()))
         {
             if(newOutputPath.str() != cInfo.outputPath.str())
                 rename(cInfo.outputPath.str().c_str(), newOutputPath.str().c_str());
@@ -2728,6 +2973,7 @@ int ProjectInfo::new_output_ext(const Name& name, const std::string& newExt)
             //makes sure we can write to ext file
             chmod(extPath.str().c_str(), 0644);
 
+            extPath.ensureFileExists();
             std::ofstream ofs(extPath.str());
             ofs << newExt << "\n";
             ofs.close();
@@ -2737,16 +2983,17 @@ int ProjectInfo::new_output_ext(const Name& name, const std::string& newExt)
         }
         else
         {
-            if(remove_path(extPath))
+            chmod(extPath.str().c_str(), 0644);
+            if(file_exists(extPath.str()) && remove_path(extPath))
             {
-                std::cout << "error: faield to remove output extension path " << extPath << std::endl;
+                start_err(std::cout) << "faield to remove output extension path " << extPath << std::endl;
                 return 1;
             }
         }
     }
     else
     {
-        std::cout << "error: Nift is not tracking " << quote(name) << std::endl;
+        start_err(std::cout) << "Nift is not tracking " << quote(name) << std::endl;
         return 1;
     }
 
@@ -2757,13 +3004,13 @@ int ProjectInfo::new_script_ext(const std::string& newExt)
 {
     if(newExt != "" && newExt[0] != '.')
     {
-        std::cout << "error: non-empty script extension must start with a fullstop" << std::endl;
+        start_err(std::cout) << "non-empty script extension must start with a fullstop" << std::endl;
         return 1;
     }
 
     if(newExt == scriptExt)
     {
-        std::cout << "error: script extension is already " << quote(scriptExt) << std::endl;
+        start_err(std::cout) << "script extension is already " << quote(scriptExt) << std::endl;
         return 1;
     }
 
@@ -2775,7 +3022,7 @@ int ProjectInfo::new_script_ext(const std::string& newExt)
         extPath = trackedInfo->outputPath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
 
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             std::ifstream ifs(extPath.str());
             std::string oldExt;
@@ -2793,7 +3040,7 @@ int ProjectInfo::new_script_ext(const std::string& newExt)
 
     scriptExt = newExt;
 
-    save_config();
+    save_local_config();
 
     //informs user that script extension was successfully changed
     std::cout << "successfully changed script extension to " << quote(newExt) << std::endl;
@@ -2805,7 +3052,7 @@ int ProjectInfo::new_script_ext(const Name& name, const std::string& newExt)
 {
     if(newExt != "" && newExt[0] != '.')
     {
-        std::cout << "error: non-empty script extension must start with a fullstop" << std::endl;
+        start_err(std::cout) << "non-empty script extension must start with a fullstop" << std::endl;
         return 1;
     }
 
@@ -2817,7 +3064,7 @@ int ProjectInfo::new_script_ext(const Name& name, const std::string& newExt)
         extPath = cInfo.outputPath.getInfoPath();
         extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
 
-        if(std::ifstream(extPath.str()))
+        if(file_exists(extPath.str()))
         {
             std::ifstream ifs(extPath.str());
             getline(ifs, oldExt);
@@ -2828,7 +3075,7 @@ int ProjectInfo::new_script_ext(const Name& name, const std::string& newExt)
 
         if(oldExt == newExt)
         {
-            std::cout << "error: script extension for " << quote(name) << " is already " << quote(oldExt) << std::endl;
+            start_err(std::cout) << "script extension for " << quote(name) << " is already " << quote(oldExt) << std::endl;
             return 1;
         }
 
@@ -2837,6 +3084,7 @@ int ProjectInfo::new_script_ext(const Name& name, const std::string& newExt)
             //makes sure we can write to ext file
             chmod(extPath.str().c_str(), 0644);
 
+            extPath.ensureFileExists();
             std::ofstream ofs(extPath.str());
             ofs << newExt << "\n";
             ofs.close();
@@ -2846,16 +3094,17 @@ int ProjectInfo::new_script_ext(const Name& name, const std::string& newExt)
         }
         else
         {
-            if(remove_path(extPath))
+            chmod(extPath.str().c_str(), 0644);
+            if(file_exists(extPath.str()) && remove_path(extPath))
             {
-                std::cout << "error: faield to remove script extension path " << extPath << std::endl;
+                start_err(std::cout) << "faield to remove script extension path " << extPath << std::endl;
                 return 1;
             }
         }
     }
     else
     {
-        std::cout << "error: Nift is not tracking " << quote(name) << std::endl;
+        start_err(std::cout) << "Nift is not tracking " << quote(name) << std::endl;
         return 1;
     }
 
@@ -2866,40 +3115,55 @@ int ProjectInfo::no_build_threads(int no_threads)
 {
     if(no_threads == 0)
     {
-        std::cout << "error: number of build threads must be a non-zero integer (use negative numbers for a multiple of the number of cores on the machine)" << std::endl;
+        start_err(std::cout) << "number of build threads must be a non-zero integer (use negative numbers for a multiple of the number of cores on the machine)" << std::endl;
         return 1;
     }
 
     if(no_threads == buildThreads)
     {
-        std::cout << "error: number of build threads is already " << buildThreads << std::endl;
+        start_err(std::cout) << "number of build threads is already " << buildThreads << std::endl;
         return 1;
     }
 
     buildThreads = no_threads;
-    save_config();
+    save_local_config();
 
-    std::cout << "successfully changed number of build threads to " << no_threads << std::endl;
+    if(buildThreads < 0)
+        std::cout << "successfully changed number of build threads to " << no_threads << " (" << -buildThreads*std::thread::hardware_concurrency() << " on this machine)" << std::endl;
+    else
+        std::cout << "successfully changed number of build threads to " << no_threads << std::endl;
 
     return 0;
 }
 
 int ProjectInfo::check_watch_dirs()
 {
-    if(std::ifstream(".nsm/.watchinfo/watching.list"))
+    if(file_exists(".nsm/.watchinfo/watching.list"))
     {
         WatchList wl;
         if(wl.open())
         {
-            std::cout << "error: failed to open watch list '.nsm/.watchinfo/watching.list'" << std::endl;
+            start_err(std::cout) << "failed to open watch list '.nsm/.watchinfo/watching.list'" << std::endl;
             return 1;
         }
 
         for(auto wd=wl.dirs.begin(); wd!=wl.dirs.end(); wd++)
         {
             std::string file,
-                        watchDirFilesStr = ".nsm/.watchinfo/" + replace_slashes(wd->watchDir) + ".tracked";
+                        watchDirFilesStr = ".nsm/.watchinfo/" + strip_trailing_slash(wd->watchDir) + ".tracked";
             TrackedInfo cInfo;
+
+            //can delete this later
+            std::string watchDirFilesStrOld = ".nsm/.watchinfo/" + replace_slashes(wd->watchDir) + ".tracked";
+            if(file_exists(watchDirFilesStrOld))
+            {
+                Path(watchDirFilesStr).ensureDirExists();
+                if(rename(watchDirFilesStrOld.c_str(), watchDirFilesStr.c_str()))
+                {
+                    start_err(std::cout) << "failed to rename " << quote(watchDirFilesStrOld) << " to " << quote(watchDirFilesStr) << std::endl;
+                    return 1;
+                }
+            }
 
             std::ifstream ifs(watchDirFilesStr);
             std::vector<Name> namesToRemove;
@@ -2907,7 +3171,7 @@ int ProjectInfo::check_watch_dirs()
             {
                 cInfo = get_info(file);
                 if(cInfo.name != "##not-found##")
-                    if(!std::ifstream(cInfo.contentPath.str()))
+                    if(!file_exists(cInfo.contentPath.str()))
                         namesToRemove.push_back(file);
             }
             ifs.close();
@@ -2916,7 +3180,7 @@ int ProjectInfo::check_watch_dirs()
                 rm(namesToRemove);
 
             std::vector<InfoToTrack> to_track;
-            std::vector<Name> names_tracked;
+            std::set<Name> names_tracked;
             std::string ext;
             Name name;
             size_t pos;
@@ -2934,24 +3198,31 @@ int ProjectInfo::check_watch_dirs()
 
                     if(wd->contExts.count(ext)) //we are watching the extension
                     {
+                        if(names_tracked.count(name))
+                        {
+                            start_err(std::cout) << "watch: two content files with name '" << name << "', one with extension " << quote(ext) << std::endl;
+                            return 1;
+                        }
+
                         if(!tracking(name))
                             to_track.push_back(InfoToTrack(name, Title(name), wd->templatePaths.at(ext), ext, wd->outputExts.at(ext)));
 
-                        names_tracked.push_back(name);
+                        names_tracked.insert(name);
                     }
                 }
             }
 
             if(to_track.size())
-                track(to_track);
+                if(track(to_track))
+                    return 1;
 
             //makes sure we can write to watchDir tracked file
             chmod(watchDirFilesStr.c_str(), 0644);
 
             std::ofstream ofs(watchDirFilesStr);
 
-            for(size_t f=0; f<names_tracked.size(); f++)
-                ofs << quote(names_tracked[f]) << std::endl;
+            for(auto tracked_name=names_tracked.begin(); tracked_name != names_tracked.end(); tracked_name++)
+                ofs << quote(*tracked_name) << std::endl;
 
             ofs.close();
 
@@ -2967,13 +3238,24 @@ std::mutex os_mtx;
 
 int ProjectInfo::build_names(const std::vector<Name>& namesToBuild)
 {
-    check_watch_dirs();
+    if(check_watch_dirs())
+        return 1;
 
-    Parser parser(&trackedAll, &os_mtx, contentDir, outputDir, contentExt, outputExt, scriptExt, defaultTemplate, backupScripts, unixTextEditor, winTextEditor);
+    Parser parser(&trackedAll, 
+                  &os_mtx, 
+                  contentDir, 
+                  outputDir, 
+                  contentExt, 
+                  outputExt, 
+                  scriptExt, 
+                  defaultTemplate, 
+                  backupScripts, 
+                  unixTextEditor, 
+                  winTextEditor);
     std::set<Name> untrackedNames, failedNames;
 
     //checks for pre-build scripts
-    if(run_script(std::cout, "pre-build" + scriptExt, backupScripts, &os_mtx3))
+    if(parser.run_script(std::cout, Path("", "pre-build" + scriptExt), backupScripts, 1))
         return 1;
 
     for(auto name=namesToBuild.begin(); name != namesToBuild.end(); name++)
@@ -3005,10 +3287,10 @@ int ProjectInfo::build_names(const std::vector<Name>& namesToBuild)
     }
     else if(failedNames.size() == 0 && untrackedNames.size() == 0)
     {
-        std::cout << "all " << namesToBuild.size() << " files built successfully" << std::endl;
+        std::cout << namesToBuild.size() << " specified files built successfully" << std::endl;
 
         //checks for post-build scripts
-        if(run_script(std::cout, "post-build" + scriptExt, backupScripts, &os_mtx3))
+        if(parser.run_script(std::cout, Path("", "post-build" + scriptExt), backupScripts, 1))
             return 1;
     }
 
@@ -3019,7 +3301,94 @@ std::mutex fail_mtx, built_mtx, set_mtx;
 std::set<Name> failedNames, builtNames;
 std::set<TrackedInfo>::iterator nextInfo;
 
-std::atomic<int> counter;
+Timer timer;
+std::atomic<int> counter, noFinished;
+std::atomic<int> cPhase;
+const int DUMMY_PHASE = 1;
+const int UPDATE_PHASE = 2;
+const int BUILD_PHASE = 3;
+const int END_PHASE = 4;
+
+void build_progress(const int& no_to_build, const bool& addBuildStatus)
+{
+    if(!addBuildStatus)
+        return;
+
+    int phaseToCheck = cPhase;
+
+    int no_to_build_length = std::to_string(no_to_build).size();
+
+    while(cPhase == phaseToCheck && noFinished < no_to_build)
+    {
+        os_mtx.lock();
+        clear_console_line();
+        double cTime = timer.getTime();
+        std::string remStr = int_to_timestr(cTime*(double)no_to_build/(double)(noFinished+1) - cTime);
+        size_t cWidth = console_width();
+        if(19 + 2*no_to_build_length + remStr.size() <= cWidth)
+        {
+            if(noFinished < no_to_build)
+                std::cout << c_light_blue << "progress: " << c_white << noFinished << "/" << no_to_build << " " << (100*noFinished)/no_to_build << "% (" << remStr << ")";
+        }
+        else if(17 + remStr.size() <= cWidth)
+        {
+            if(noFinished < no_to_build)
+                std::cout << c_light_blue << "progress: " << c_white << (100*noFinished)/no_to_build << "% (" << remStr << ")";
+        }
+        else if(9 + remStr.size() <= cWidth)
+        {
+            if(noFinished < no_to_build)
+                std::cout << c_light_blue << ": " << c_white << (100*noFinished)/no_to_build << "% (" << remStr << ")";
+        }
+        else if(4 <= cWidth)
+        {
+            if(noFinished < no_to_build)
+                std::cout << c_light_blue << (100*noFinished)/no_to_build << "%" << c_white;
+        }
+        //std::cout << std::flush;
+        std::fflush(stdout);
+        //usleep(2000000);
+        usleep(200000);
+        clear_console_line();
+        os_mtx.unlock();
+
+        //usleep(4000000);
+        usleep(10000);
+    }
+}
+
+void build_progress_old(const int& no_to_build, const bool& addBuildStatus)
+{
+    if(!addBuildStatus)
+        return;
+
+    char c = 'a';
+
+    while(counter < no_to_build)
+    {
+        #if defined _WIN32 || defined _WIN64
+            c = _getch();
+        #else
+            enable_raw_mode();
+            c = getchar();
+            disable_raw_mode();
+        #endif // defined
+
+        if(c == 's')
+        {
+            os_mtx.lock();
+            clear_console_line();
+            std::cout << c_light_blue << "progress: " << c_white << counter << "/" << no_to_build << " files (" << (100*counter)/no_to_build << "% done)";
+            //std::cout << std::flush;
+            std::fflush(stdout);
+            usleep(1000000);
+            clear_console_line();
+            os_mtx.unlock();
+        }
+        else if(c == 'K')
+            counter = no_to_build;
+    }
+}
 
 void build_thread(std::ostream& os,
                   std::set<TrackedInfo>* trackedAll,
@@ -3034,7 +3403,17 @@ void build_thread(std::ostream& os,
                   const std::string& UnixTextEditor,
                   const std::string& WinTextEditor)
 {
-    Parser parser(trackedAll, &os_mtx, ContentDir, OutputDir, ContentExt, OutputExt, ScriptExt, DefaultTemplate, BackupScripts, UnixTextEditor, WinTextEditor);
+    Parser parser(trackedAll, 
+                  &os_mtx, 
+                  ContentDir, 
+                  OutputDir, 
+                  ContentExt, 
+                  OutputExt, 
+                  ScriptExt, 
+                  DefaultTemplate, 
+                  BackupScripts, 
+                  UnixTextEditor, 
+                  WinTextEditor);
     std::set<TrackedInfo>::iterator cInfo;
 
     while(counter < no_to_build)
@@ -3061,73 +3440,275 @@ void build_thread(std::ostream& os,
 			builtNames.insert(cInfo->name);
 			built_mtx.unlock();
 		}
+		noFinished++;
     }
 }
 
-int ProjectInfo::build_all()
+/*int ProjectInfo::build_untracked(std::ostream& os, const bool& addBuildStatus, const std::set<TrackedInfo> infoToBuild)
 {
+
+}*/
+
+int ProjectInfo::build_names(std::ostream& os, const bool& addBuildStatus, const std::vector<Name>& namesToBuild)
+{
+    if(check_watch_dirs())
+        return 1;
+
+    std::set<Name> untrackedNames, failedNames;
+
+    std::set<TrackedInfo> trackedInfoToBuild;
+    for(auto name=namesToBuild.begin(); name != namesToBuild.end(); ++name)
+    {
+        if(tracking(*name))
+            trackedInfoToBuild.insert(get_info(*name));
+        else
+            untrackedNames.insert(*name);
+    }
+
+    Parser parser(&trackedAll, 
+                  &os_mtx, 
+                  contentDir, 
+                  outputDir, 
+                  contentExt, 
+                  outputExt, 
+                  scriptExt, 
+                  defaultTemplate, 
+                  backupScripts, 
+                  unixTextEditor, 
+                  winTextEditor);
+
+    //checks for pre-build scripts
+    if(parser.run_script(os, Path("", "pre-build" + scriptExt), backupScripts, 1))
+        return 1;
+
+    nextInfo = trackedInfoToBuild.begin();
+    counter = noFinished = 0;
+
+    os_mtx.lock();
+    clear_console_line();
+    std::cout << "building files.." << std::endl;
+    os_mtx.unlock();
+
+    if(addBuildStatus)
+        timer.start();
+
     int no_threads;
     if(buildThreads < 0)
         no_threads = -buildThreads*std::thread::hardware_concurrency();
     else
         no_threads = buildThreads;
 
-    std::set<Name> untrackedNames;
+    std::vector<std::thread> threads;
+    for(int i=0; i<no_threads; i++)
+        threads.push_back(std::thread(build_thread, 
+                          std::ref(std::cout), 
+                          &trackedAll, 
+                          trackedInfoToBuild.size(), 
+                          contentDir, 
+                          outputDir, 
+                          contentExt, 
+                          outputExt, 
+                          scriptExt, 
+                          defaultTemplate, 
+                          backupScripts, 
+                          unixTextEditor, 
+                          winTextEditor));
 
-    check_watch_dirs();
-
-    //checks for pre-build scripts
-    if(run_script(std::cout, "pre-build" + scriptExt, backupScripts, &os_mtx3))
-        return 1;
-
-    nextInfo = trackedAll.begin();
-    counter = 0;
-
-	std::vector<std::thread> threads;
-	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(build_thread, std::ref(std::cout), &trackedAll, trackedAll.size(), contentDir, outputDir, contentExt, outputExt, scriptExt, defaultTemplate, backupScripts, unixTextEditor, winTextEditor));
+    cPhase = BUILD_PHASE;
+    std::thread thrd(build_progress, trackedInfoToBuild.size(), addBuildStatus);
 
 	for(int i=0; i<no_threads; i++)
 		threads[i].join();
+    cPhase = END_PHASE;
+
+    thrd.detach();
+    //can't lock console here because it gets stalled from build_progress
+    clear_console_line();
+
+    if(failedNames.size() || untrackedNames.size())
+    {
+        if(builtNames.size() == 1)
+            os << builtNames.size() << " specified file built successfully" << std::endl;
+        else
+            os << builtNames.size() << " specified files built successfully" << std::endl;
+    }
+
+    if(failedNames.size())
+    {
+        size_t noToDisplay = std::max(5, -5 + (int)console_height());
+        os << std::endl;
+        os << "---- failed to build ----" << std::endl;
+        if(failedNames.size() < noToDisplay)
+            for(auto fName=failedNames.begin(); fName != failedNames.end(); fName++)
+            {
+                if(&os == &std::cout)
+                    os << " " << c_red << *fName << c_white << std::endl;
+                else
+                    os << " " << *fName << std::endl;
+            }
+        else
+        {
+            size_t x=0;
+            for(auto fName=failedNames.begin(); x < noToDisplay; fName++, x++)
+            {
+                if(&os == &std::cout)
+                    os << " " << c_red << *fName << c_white << std::endl;
+                else
+                    os << " " << *fName << std::endl;
+            }
+            os << " and " << failedNames.size() - noToDisplay << " more" << std::endl;
+        }
+        os << "-------------------------" << std::endl;
+    }
+    if(untrackedNames.size())
+    {
+        size_t noToDisplay = std::max(5, -5 + (int)console_height());
+        os << std::endl;
+        os << "---- not tracking ----" << std::endl;
+        if(untrackedNames.size() < noToDisplay)
+            for(auto uName=untrackedNames.begin(); uName != untrackedNames.end(); uName++)
+            {
+                if(&os == &std::cout)
+                    os << " " << c_red << *uName << c_white << std::endl;
+                else
+                    os << " " << *uName << std::endl;
+            }
+        else
+        {
+            size_t x=0;
+            for(auto uName=untrackedNames.begin(); x < noToDisplay; uName++, x++)
+            {
+                if(&os == &std::cout)
+                    os << " " << c_red << *uName << c_white << std::endl;
+                else
+                    os << " " << *uName << std::endl;
+            }
+            os << " and " << untrackedNames.size() - noToDisplay << " more" << std::endl;
+        }
+        os << "----------------------" << std::endl;
+    }
+
+    if(failedNames.size() == 0 && untrackedNames.size() == 0)
+    {
+        std::cout << "all " << namesToBuild.size() << " specified files built successfully" << std::endl;
+
+        //checks for post-build scripts
+        if(parser.run_script(os, Path("", "post-build" + scriptExt), backupScripts, 1))
+            return 1;
+    }
+
+    return 0;
+}
+
+int ProjectInfo::build_all(std::ostream& os, const bool& addBuildStatus)
+{
+    if(check_watch_dirs())
+        return 1;
+
+    if(trackedAll.size() == 0)
+    {
+        std::cout << "Nift does not have anything tracked" << std::endl;
+        return 0;
+    }
+
+    Parser parser(&trackedAll, 
+                  &os_mtx, 
+                  contentDir, 
+                  outputDir, 
+                  contentExt, 
+                  outputExt, 
+                  scriptExt, 
+                  defaultTemplate, 
+                  backupScripts, 
+                  unixTextEditor, 
+                  winTextEditor);
+
+    //checks for pre-build scripts
+    if(parser.run_script(os, Path("", "pre-build" + scriptExt), backupScripts, 1))
+        return 1;
+
+    nextInfo = trackedAll.begin();
+    counter = noFinished = 0;
+
+    os_mtx.lock();
+    clear_console_line();
+    std::cout << "building project.." << std::endl;
+    os_mtx.unlock();
+
+    if(addBuildStatus)
+        timer.start();
+
+    int no_threads;
+    if(buildThreads < 0)
+        no_threads = -buildThreads*std::thread::hardware_concurrency();
+    else
+        no_threads = buildThreads;
+
+    std::vector<std::thread> threads;
+    for(int i=0; i<no_threads; i++)
+        threads.push_back(std::thread(build_thread, 
+                                      std::ref(std::cout), 
+                                      &trackedAll, 
+                                      trackedAll.size(), 
+                                      contentDir, 
+                                      outputDir, 
+                                      contentExt, 
+                                      outputExt, 
+                                      scriptExt, 
+                                      defaultTemplate, 
+                                      backupScripts, 
+                                      unixTextEditor, 
+                                      winTextEditor));
+
+    cPhase = BUILD_PHASE;
+    std::thread thrd(build_progress, trackedAll.size(), addBuildStatus);
+
+	for(int i=0; i<no_threads; i++)
+		threads[i].join();
+    cPhase = END_PHASE;
+
+    thrd.detach();
+    //can't lock console here because it gets stalled from build_progress
+    clear_console_line();
 
     if(failedNames.size() > 0)
     {
-        std::cout << std::endl;
-        std::cout << "---- following failed to build ----" << std::endl;
-        if(failedNames.size() < 20)
+        if(builtNames.size() == 1)
+            os << builtNames.size() << " output file built successfully" << std::endl;
+        else
+            os << builtNames.size() << " output files built successfully" << std::endl;
+
+        size_t noToDisplay = std::max(5, -5 + (int)console_height());
+        os << std::endl;
+        os << "---- failed to build ----" << std::endl;
+        if(failedNames.size() < noToDisplay)
             for(auto fName=failedNames.begin(); fName != failedNames.end(); fName++)
-                std::cout << " " << *fName << std::endl;
+            {
+                if(&os == &std::cout)
+                    os << " " << c_red << *fName << c_white << std::endl;
+                else
+                    os << " " << *fName << std::endl;
+            }
         else
         {
-            int x=0;
-            for(auto fName=failedNames.begin(); x < 20; fName++, x++)
-                std::cout << " " << *fName << std::endl;
-            std::cout << " along with " << failedNames.size() - 20 << " other names" << std::endl;
+            size_t x=0;
+            for(auto fName=failedNames.begin(); x < noToDisplay; fName++, x++)
+            {
+                if(&os == &std::cout)
+                    os << " " << c_red << *fName << c_white << std::endl;
+                else
+                    os << " " << *fName << std::endl;
+            }
+            os << " and " << failedNames.size() - noToDisplay << " more" << std::endl;
         }
-        std::cout << "-----------------------------------" << std::endl;
-    }
-    else if(untrackedNames.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "---- Nift not tracking following names ----" << std::endl;
-        if(untrackedNames.size() < 20)
-            for(auto uName=untrackedNames.begin(); uName != untrackedNames.end(); uName++)
-                std::cout << " " << *uName << std::endl;
-        else
-        {
-            int x=0;
-            for(auto uName=untrackedNames.begin(); x < 20; uName++, x++)
-                std::cout << " " << *uName << std::endl;
-            std::cout << " along with " << untrackedNames.size() - 20 << " other names" << std::endl;
-        }
-        std::cout << "-------------------------------------------" << std::endl;
+        os << "-------------------------" << std::endl;
     }
     else
     {
-        std::cout << "all " << builtNames.size() << " output files built successfully" << std::endl;
+        os << "all " << builtNames.size() << " output files built successfully" << std::endl;
 
         //checks for post-build scripts
-        if(run_script(std::cout, "post-build" + scriptExt, backupScripts, &os_mtx3))
+        if(parser.run_script(os, Path("", "post-build" + scriptExt), backupScripts, 1))
             return 1;
     }
 
@@ -3140,7 +3721,13 @@ std::set<TrackedInfo> updatedInfo;
 std::set<Path> modifiedFiles,
     removedFiles;
 
-void dep_thread(std::ostream& os, const int& no_to_check, const Directory& contentDir, const Directory& outputDir, const std::string& contentExt, const std::string& outputExt)
+void dep_thread(std::ostream& os,
+                const bool& addExpl,
+                const int& no_to_check,
+                const Directory& contentDir,
+                const Directory& outputDir,
+                const std::string& contentExt,
+                const std::string& outputExt)
 {
     std::set<TrackedInfo>::iterator cInfo;
 
@@ -3157,21 +3744,27 @@ void dep_thread(std::ostream& os, const int& no_to_check, const Directory& conte
         set_mtx.unlock();
 
         //checks whether content and template files exist
-        if(!std::ifstream(cInfo->contentPath.str()))
+        if(!file_exists(cInfo->contentPath.str()))
         {
-            os_mtx.lock();
-            os << cInfo->name << ": content file " << cInfo->contentPath << " does not exist" << std::endl;
-            os_mtx.unlock();
+            if(addExpl)
+            {
+                os_mtx.lock();
+                os << c_purple << cInfo->name << ": " << c_white << "content file " << cInfo->contentPath << " does not exist" << std::endl;
+                os_mtx.unlock();
+            }
             problem_mtx.lock();
             problemNames.insert(cInfo->name);
             problem_mtx.unlock();
             continue;
         }
-        if(!std::ifstream(cInfo->templatePath.str()))
+        if(!file_exists(cInfo->templatePath.str()))
         {
-            os_mtx.lock();
-            os << cInfo->name << ": template file " << cInfo->templatePath << " does not exist" << std::endl;
-            os_mtx.unlock();
+            if(addExpl)
+            {
+                os_mtx.lock();
+                os << c_purple << cInfo->name << ": " << c_white << "template file " << cInfo->templatePath << " does not exist" << std::endl;
+                os_mtx.unlock();
+            }
             problem_mtx.lock();
             problemNames.insert(cInfo->name);
             problem_mtx.unlock();
@@ -3182,11 +3775,14 @@ void dep_thread(std::ostream& os, const int& no_to_check, const Directory& conte
         Path infoPath = cInfo->outputPath.getInfoPath();
 
         //checks whether info path exists
-        if(!std::ifstream(infoPath.str()))
+        if(!file_exists(infoPath.str()))
         {
-            os_mtx.lock();
-            os << cInfo->outputPath << ": yet to be built" << std::endl;
-            os_mtx.unlock();
+            if(addExpl)
+            {
+                os_mtx.lock();
+                os << c_purple << cInfo->outputPath << ": " << c_white << "yet to be built" << std::endl;
+                os_mtx.unlock();
+            }
             updated_mtx.lock();
             updatedInfo.insert(*cInfo);
             updated_mtx.unlock();
@@ -3211,9 +3807,12 @@ void dep_thread(std::ostream& os, const int& no_to_check, const Directory& conte
 
             if(cInfo->name != prevInfo.name)
             {
-                os_mtx.lock();
-                os << cInfo->outputPath << ": name changed to " << cInfo->name << " from " << prevInfo.name << std::endl;
-                os_mtx.unlock();
+                if(addExpl)
+                {
+                    os_mtx.lock();
+                    os << c_purple << cInfo->outputPath << ": " << c_white << "name changed to " << cInfo->name << " from " << prevInfo.name << std::endl;
+                    os_mtx.unlock();
+                }
                 updated_mtx.lock();
                 updatedInfo.insert(*cInfo);
                 updated_mtx.unlock();
@@ -3222,9 +3821,12 @@ void dep_thread(std::ostream& os, const int& no_to_check, const Directory& conte
 
             if(cInfo->title != prevInfo.title)
             {
-                os_mtx.lock();
-                os << cInfo->outputPath << ": title changed to " << cInfo->title << " from " << prevInfo.title << std::endl;
-                os_mtx.unlock();
+                if(addExpl)
+                {
+                    os_mtx.lock();
+                    os << c_purple << cInfo->outputPath << ": " << c_white << "title changed to " << cInfo->title << " from " << prevInfo.title << std::endl;
+                    os_mtx.unlock();
+                }
                 updated_mtx.lock();
                 updatedInfo.insert(*cInfo);
                 updated_mtx.unlock();
@@ -3233,9 +3835,12 @@ void dep_thread(std::ostream& os, const int& no_to_check, const Directory& conte
 
             if(cInfo->templatePath != prevInfo.templatePath)
             {
-                os_mtx.lock();
-                os << cInfo->outputPath << ": template path changed to " << cInfo->templatePath << " from " << prevInfo.templatePath << std::endl;
-                os_mtx.unlock();
+                if(addExpl)
+                {
+                    os_mtx.lock();
+                    os << c_purple << cInfo->outputPath << ": " << c_white << "template path changed to " << cInfo->templatePath << " from " << prevInfo.templatePath << std::endl;
+                    os_mtx.unlock();
+                }
                 updated_mtx.lock();
                 updatedInfo.insert(*cInfo);
                 updated_mtx.unlock();
@@ -3245,11 +3850,14 @@ void dep_thread(std::ostream& os, const int& no_to_check, const Directory& conte
             Path dep;
             while(dep.read_file_path_from(infoStream))
             {
-                if(!std::ifstream(dep.str()))
+                if(!path_exists(dep.str()))
                 {
-                    os_mtx.lock();
-                    os << cInfo->outputPath << ": dep path " << dep << " removed since last build" << std::endl;
-                    os_mtx.unlock();
+                    if(addExpl)
+                    {
+                        os_mtx.lock();
+                        os << c_purple << cInfo->outputPath << ": " << c_white << "dep path " << dep << " removed since last build" << std::endl;
+                        os_mtx.unlock();
+                    }
                     removed_mtx.lock();
                     removedFiles.insert(dep);
                     removed_mtx.unlock();
@@ -3260,9 +3868,12 @@ void dep_thread(std::ostream& os, const int& no_to_check, const Directory& conte
                 }
                 else if(dep.modified_after(infoPath))
                 {
-                    os_mtx.lock();
-                    os << cInfo->outputPath << ": dep path " << dep << " modified since last build" << std::endl;
-                    os_mtx.unlock();
+                    if(addExpl)
+                    {
+                        os_mtx.lock();
+                        os << c_purple << cInfo->outputPath << ": " << c_white << "dep path " << dep << " modified since last build" << std::endl;
+                        os_mtx.unlock();
+                    }
                     modified_mtx.lock();
                     modifiedFiles.insert(dep);
                     modified_mtx.unlock();
@@ -3279,16 +3890,19 @@ void dep_thread(std::ostream& os, const int& no_to_check, const Directory& conte
             Path depsPath = cInfo->contentPath;
             depsPath.file = depsPath.file.substr(0, depsPath.file.find_first_of('.')) + ".deps";
 
-            if(std::ifstream(depsPath.str()))
+            if(file_exists(depsPath.str()))
             {
                 std::ifstream depsFile(depsPath.str());
                 while(dep.read_file_path_from(depsFile))
                 {
-                    if(!std::ifstream(dep.str()))
+                    if(!path_exists(dep.str()))
                     {
-                        os_mtx.lock();
-                        os << cInfo->outputPath << ": user defined dep path " << dep << " does not exist" << std::endl;
-                        os_mtx.unlock();
+                        if(addExpl)
+                        {
+                            os_mtx.lock();
+                            os << c_purple << cInfo->outputPath << ": " << c_white << "user defined dep path " << dep << " does not exist" << std::endl;
+                            os_mtx.unlock();
+                        }
                         removed_mtx.lock();
                         removedFiles.insert(dep);
                         removed_mtx.unlock();
@@ -3299,9 +3913,12 @@ void dep_thread(std::ostream& os, const int& no_to_check, const Directory& conte
                     }
                     else if(dep.modified_after(infoPath))
                     {
-                        os_mtx.lock();
-                        os << cInfo->outputPath << ": user defined dep path " << dep << " modified since last build" << std::endl;
-                        os_mtx.unlock();
+                        if(addExpl)
+                        {
+                            os_mtx.lock();
+                            os << c_purple << cInfo->outputPath << ": " << c_white << "user defined dep path " << dep << " modified since last build" << std::endl;
+                            os_mtx.unlock();
+                        }
                         modified_mtx.lock();
                         modifiedFiles.insert(dep);
                         modified_mtx.unlock();
@@ -3313,12 +3930,297 @@ void dep_thread(std::ostream& os, const int& no_to_check, const Directory& conte
                 }
             }
         }
+
+        noFinished++;
     }
 }
 
-int ProjectInfo::build_updated(std::ostream& os)
+int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, const bool& addExpl, const bool& basicOpt)
 {
-    check_watch_dirs();
+    if(check_watch_dirs())
+        return 1;
+
+    if(trackedAll.size() == 0)
+    {
+        os_mtx.lock();
+        os << "Nift does not have anything tracked" << std::endl;
+        os_mtx.unlock();
+        return 0;
+    }
+
+    builtNames.clear();
+    failedNames.clear();
+    problemNames.clear();
+    updatedInfo.clear();
+    modifiedFiles.clear();
+    removedFiles.clear();
+
+    nextInfo = trackedAll.begin();
+    counter = noFinished = 0;
+
+    if(addBuildStatus)
+    {
+        os_mtx.lock();
+        os << "checking for updates.." << std::endl;
+        os_mtx.unlock();
+    }
+
+    if(addBuildStatus)
+        timer.start();
+
+    int no_threads;
+    if(buildThreads < 0)
+        no_threads = -buildThreads*std::thread::hardware_concurrency();
+    else
+        no_threads = buildThreads;
+
+    std::vector<std::thread> threads;
+	for(int i=0; i<no_threads; i++)
+		threads.push_back(std::thread(dep_thread, 
+                                      std::ref(os), 
+                                      addExpl, 
+                                      trackedAll.size(), 
+                                      contentDir, 
+                                      outputDir, 
+                                      contentExt, 
+                                      outputExt));
+
+    cPhase = UPDATE_PHASE;
+    std::thread thrd(build_progress, trackedAll.size(), addBuildStatus);
+
+	for(int i=0; i<no_threads; i++)
+		threads[i].join();
+    cPhase = DUMMY_PHASE;
+
+    thrd.detach();
+    if(!addBuildStatus)
+        clear_console_line();
+
+    size_t noToDisplay = std::max(5, -5 + (int)console_height());
+
+    if(!basicOpt)
+    {
+        if(removedFiles.size() > 0)
+        {
+            os << std::endl;
+            os << "---- removed dependency files ----" << std::endl;
+            if(removedFiles.size() < noToDisplay)
+                for(auto rFile=removedFiles.begin(); rFile != removedFiles.end(); rFile++)
+                    os << " " << *rFile << std::endl;
+            else
+            {
+                size_t x=0;
+                for(auto rFile=removedFiles.begin(); x < noToDisplay; rFile++, x++)
+                    os << " " << *rFile << std::endl;
+                os << " and " << removedFiles.size() - noToDisplay << " more" << std::endl;
+            }
+            os << "----------------------------------" << std::endl;
+        }
+
+        if(modifiedFiles.size() > 0)
+        {
+            os << std::endl;
+            os << "---- modified dependency files ----" << std::endl;
+            if(modifiedFiles.size() < noToDisplay)
+                for(auto uFile=modifiedFiles.begin(); uFile != modifiedFiles.end(); uFile++)
+                    os << " " << *uFile << std::endl;
+            else
+            {
+                size_t x=0;
+                for(auto uFile=modifiedFiles.begin(); x < noToDisplay; uFile++, x++)
+                    os << " " << *uFile << std::endl;
+                os << " and " << modifiedFiles.size() - noToDisplay << " more" << std::endl;
+            }
+            os << "-----------------------------------" << std::endl;
+        }
+
+        if(problemNames.size() > 0)
+        {
+            os << std::endl;
+            os << "---- missing content/template file ----" << std::endl;
+            if(problemNames.size() < noToDisplay)
+                for(auto pName=problemNames.begin(); pName != problemNames.end(); pName++)
+                {
+                    if(&os == &std::cout)
+                        os << " " << c_red << *pName << c_white << std::endl;
+                    else
+                        os << " " << *pName << std::endl;
+                }
+            else
+            {
+                size_t x=0;
+                for(auto pName=problemNames.begin(); x < noToDisplay; pName++, x++)
+                {
+                    if(&os == &std::cout)
+                        os << " " << c_red << *pName << c_white << std::endl;
+                    else
+                        os << " " << *pName << std::endl;
+                }
+                os << " and " << problemNames.size() - noToDisplay << " more" << std::endl;
+            }
+            os << "---------------------------------------" << std::endl;
+        }
+    }
+
+    if(updatedInfo.size() > 0)
+    {
+        if(!basicOpt)
+        {
+            os << std::endl;
+            os << "---- need building ----" << std::endl;
+            if(updatedInfo.size() < noToDisplay)
+                for(auto uInfo=updatedInfo.begin(); uInfo != updatedInfo.end(); uInfo++)
+                    os << " " << uInfo->outputPath << std::endl;
+            else
+            {
+                size_t x=0;
+                for(auto uInfo=updatedInfo.begin(); x < noToDisplay; uInfo++, x++)
+                    os << " " << uInfo->outputPath << std::endl;
+                os << " and " << updatedInfo.size() - noToDisplay << " more" << std::endl;
+            }
+            os << "-----------------------" << std::endl;
+        }
+
+        Parser parser(&trackedAll, 
+                  &os_mtx, 
+                  contentDir, 
+                  outputDir, 
+                  contentExt, 
+                  outputExt, 
+                  scriptExt, 
+                  defaultTemplate, 
+                  backupScripts, 
+                  unixTextEditor, 
+                  winTextEditor);
+
+        //checks for pre-build scripts
+        if(parser.run_script(os, Path("", "pre-build" + scriptExt), backupScripts, 1))
+            return 1;
+
+        nextInfo = updatedInfo.begin();
+        counter = noFinished = 0;
+
+        os_mtx.lock();
+        clear_console_line();
+        os << "building updated files.." << std::endl;
+        os_mtx.unlock();
+
+        if(addBuildStatus)
+            timer.start();
+
+        threads.clear();
+        for(int i=0; i<no_threads; i++)
+            threads.push_back(std::thread(build_thread, 
+                                          std::ref(os), 
+                                          &trackedAll, 
+                                          updatedInfo.size(), 
+                                          contentDir, 
+                                          outputDir, 
+                                          contentExt, 
+                                          outputExt, 
+                                          scriptExt, 
+                                          defaultTemplate, 
+                                          backupScripts, 
+                                          unixTextEditor, 
+                                          winTextEditor));
+
+        cPhase = BUILD_PHASE;
+        std::thread thrd(build_progress, updatedInfo.size(), addBuildStatus);
+
+        for(int i=0; i<no_threads; i++)
+            threads[i].join();
+        cPhase = END_PHASE;
+
+        thrd.detach();
+        clear_console_line();
+
+        if(failedNames.size() > 0)
+        {
+            if(builtNames.size() == 1)
+                os << builtNames.size() << " output file built successfully" << std::endl;
+            else
+                os << builtNames.size() << " output files built successfully" << std::endl;
+
+            os << std::endl;
+            os << "---- failed to build ----" << std::endl;
+            if(failedNames.size() < noToDisplay)
+                for(auto fName=failedNames.begin(); fName != failedNames.end(); fName++)
+                {
+                    if(&os == &std::cout)
+                        os << " " << c_red << *fName << c_white << std::endl;
+                    else
+                        os << " " << *fName << std::endl;
+                }
+            else
+            {
+                size_t x=0;
+                for(auto fName=failedNames.begin(); x < noToDisplay; fName++, x++)
+                {
+                    if(&os == &std::cout)
+                        os << " " << c_red << *fName << c_white << std::endl;
+                    else
+                        os << " " << *fName << std::endl;
+                }
+                os << " and " << failedNames.size() - noToDisplay << " more" << std::endl;
+            }
+            os << "-------------------------" << std::endl;
+        }
+        else
+        {
+            if(basicOpt)
+                os << builtNames.size() << " output files built successfully" << std::endl;
+            else if(builtNames.size() > 0)
+            {
+                os << std::endl;
+                os << "---- successfully built ----" << std::endl;
+                if(builtNames.size() < noToDisplay)
+                    for(auto bName=builtNames.begin(); bName != builtNames.end(); bName++)
+                    {
+                        if(&os == &std::cout)
+                            os << " " << c_green << *bName << c_white << std::endl;
+                        else
+                            os << " " << *bName << std::endl;
+                    }
+                else
+                {
+                    size_t x=0;
+                    for(auto bName=builtNames.begin(); x < noToDisplay; bName++, x++)
+                    {
+                        if(&os == &std::cout)
+                            os << " " << c_green << *bName << c_white << std::endl;
+                        else
+                            os << " " << *bName << std::endl;
+                    }
+                    os << " and " << builtNames.size() - noToDisplay << " more" << std::endl;
+                }
+                os << "----------------------------" << std::endl;
+            }
+
+            //checks for post-build scripts
+            if(parser.run_script(os, Path("", "post-build" + scriptExt), backupScripts, 1))
+                return 1;
+        }
+    }
+
+    if(updatedInfo.size() == 0 && problemNames.size() == 0 && failedNames.size() == 0)
+        os << "all " << trackedAll.size() << " output files are already up to date" << std::endl;
+
+    builtNames.clear();
+	failedNames.clear();
+
+    return 0;
+}
+
+int ProjectInfo::status(std::ostream& os, const bool& addBuildStatus, const bool& addExpl, const bool& basicOpt)
+{
+    if(check_watch_dirs())
+        return 1;
+
+    if(trackedAll.size() == 0)
+    {
+        std::cout << "Nift does not have anything tracked" << std::endl;
+        return 0;
+    }
 
     builtNames.clear();
     failedNames.clear();
@@ -3334,314 +4236,127 @@ int ProjectInfo::build_updated(std::ostream& os)
         no_threads = buildThreads;
 
     nextInfo = trackedAll.begin();
-    counter = 0;
+    counter = noFinished = 0;
 
-	std::vector<std::thread> threads;
+    os_mtx.lock();
+    std::cout << "checking for updates.." << std::endl;
+    os_mtx.unlock();
+
+    if(addBuildStatus)
+        timer.start();
+
+    std::vector<std::thread> threads;
 	for(int i=0; i<no_threads; i++)
-		threads.push_back(std::thread(dep_thread, std::ref(os), trackedAll.size(), contentDir, outputDir, contentExt, outputExt));
+		threads.push_back(std::thread(dep_thread, 
+                                      std::ref(os), 
+                                      addExpl, 
+                                      trackedAll.size(), 
+                                      contentDir, 
+                                      outputDir, 
+                                      contentExt, 
+                                      outputExt));
+
+    cPhase = UPDATE_PHASE;
+    std::thread thrd(build_progress, trackedAll.size(), addBuildStatus);
 
 	for(int i=0; i<no_threads; i++)
 		threads[i].join();
+    cPhase = END_PHASE;
 
-    if(removedFiles.size() > 0)
-    {
-        os << std::endl;
-        os << "---- removed dependency files ----" << std::endl;
-        if(removedFiles.size() < 20)
-            for(auto rFile=removedFiles.begin(); rFile != removedFiles.end(); rFile++)
-                os << " " << *rFile << std::endl;
-        else
-        {
-            int x=0;
-            for(auto rFile=removedFiles.begin(); x < 20; rFile++, x++)
-                os << " " << *rFile << std::endl;
-            os << " along with " << removedFiles.size() - 20 << " other dependency files" << std::endl;
-        }
-        os << "----------------------------------" << std::endl;
-    }
+    thrd.detach();
+    clear_console_line();
 
-    if(modifiedFiles.size() > 0)
-    {
-        os << std::endl;
-        os << "------- modified dependency files ------" << std::endl;
-        if(modifiedFiles.size() < 20)
-            for(auto uFile=modifiedFiles.begin(); uFile != modifiedFiles.end(); uFile++)
-                os << " " << *uFile << std::endl;
-        else
-        {
-            int x=0;
-            for(auto uFile=modifiedFiles.begin(); x < 20; uFile++, x++)
-                os << " " << *uFile << std::endl;
-            os << " along with " << modifiedFiles.size() - 20 << " other dependency files" << std::endl;
-        }
-        os << "----------------------------------------" << std::endl;
-    }
+    size_t noToDisplay = std::max(5, -5 + (int)console_height());
 
-    if(problemNames.size() > 0)
+    if(!basicOpt)
     {
-        os << std::endl;
-        os << "----- missing content and/or template file -----" << std::endl;
-        if(problemNames.size() < 20)
-            for(auto pName=problemNames.begin(); pName != problemNames.end(); pName++)
-                os << " " << *pName << std::endl;
-        else
+        if(removedFiles.size() > 0)
         {
-            int x=0;
-            for(auto pName=problemNames.begin(); x < 20; pName++, x++)
-                os << " " << *pName << std::endl;
-            os << " along with " << problemNames.size() - 20 << " other names" << std::endl;
+            os << std::endl;
+            os << "---- removed dependency files ----" << std::endl;
+            if(removedFiles.size() < noToDisplay)
+                for(auto rFile=removedFiles.begin(); rFile != removedFiles.end(); rFile++)
+                    os << " " << *rFile << std::endl;
+            else
+            {
+                size_t x=0;
+                for(auto rFile=removedFiles.begin(); x < noToDisplay; rFile++, x++)
+                    os << " " << *rFile << std::endl;
+                os << " and " << removedFiles.size() - noToDisplay << " more" << std::endl;
+            }
+            os << "----------------------------------" << std::endl;
         }
-        os << "------------------------------------------------" << std::endl;
+
+        if(modifiedFiles.size() > 0)
+        {
+            os << std::endl;
+            os << "---- modified dependency files ----" << std::endl;
+            if(modifiedFiles.size() < noToDisplay)
+                for(auto uFile=modifiedFiles.begin(); uFile != modifiedFiles.end(); uFile++)
+                    os << " " << *uFile << std::endl;
+            else
+            {
+                size_t x=0;
+                for(auto uFile=modifiedFiles.begin(); x < noToDisplay; uFile++, x++)
+                    os << " " << *uFile << std::endl;
+                os << " and " << modifiedFiles.size() - noToDisplay << " more" << std::endl;
+            }
+            os << "-----------------------------------" << std::endl;
+        }
+
+        if(problemNames.size() > 0)
+        {
+            os << std::endl;
+            os << "---- missing content/template file ----" << std::endl;
+            if(problemNames.size() < noToDisplay)
+                for(auto pName=problemNames.begin(); pName != problemNames.end(); pName++)
+                {
+                    if(&os == &std::cout)
+                        os << " " << c_red << *pName << c_white << std::endl;
+                    else
+                        os << " " << *pName << std::endl;
+                }
+            else
+            {
+                size_t x=0;
+                for(auto pName=problemNames.begin(); x < noToDisplay; pName++, x++)
+                {
+                    if(&os == &std::cout)
+                        os << " " << c_red << *pName << c_white << std::endl;
+                    else
+                        os << " " << *pName << std::endl;
+                }
+                os << " and " << problemNames.size() - noToDisplay << " more" << std::endl;
+            }
+            os << "---------------------------------------" << std::endl;
+        }
     }
 
     if(updatedInfo.size() > 0)
     {
-        os << std::endl;
-        os << "----- following need building -----" << std::endl;
-        if(updatedInfo.size() < 20)
-            for(auto uInfo=updatedInfo.begin(); uInfo != updatedInfo.end(); uInfo++)
-                os << " " << uInfo->outputPath << std::endl;
-        else
-        {
-            int x=0;
-            for(auto uInfo=updatedInfo.begin(); x < 20; uInfo++, x++)
-                os << " " << uInfo->outputPath << std::endl;
-            os << " along with " << updatedInfo.size() - 20 << " more" << std::endl;
-        }
-        os << "-----------------------------------" << std::endl;
-
-        //checks for pre-build scripts
-        if(run_script(std::cout, "pre-build" + scriptExt, backupScripts, &os_mtx3))
-            return 1;
-
-        nextInfo = updatedInfo.begin();
-        counter = 0;
-
-        threads.clear();
-        for(int i=0; i<no_threads; i++)
-            threads.push_back(std::thread(build_thread, std::ref(os), &trackedAll, updatedInfo.size(), contentDir, outputDir, contentExt, outputExt, scriptExt, defaultTemplate, backupScripts, unixTextEditor, winTextEditor));
-
-        for(int i=0; i<no_threads; i++)
-            threads[i].join();
-
-        if(builtNames.size() > 0)
+        if(!basicOpt)
         {
             os << std::endl;
-            os << "------- output files successfully built -------" << std::endl;
-            if(builtNames.size() < 20)
-                for(auto bName=builtNames.begin(); bName != builtNames.end(); bName++)
-                    os << " " << *bName << std::endl;
+            os << "---- need building ----" << std::endl;
+            if(updatedInfo.size() < noToDisplay)
+                for(auto uInfo=updatedInfo.begin(); uInfo != updatedInfo.end(); uInfo++)
+                    os << " " << uInfo->outputPath << std::endl;
             else
             {
-                int x=0;
-                for(auto bName=builtNames.begin(); x < 20; bName++, x++)
-                    os << " " << *bName << std::endl;
-                os << " along with " << builtNames.size() - 20 << " other output files" << std::endl;
+                size_t x=0;
+                for(auto uInfo=updatedInfo.begin(); x < noToDisplay; uInfo++, x++)
+                    os << " " << uInfo->outputPath << std::endl;
+                os << " and " << updatedInfo.size() - noToDisplay << " more" << std::endl;
             }
-            os << "-----------------------------------------------" << std::endl;
-        }
-
-        if(failedNames.size() > 0)
-        {
-            os << std::endl;
-            os << "---- following failed to build ----" << std::endl;
-            if(failedNames.size() < 20)
-                for(auto fName=failedNames.begin(); fName != failedNames.end(); fName++)
-                    os << " " << *fName << std::endl;
-            else
-            {
-                int x=0;
-                for(auto fName=failedNames.begin(); x < 20; fName++, x++)
-                    os << " " << *fName << std::endl;
-                os << " along with " << failedNames.size() - 20 << " other output files" << std::endl;
-            }
-            os << "-----------------------------------" << std::endl;
-        }
-        else
-        {
-            //checks for post-build scripts
-            if(run_script(std::cout, "post-build" + scriptExt, backupScripts, &os_mtx3))
-                return 1;
+            os << "-----------------------" << std::endl;
         }
     }
 
     if(updatedInfo.size() == 0 && problemNames.size() == 0 && failedNames.size() == 0)
-    {
-        //os << std::endl;
         os << "all " << trackedAll.size() << " output files are already up to date" << std::endl;
-    }
 
-	builtNames.clear();
-	failedNames.clear();
+    failedNames.clear();
 
     return 0;
 }
 
-int ProjectInfo::status()
-{
-    if(trackedAll.size() == 0)
-    {
-        std::cout << "Nift does not have anything tracked" << std::endl;
-        return 0;
-    }
-
-    problemNames.clear();
-    std::set<Path> updatedFiles, removedFiles;
-    std::set<TrackedInfo> updatedInfo;
-
-    for(auto trackedInfo=trackedAll.begin(); trackedInfo != trackedAll.end(); trackedInfo++)
-    {
-        bool needsUpdating = 0;
-
-        //checks whether content and template files exist
-        if(!std::ifstream(trackedInfo->contentPath.str()))
-        {
-            needsUpdating = 1; //shouldn't need this but doesn't cost much
-            problemNames.insert(trackedInfo->name);
-            //note user will be informed about this as a dep not existing
-        }
-        if(!std::ifstream(trackedInfo->templatePath.str()))
-        {
-            needsUpdating = 1; //shouldn't need this but doesn't cost much
-            problemNames.insert(trackedInfo->name);
-            //note user will be informed about this as a dep not existing
-        }
-
-        //gets path of info file from last time output file was built
-        Path InfoPath = trackedInfo->outputPath.getInfoPath();
-
-        //checks whether info path exists
-        if(!std::ifstream(InfoPath.str()))
-        {
-            std::cout << trackedInfo->outputPath << ": yet to be built" << std::endl;
-            needsUpdating = 1;
-        }
-        else
-        {
-            std::ifstream infoStream(InfoPath.str());
-            std::string timeDateLine;
-            Name prevName;
-            Title prevTitle;
-            Path prevTemplatePath;
-
-            getline(infoStream, timeDateLine);
-            read_quoted(infoStream, prevName);
-            prevTitle.read_quoted_from(infoStream);
-            prevTemplatePath.read_file_path_from(infoStream);
-
-            //probably don't even need this
-            TrackedInfo prevInfo = make_info(prevName, prevTitle, prevTemplatePath);
-
-            if(trackedInfo->name != prevInfo.name)
-            {
-                std::cout << trackedInfo->outputPath << ": name changed to " << trackedInfo->name << " from " << prevInfo.name << std::endl;
-                needsUpdating = 1;
-            }
-
-            if(trackedInfo->title != prevInfo.title)
-            {
-                std::cout << trackedInfo->outputPath << ": title changed to " << trackedInfo->title << " from " << prevInfo.title << std::endl;
-                needsUpdating = 1;
-            }
-
-            if(trackedInfo->templatePath != prevInfo.templatePath)
-            {
-                std::cout << trackedInfo->outputPath << ": template path changed to " << trackedInfo->templatePath << " from " << prevInfo.templatePath << std::endl;
-                needsUpdating = 1;
-            }
-
-            Path dep;
-            while(dep.read_file_path_from(infoStream))
-            {
-                if(!std::ifstream(dep.str()))
-                {
-                    removedFiles.insert(dep);
-                    needsUpdating = 1;
-                }
-                else if(dep.modified_after(InfoPath))
-                {
-                    modifiedFiles.insert(dep);
-                    needsUpdating = 1;
-                }
-            }
-
-			infoStream.close();
-        }
-
-        if(needsUpdating && problemNames.count(trackedInfo->name) == 0)
-            updatedInfo.insert(*trackedInfo);
-    }
-
-    if(removedFiles.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "---- removed dependency files ----" << std::endl;
-        if(removedFiles.size() < 20)
-            for(auto rFile=removedFiles.begin(); rFile != removedFiles.end(); rFile++)
-                std::cout << " " << *rFile << std::endl;
-        else
-        {
-            int x=0;
-            for(auto rFile=removedFiles.begin(); x < 20; rFile++, x++)
-                std::cout << " " << *rFile << std::endl;
-            std::cout << " along with " << removedFiles.size() - 20 << " other dependency files" << std::endl;
-        }
-        std::cout << "----------------------------------" << std::endl;
-    }
-
-    if(modifiedFiles.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "------- modified dependency files ------" << std::endl;
-        if(modifiedFiles.size() < 20)
-            for(auto uFile=modifiedFiles.begin(); uFile != modifiedFiles.end(); uFile++)
-                std::cout << " " << *uFile << std::endl;
-        else
-        {
-            int x=0;
-            for(auto uFile=modifiedFiles.begin(); x < 20; uFile++, x++)
-                std::cout << " " << *uFile << std::endl;
-            std::cout << " along with " << modifiedFiles.size() - 20 << " other dependency files" << std::endl;
-        }
-        std::cout << "----------------------------------------" << std::endl;
-    }
-
-    if(updatedInfo.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "----- following need building -----" << std::endl;
-        if(updatedInfo.size() < 20)
-            for(auto uInfo=updatedInfo.begin(); uInfo != updatedInfo.end(); uInfo++)
-                std::cout << " " << uInfo->outputPath << std::endl;
-        else
-        {
-            int x=0;
-            for(auto uInfo=updatedInfo.begin(); x < 20; uInfo++, x++)
-                std::cout << " " << uInfo->outputPath << std::endl;
-            std::cout << " along with " << updatedInfo.size() - 20 << " more" << std::endl;
-        }
-        std::cout << "-----------------------------------" << std::endl;
-    }
-
-    if(problemNames.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "----- missing content and/or template file -----" << std::endl;
-        if(problemNames.size() < 20)
-            for(auto pName=problemNames.begin(); pName != problemNames.end(); pName++)
-                std::cout << " " << *pName << std::endl;
-        else
-        {
-            int x=0;
-            for(auto pName=problemNames.begin(); x < 20; pName++, x++)
-                std::cout << " " << *pName << std::endl;
-            std::cout << " along with " << problemNames.size() - 20 << " other names" << std::endl;
-        }
-        std::cout << "------------------------------------------------" << std::endl;
-    }
-
-    if(updatedFiles.size() == 0 && updatedInfo.size() == 0 && problemNames.size() == 0)
-        std::cout << "all output files are already up to date" << std::endl;
-
-    return 0;
-}

@@ -2,46 +2,16 @@
 Nift Release Notes
 ------------------
 
-TODO List (not in order of priority)
-* [TODO] add multi-threading to Nift command `status`
-
-* [TODO] output @system/@script without piping to file if using std::cout and 1 build thread (don't forget to use os_mtx)
-	- https://stackoverflow.com/questions/3318714/check-if-ostream-object-is-cout-or-ofstream-c
-
-* [TODO] build output file if it doesn't already exist when tracking, makes sure other files with paths to it don't fail to build before they are successfully built themselves
-
-* [TODO] add project name to ProjectInfo.h, .nsm/nift.config etc. with @[projectname] variable/syntax
-
-* [TODO] add script extension option to track commands
-
-* [TODO] add error handling for rename etc. throughout
-
-* [TODO] add @into(vars) and @>>(istream, vars)
-
-* [TODO] add \a, \0 and \r escape characters when reading parameters
-* [TODO] add more html entities (try to be similar to latex)
-* [TODO] add @char/@ch syntax to template language (do both latex and html equivalents)
-
-* [TODO] need syntax in the template language to ensure existence of a file given relative path from the page
-* [TODO] further clean up reading parameters and parsing them
-* [TODO] implement better variable types with scoping, constants and privates (with privates say you have x.first and x.second, only allow x.* functions to modify x.[first/second] .. but how to do that, and what about ??
-	- https://www.geeksforgeeks.org/regex-regular-expression-in-c/
-	- https://www.regular-expressions.info/stdregex.html
-* [TODO] implement type defs and function defs
-* [TODO] can we add run_function() function for multithreading, including hard-coded functions?
-
-* [TODO] consider using file hashes for incremental builds, or even just keep a copy of files to compare against
-	- eg. https://github.com/d-bahr/CRCpp
-
-* [TODO] add no template option when building
-* [TODO] add way to build non-tracked pages (including without even being a site, and/or without having a page to output to)
-	- need to be able to do both outputfile to stdout as well as programmingoutput
-	- maybe:
-		- nsm build cont-path (template-path) output-path
-		- nsm render cont-path (template-path)
-		- nsm render-name name
-		- nsm run cont-path (template-path)
-		- nsm run-name name
+Version 2.1 of Nift
+* embedded lua(jit) and exprtk
+* added in-built template language n++ and in-built scripting language f++
+* added CLI interpreters for f++, n++, lua and exprtk
+* added shell extensions for f++ and n++  
+* added blank/empty/no template option
+* changed to $[varname]/$(varname) instead of @[varname]/@<varname>
+* added - between words for hard-coded constant variables 
+* added lots of functions to Nift's template languages
+* various other smaller changes and bug fixes
 
 Version 2.0.1 of Nift
 * fixed bug when cloning a website repository from an empty directory (and any other similar bugs from using remove_path where remove_file is more appropriate, ie. when creating temporary text files)
@@ -98,7 +68,7 @@ Version 1.23 of Nift
 * added syntax @\n to template language
 * added in syntax for Nift comments to template language:
 	- <@-- .. --@>   (raw multi line comment)
-	- @/*  .. @*/    (parsed multi line comment)
+	- /\*  .. \*/    (parsed multi line comment)
 	- @--- .. @---   (parsed special multi line comment)
 	- @#             (raw single line comment)
 	- @//            (parsed single line comment)

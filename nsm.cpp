@@ -1,6 +1,6 @@
 /*
     Nift (aka nsm) is a cross-platform open source
-    command-line project and website manager.
+    command-line website and project generator.
 
     Official Website: https://nift.cc
     GitHub: https://github.com/nifty-site-manager/nsm
@@ -12,86 +12,30 @@
 
 #include "GitInfo.h"
 #include "ProjectInfo.h"
-#include "Timer.h"
-
-bool upgradeProject()
-{
-    std::cout << "warning: attempting to upgrade project for newer version of Nift" << std::endl;
-
-    if(rename(".siteinfo/", ".nsm/"))
-    {
-        std::cout << "error: upgrade: failed to move config directory '.siteinfo/' to '.nsm/'" << std::endl;
-        return 1;
-    }
-
-    if(rename(".nsm/nsm.config", ".nsm/nift.config"))
-    {
-        std::cout << "error: upgrade: failed to move config file '.nsm/nsm.config' to '.nsm/nift.config'" << std::endl;
-        return 1;
-    }
-
-    if(rename(".nsm/pages.list", ".nsm/tracking.list"))
-    {
-        std::cout << "error: upgrade: failed to move pages list file '.nsm/pages.list' to tracking list file '.nsm/tracking.list'" << std::endl;
-        return 1;
-    }
-
-    ProjectInfo project;
-    if(project.open_config())
-    {
-        std::cout << "error: upgrade: failed, was unable to open configuration file" << std::endl;
-        return 1;
-    }
-    else if(project.open_tracking()) //this needs to change
-    {
-        std::cout << "error: upgrade: failed, was unable to open tracking list" << std::endl;
-        return 1;
-    }
-
-    //need to update .nsm/nift.config
-    //project.save_config();
-
-    //need to update output extension files
-    Path oldExtPath, newExtPath;
-    for(auto tInfo=project.trackedAll.begin(); tInfo!=project.trackedAll.end(); tInfo++)
-    {
-        oldExtPath = newExtPath = tInfo->outputPath.getInfoPath();
-        oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_first_of('.')) + ".pageExt";
-        newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".outputExt";
-
-        if(std::ifstream(oldExtPath.str()))
-        {
-            if(rename(oldExtPath.str().c_str(), newExtPath.str().c_str()))
-            {
-                std::cout << "error: upgrade: failed to move output extension file " << quote(oldExtPath.str()) << " to new extension file " <<  quote(newExtPath.str()) << std::endl;
-                return 1;
-            }
-        }
-    }
-
-    std::cout << "Successfully upgraded project configuration for newer version of Nift" << std::endl;
-    std::cout << "Note: the syntax to input page and project/site information has also changed, please check the content files page of the docs" << std::endl;
-
-    return 0;
-}
 
 std::atomic<bool> serving;
-std::mutex os_mtx2;
+std::mutex serve_mtx;
 
 int read_serve_commands()
 {
-    std::string cmd;
+    char cmd;
 
-    std::cout << "serving project locally - 'exit', 'stop' or 'ctrl c' to stop Nift serving" << std::endl;
+    std::cout << "serving project locally - 'q' or 's' to stop serving ('ctrl c' to kill)" << std::endl;
 
-    while(cmd != "exit" && cmd != "stop")
+    while(1)
     {
-        std::cout << "command: ";
+        #if defined _WIN32 || defined _WIN64
+            cmd = _getch();
+        #else
+            enable_raw_mode();
+            cmd = getchar();
+            disable_raw_mode();
+        #endif
 
-        std::cin >> cmd;
-
-        if(cmd != "exit" && cmd != "stop")
-            std::cout << "unrecognised command - 'exit', 'stop' or 'ctrl c' to stop Nift serving" << std::endl;
+        if(cmd != 'q' && cmd != 's')
+            std::cout << "unrecognised command - 'q' or 's' to stop serving ('ctrl c' to kill)" << std::endl;
+        else
+            break;
     }
 
     serving = 0;
@@ -99,19 +43,7 @@ int read_serve_commands()
     return 0;
 }
 
-int sleepTime = 500000; //default value: 0.5 seconds
-
-bool isNum(const std::string& str)
-{
-    if(str.size() && str[0] != '-' && !std::isdigit(str[0]))
-        return 0;
-
-    for(size_t i=1; i<str.size(); i++)
-        if(!std::isdigit(str[i]))
-            return 0;
-
-    return 1;
-}
+int sleepTime = 300000; //default value: 0.3 seconds
 
 int serve()
 {
@@ -122,16 +54,27 @@ int serve()
         ProjectInfo project;
         if(project.open())
         {
-            std::cout << "error: nsm.cpp: serve(): failed to open project" << std::endl;
-            std::cout << "Nift is no longer serving!" << std::endl;
+            start_err(std::cout) << "serve(): failed to open project, no longer serving" << std::endl;
             return 1;
         }
 
+        Parser parser(&project.trackedAll, 
+                  &serve_mtx, 
+                  project.contentDir, 
+                  project.outputDir, 
+                  project.contentExt, 
+                  project.outputExt, 
+                  project.scriptExt, 
+                  project.defaultTemplate, 
+                  project.backupScripts, 
+                  project.unixTextEditor, 
+                  project.winTextEditor);
+
         ofs.open(".serve-build-log.txt");
 
-        if(!run_script(ofs, "pre-build" + project.scriptExt, project.backupScripts, &os_mtx2))
-            if(!project.build_updated(ofs))
-                run_script(ofs, "post-build" + project.scriptExt, project.backupScripts, &os_mtx2);
+        if(!parser.run_script(ofs, Path("", "pre-build" + project.scriptExt), project.backupScripts, 1))
+            if(!project.build_updated(ofs, 0, 1, 1))
+                parser.run_script(ofs, Path("", "post-build" + project.scriptExt), project.backupScripts, 1);
 
         ofs.close();
 
@@ -143,25 +86,97 @@ int serve()
     return 0;
 }
 
-void unrecognisedCommand(const std::string& from, const std::string& cmd)
+void unrecognisedCommand(const std::string& cmd)
 {
-    std::cout << "error: " << from << " does not recognise the command '" << cmd << "'" << std::endl;
+    start_err(std::cout) << "Nift does not recognise the command " << quote(cmd) << std::endl;
 }
 
 bool parError(int noParams, char* argv[], const std::string& expectedNo)
 {
-    std::cout << "error: " << noParams << " parameters is not the " << expectedNo << " parameters expected" << std::endl;
-    std::cout << "parameters given:";
+    start_err(std::cout) << noParams;
+    if(noParams == 1)
+        std::cout << " parameter";
+    else
+        std::cout << " parameters";
+    std::cout << " is not the " << expectedNo;
+    if(expectedNo == "1")
+        std::cout << " parameter";
+    else
+        std::cout << " parameters";
+    std::cout << " expected" << std::endl;
+    std::cout << c_purple << "parameters" << c_white << ":";
     for(int p=1; p<=noParams; p++)
         std::cout << " " << argv[p];
     std::cout << std::endl;
     return 1;
 }
 
+void asciiNift()
+{
+    srand (time(NULL));
+    int c = rand()%5,
+        T = 3;
+
+    if(console_width() < 23 || console_height() < 12)
+        return;
+    else if(console_width() < 26)
+        T = 1;
+    else if(console_width() < 30)
+        T = 2;
+    else
+        T = 3;
+
+    int t = rand()%T;
+
+    if(c == 0)
+        std::cout << c_gold;
+    else if(c == 1)
+        std::cout << c_green;
+    else if(c == 2)
+        std::cout << c_light_blue;
+    else if(c == 3)
+        std::cout << c_purple;
+    else if(c == 4)
+        std::cout << c_red;
+
+    if(t == 0)
+    {
+        std::cout << "         _  ___ _    " << std::endl;
+        std::cout << "   ____ |_|/ __/ |   " << std::endl;
+        std::cout << "  |  _ \\ _ | |_| |__ " << std::endl;
+        std::cout << "  | | | | || _/  __/ " << std::endl;
+        std::cout << "  |_| | |_|| | | |__ " << std::endl;
+        std::cout << "      |/   |/  |___/ " << std::endl;
+    }
+    else if(t == 1)
+    {
+        std::cout << "   ____ ____ ____ ____ " << std::endl;
+        std::cout << "  ||n |||i |||f |||t ||" << std::endl;
+        std::cout << "  ||__|||__|||__|||__||" << std::endl;
+        std::cout << "  |/__\\|/__\\|/__\\|/__\\|" << std::endl;
+    }
+    else if(t == 2)
+    {
+        std::cout << "         _________________  " << std::endl;
+        std::cout << "  __________(_)  / __/_/ /_ " << std::endl;
+        std::cout << "  __/ __ \\ __ __/ /_ _  __/ " << std::endl;
+        std::cout << "  _  / / // / _  __/ / /_   " << std::endl;
+        std::cout << "  /_/ /_//_/  /_/    \\__/   " << std::endl;
+    }
+
+    std::cout << c_white << std::endl;
+}
+
 int main(int argc, char* argv[])
 {
     Timer timer;
     timer.start();
+
+    Path globalConfigPath(app_dir() + "/.nift/", "nift.config");
+    if(!file_exists(globalConfigPath.str()))
+        create_config_file(globalConfigPath, ".html", 1);
+
+    //std::cin.sync_with_stdio(0);
 
     int noParams = argc-1;
     int ret_val;
@@ -173,17 +188,32 @@ int main(int argc, char* argv[])
     }
 
     std::string cmd = argv[1];
+    while(cmd.size() && cmd[0] == '-')
+        cmd = cmd.substr(1, cmd.size()-1);
 
     if(get_pwd() == "/")
     {
-        std::cout << "error: don't run Nift from the root directory!" << std::endl;
+        start_err(std::cout) << "don't run Nift from the root directory!" << std::endl;
         return 1;
     }
 
     //Nift commands that can run from anywhere
-    if(cmd == "version" || cmd == "-version" || cmd == "--version")
+    if(cmd == "version")
     {
-        std::cout << "Nift (aka nsm) v2.0.1" << std::endl;
+        std::cout << "Nift (aka nsm) ©2015-" << DateTimeInfo().currentYYYY() << " " << c_gold << "v" << NSM_VERSION << c_white << std::endl;
+
+        return 0;
+    }
+    else if(cmd == "about" || cmd == "info" || cmd == "help")
+    {
+        if(console_width() > 22 && console_height() > 12)
+            asciiNift();
+
+        std::cout << "Nift (aka nifty-site-manager or nsm) ©2015-" << DateTimeInfo().currentYYYY() << " is a cross-platform open source website and project generator." << std::endl;
+        std::cout << "Official Website: " << c_blue << "https://nift.cc/" << c_white << std::endl;
+        std::cout << "Source: " << c_blue << "https://github.com/nifty-site-manager/nsm" << c_white << std::endl;
+        std::cout << "Installed: " << c_gold << "v" << NSM_VERSION << c_white << std::endl;
+        std::cout << "enter `nsm commands` or `nift commands` for available commands" << std::endl;
 
         return 0;
     }
@@ -196,8 +226,8 @@ int main(int argc, char* argv[])
         std::cout << "| diff              | input: file-path                                  |" << std::endl;
         std::cout << "| pull              | pull remote changes locally                       |" << std::endl;
         std::cout << "| bcp               | input: commit-message                             |" << std::endl;
-        std::cout << "| init              | start managing a project - input: output-ext      |" << std::endl;
-        std::cout << "| init-html         | start managing html website - input: (site-name)  |" << std::endl;
+        std::cout << "| init              | start managing project - input: (out-ext)         |" << std::endl;
+        std::cout << "| init-html         | start managing html website                       |" << std::endl;
         std::cout << "| status            | lists updated and problem files                   |" << std::endl;
         std::cout << "| info              | input: name-1 .. name-k                           |" << std::endl;
         std::cout << "| info-all          | lists watched directories and tracked files       |" << std::endl;
@@ -216,10 +246,13 @@ int main(int argc, char* argv[])
         std::cout << "| rm-dir            | input: dir-path (content-ext)                     |" << std::endl;
         std::cout << "| mv or move        | input: old-name new-name                          |" << std::endl;
         std::cout << "| cp or copy        | input: tracked-name new-name                      |" << std::endl;
+        std::cout << "| run               | input: (lang-opt) script-path                     |" << std::endl;
+        std::cout << "| interp            | input: (lang-opt)                                 |" << std::endl;
+        std::cout << "| sh                | input: (lang-opt)                                 |" << std::endl;
         std::cout << "| build-names       | input: name-1 .. name-k                           |" << std::endl;
         std::cout << "| build-updated     | builds updated output files                       |" << std::endl;
         std::cout << "| build-all         | builds all tracked output files                   |" << std::endl;
-        std::cout << "| serve             | serves project locally                            |" << std::endl;
+        std::cout << "| serve             | serves project locally input: (sleep-sec)         |" << std::endl;
         std::cout << "| new-title         | input: name new-title                             |" << std::endl;
         std::cout << "| new-template      | input: (name) template-path                       |" << std::endl;
         std::cout << "| new-output-dir    | input: dir-path                                   |" << std::endl;
@@ -235,141 +268,22 @@ int main(int argc, char* argv[])
 
         return 0;
     }
-    else if(cmd == "help" || cmd == "-help" || cmd == "--help")
-    {
-        std::cout << "Nift (aka nifty-site-manager or nsm) is a cross-platform open source project and website manager." << std::endl;
-        std::cout << "Official Website: https://nift.cc/" << std::endl;
-        std::cout << "GitHub: https://github.com/nifty-site-manager/nsm" << std::endl;
-        std::cout << "enter `nift commands` or `nsm commands` for available commands" << std::endl;
 
-        return 0;
+    if(cmd == "luarocks")
+    {
+        std::string sysStr = "luarocks";
+
+        for(int p=2; p<=noParams; ++p)
+            sysStr += " " + std::string(argv[p]);
+
+        return system(sysStr.c_str());
     }
 
-    if(cmd == "init")
+    //can delete init-html once we've updated homebrew test
+    if(cmd == "init" || cmd == "init-html")
     {
         //ensures correct number of parameters given
-        if(noParams != 2)
-            return parError(noParams, argv, "2");
-
-        //ensures Nift is not managing a project from this directory or one of the ancestor directories
-        std::string parentDir = "../",
-            rootDir = "C:\\",
-            owd = get_pwd(),
-            pwd = get_pwd(),
-            prevPwd;
-
-        #if defined _WIN32 || defined _WIN64
-            rootDir = "C:\\";
-        #else  //unix
-            rootDir = "/";
-        #endif
-
-        if(std::ifstream(".nsm/nift.config") || std::ifstream(".siteinfo/nsm.config"))
-        {
-            std::cout << "Nift is already managing a project in " << owd << " (or an accessible ancestor directory)" << std::endl;
-            return 1;
-        }
-
-        while(pwd != rootDir || pwd == prevPwd)
-        {
-            //sets old pwd
-            prevPwd = pwd;
-
-            //changes to parent directory
-            ret_val = chdir(parentDir.c_str());
-            if(ret_val)
-            {
-                std::cout << "error: nsm.cpp: init: failed to change directory to " << quote(parentDir) << " from " << quote(get_pwd()) << std::endl;
-                return ret_val;
-            }
-
-            //gets new pwd
-            pwd = get_pwd();
-
-            if(std::ifstream(".nsm/nift.config") || std::ifstream(".siteinfo/nsm.config"))
-            {
-                std::cout << "Nift is already managing a project in " << owd << " (or an accessible ancestor directory)" << std::endl;
-                return 1;
-            }
-        }
-        ret_val = chdir(owd.c_str());
-        if(ret_val)
-        {
-            std::cout << "error: nsm.cpp: init: failed to change directory to " << quote(owd) << " from " << quote(get_pwd()) << std::endl;
-            return ret_val;
-        }
-
-        //checks that directory is empty
-        std::string str = ls("./");
-        if(str != ".. . " &&
-           str != ". .. " &&
-           str != ".git .. . " &&
-           str != ".git . .. " &&
-           str != ". .git .. " &&
-           str != ".. .git . " &&
-           str != ". .. .git " &&
-           str != ".. . .git ")
-        {
-            std::cout << "error: init must be run in an empty directory or empty git repository" << std::endl;
-            return 1;
-        }
-
-        //sets up
-        Path trackingListPath(".nsm/", "tracking.list");
-        //ensures tracking list file exists
-        trackingListPath.ensureFileExists();
-
-        #if defined _WIN32 || defined _WIN64
-            ret_val = system("attrib +h .nsm");
-
-            //if handling error here need to check what happens in all of cmd prompt/power shell/git bash/cygwin/etc.
-        #endif
-
-        if(std::string(argv[2]) == "" || argv[2][0] != '.')
-        {
-            std::cout << "error: project output extension should start with a fullstop" << std::endl;
-            return 1;
-        }
-
-        std::ofstream ofs(".nsm/nift.config");
-        ofs << "contentDir 'content/'" << std::endl;
-        ofs << "contentExt '.content'" << std::endl;
-        ofs << "outputDir 'output/'" << std::endl;
-        ofs << "outputExt '" << argv[2] << "'" << std::endl;
-        ofs << "scriptExt '.py'" << std::endl;
-        ofs << "defaultTemplate 'template/project.template'" << std::endl << std::endl;
-        ofs << "backupScripts 1" << std::endl << std::endl;
-        ofs << "buildThreads -1" << std::endl << std::endl;
-        ofs << "unixTextEditor nano" << std::endl;
-        ofs << "winTextEditor notepad" << std::endl << std::endl;
-        if(std::ifstream(".git/"))
-        {
-            ofs << "rootBranch '" << get_pb() << "'" << std::endl;
-            ofs << "outputBranch '" << get_pb() << "'" << std::endl;
-        }
-        else
-        {
-            ofs << "rootBranch '##unset##'" << std::endl;
-            ofs << "outputBranch '##unset##'" << std::endl;
-        }
-        ofs.close();
-
-        trackingListPath = Path("template/", "project.template");
-        //ensures tracking list file exists
-        trackingListPath.ensureDirExists();
-
-        ofs.open("template/project.template");
-        ofs << "@inputcontent" << std::endl;
-        ofs.close();
-
-        std::cout << "Nift: initialised empty project in " << get_pwd() << std::endl;
-
-        return 0;
-    }
-    else if(cmd == "init-html")
-    {
-        //ensures correct number of parameters given
-        if(noParams > 2)
+        if(noParams != 1 && noParams != 2)
             return parError(noParams, argv, "1-2");
 
         //ensures Nift is not managing a project from this directory or one of the ancestor directories
@@ -381,13 +295,13 @@ int main(int argc, char* argv[])
 
         #if defined _WIN32 || defined _WIN64
             rootDir = "C:\\";
-        #else  //unix
+        #else  //*nix
             rootDir = "/";
         #endif
 
-        if(std::ifstream(".nsm/nift.config") || std::ifstream(".siteinfo/nsm.config"))
+        if(file_exists(".nsm/nift.config") || file_exists(".siteinfo/nsm.config"))
         {
-            std::cout << "Nift is already managing a project in " << owd << " (or an accessible ancestor directory)" << std::endl;
+            start_err(std::cout) << "Nift is already managing a project in " << owd << " (or an accessible ancestor directory)" << std::endl;
             return 1;
         }
 
@@ -400,23 +314,23 @@ int main(int argc, char* argv[])
             ret_val = chdir(parentDir.c_str());
             if(ret_val)
             {
-                std::cout << "error: nsm.cpp: init: failed to change directory to " << quote(parentDir) << " from " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "init: failed to change directory to " << quote(parentDir) << " from " << quote(get_pwd()) << std::endl;
                 return ret_val;
             }
 
             //gets new pwd
             pwd = get_pwd();
 
-            if(std::ifstream(".nsm/nift.config") || std::ifstream(".siteinfo/nsm.config"))
+            if(file_exists(".nsm/nift.config") || file_exists(".siteinfo/nsm.config"))
             {
-                std::cout << "Nift is already managing a project in " << owd << " (or an accessible ancestor directory)" << std::endl;
+                start_err(std::cout) << "Nift is already managing a project in " << owd << " (or an accessible ancestor directory)" << std::endl;
                 return 1;
             }
         }
         ret_val = chdir(owd.c_str());
         if(ret_val)
         {
-            std::cout << "error: nsm.cpp: init: failed to change directory to " << quote(owd) << " from " << quote(get_pwd()) << std::endl;
+            start_err(std::cout) << "init: failed to change directory to " << quote(owd) << " from " << quote(get_pwd()) << std::endl;
             return ret_val;
         }
 
@@ -431,7 +345,7 @@ int main(int argc, char* argv[])
            str != ". .. .git " &&
            str != ".. . .git ")
         {
-            std::cout << "error: init must be run in an empty directory or empty git repository" << std::endl;
+            start_err(std::cout) << "init: must be run in an empty directory or empty git repository" << std::endl;
             return 1;
         }
 
@@ -446,64 +360,45 @@ int main(int argc, char* argv[])
             //if handling error here need to check what happens in all of cmd prompt/power shell/git bash/cygwin/etc.
         #endif
 
-        std::ofstream ofs(".nsm/nift.config");
-        ofs << "contentDir 'content/'" << std::endl;
-        ofs << "contentExt '.content'" << std::endl;
-        ofs << "outputDir 'site/'" << std::endl;
-        ofs << "outputExt '.html'" << std::endl;
-        ofs << "scriptExt '.py'" << std::endl;
-        ofs << "defaultTemplate 'template/page.template'" << std::endl << std::endl;
-        ofs << "backupScripts 1" << std::endl << std::endl;
-        ofs << "buildThreads -1" << std::endl << std::endl;
-        ofs << "unixTextEditor nano" << std::endl;
-        ofs << "winTextEditor notepad" << std::endl << std::endl;
-        if(std::ifstream(".git/"))
+        std::string outputExt;
+
+        if(noParams == 1)
+            outputExt = ".html";
+        else if(noParams == 2)
         {
-            ofs << "rootBranch '" << get_pb() << "'" << std::endl;
-            ofs << "outputBranch '" << get_pb() << "'" << std::endl;
+            if(std::string(argv[2]).size() == 0 || argv[2][0] != '.')
+            {
+                start_err(std::cout) << "project output extension should start with a fullstop" << std::endl;
+                return 1;
+            }
+
+            outputExt = argv[2];
+        }            
+
+        Path configPath(".nsm/", "nift.config");
+        create_config_file(configPath, outputExt, 0);
+
+        if(outputExt == ".html")
+        {
+            Path templatePath("template/", "page.template");
+            create_default_html_template(templatePath);
+
+            ProjectInfo project;
+            if(project.open() > 0)
+                return 1;
+
+            Name name = "index";
+            Title title = get_title(name);
+            project.track(name, title, project.defaultTemplate);
+            project.build_all(std::cout, 1);
         }
         else
         {
-            ofs << "rootBranch '##unset##'" << std::endl;
-            ofs << "outputBranch '##unset##'" << std::endl;
+            Path templatePath("template/", "project.template");
+            create_blank_template(templatePath);
         }
-        ofs.close();
 
-        trackingListPath = Path("template/", "page.template");
-        //ensures tracking list file exists
-        trackingListPath.ensureDirExists();
-
-        ofs.open("template/page.template");
-        ofs << "<html>" << std::endl;
-        ofs << "    <head>" << std::endl;
-        ofs << "        @input{!p}(template/head.content)" << std::endl;
-        ofs << "    </head>" << std::endl;
-        ofs << std::endl;
-        ofs << "    <body>" << std::endl;
-        ofs << "        @content{!p}()" << std::endl;
-        ofs << "    </body>" << std::endl;
-        ofs << "</html>" << std::endl;
-        ofs << std::endl;
-        ofs.close();
-
-        ofs.open("template/head.content");
-        if(noParams == 1)
-            ofs << "<title>empty site - @[title]</title>" << std::endl;
-        else if(noParams > 1)
-            ofs << "<title>" << argv[2] << " - @[title]</title>" << std::endl;
-        ofs.close();
-
-        ProjectInfo project;
-        if(project.open() > 0)
-            return 1;
-
-        Name name = "index";
-        Title title;
-        title = get_title(name);
-        project.track(name, title, project.defaultTemplate);
-        project.build_all();
-
-        std::cout << "Nift: initialised empty html project in " << get_pwd() << std::endl;
+        std::cout << "initialised empty project in " << get_pwd() << std::endl;
 
         return 0;
     }
@@ -531,7 +426,7 @@ int main(int argc, char* argv[])
                     ret_val = system("git config --global user.email");
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: config: system('git config --global user.email') failed in " << quote(get_pwd()) << std::endl;
+                        start_err(std::cout) << "config: system('git config --global user.email') failed in " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
                 }
@@ -541,7 +436,7 @@ int main(int argc, char* argv[])
                     ret_val = system(cmdStr.c_str());
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: config: system(" << quote(cmdStr) << ") failed in " << quote(get_pwd()) << std::endl;
+                        start_err(std::cout) << "config: system(" << quote(cmdStr) << ") failed in " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
                 }
@@ -553,7 +448,7 @@ int main(int argc, char* argv[])
                     ret_val = system("git config --global user.name");
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: config: system('git config --global user.name') failed in " << quote(get_pwd()) << std::endl;
+                        start_err(std::cout) << "config: system('git config --global user.name') failed in " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
                 }
@@ -563,20 +458,20 @@ int main(int argc, char* argv[])
                     ret_val = system(cmdStr.c_str());
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: config: system(" << quote(cmdStr) << ") failed in " << quote(get_pwd()) << std::endl;
+                        start_err(std::cout) << "config: system(" << quote(cmdStr) << ") failed in " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
                 }
             }
             else
             {
-                unrecognisedCommand("nsm", cmd + " " + argv[2] + " " + argv[3]);
+                unrecognisedCommand(cmd + " " + argv[2] + " " + argv[3]);
                 return 1;
             }
         }
         else
         {
-            unrecognisedCommand("nsm", cmd + " " + argv[2]);
+            unrecognisedCommand(cmd + " " + argv[2]);
             return 1;
         }
     }
@@ -600,35 +495,35 @@ int main(int argc, char* argv[])
 
         if(cloneCmnd.find('/') == std::string::npos)
         {
-            std::cout << "error: no / found in provided clone url" << std::endl;
+            start_err(std::cout) << "no / found in provided clone url" << std::endl;
             return 1;
         }
         else if(cloneCmnd.find_last_of('/') > cloneCmnd.find_last_of('.'))
         {
-            std::cout << "error: clone url should contain .git after the last /" << std::endl;
+            start_err(std::cout) << "clone url should contain .git after the last /" << std::endl;
             return 1;
         }
 
         for(auto i=cloneCmnd.find_last_of('/')+1; i < cloneCmnd.find_last_of('.'); ++i)
             dirName += cloneCmnd[i];
 
-        if(file_exists("./", dirName))
+        if(dir_exists(dirName))
         {
-            std::cout << "fatal: destination path '" << dirName << "' already exists." << std::endl;
+            start_err(std::cout) << "destination path " << quote(dirName) << " already exists." << std::endl;
             return 1;
         }
 
         ret_val = system(cloneCmnd.c_str());
         if(ret_val)
         {
-            std::cout << "error: nsm.cpp: clone: system(" << quote(cloneCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
+            start_err(std::cout) << "clone: system(" << quote(cloneCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
             return ret_val;
         }
 
         ret_val = chdir(dirName.c_str());
         if(ret_val)
         {
-            std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(dirName) << " from " << quote(get_pwd()) << std::endl;
+            start_err(std::cout) << "clone: failed to change directory to " << quote(dirName) << " from " << quote(get_pwd()) << std::endl;
             return ret_val;
         }
 
@@ -637,19 +532,19 @@ int main(int argc, char* argv[])
 
         if(obranch == "##error##")
         {
-            std::cout << "error: nsm.cpp: pull: get_pb() failed in repository root directory " << quote(get_pwd()) << std::endl;
+            start_err(std::cout) << "clone: get_pb() failed in repository root directory " << quote(get_pwd()) << std::endl;
             return 1;
         }
 
         if(obranch == "##not-found##")
         {
-            std::cout << "error: nsm.cpp: clone: no branch found in repository root directory " << quote(get_pwd()) << std::endl;
+            start_err(std::cout) << "clone: no branch found in repository root directory " << quote(get_pwd()) << std::endl;
             return 1;
         }
 
         if(branches.size() == 0) //don't we already have an error just above?
         {
-            //std::cout << "error: nsm.cpp: clone: get_git_branches() failed in " << quote(get_pwd()) << std::endl;
+            //start_err(std::cout) << "clone: get_git_branches() failed in " << quote(get_pwd()) << std::endl;
             std::cout << "no branches found, cloning finished" << std::endl;
             return 0;
         }
@@ -660,17 +555,17 @@ int main(int argc, char* argv[])
         {
             checkoutCmnd = "git checkout " + *branch + " > /dev/null 2>&1 >nul 2>&1";
             ret_val = system(checkoutCmnd.c_str());
-            if(std::ifstream("./nul"))
+            if(file_exists("./nul"))
                 remove_file(Path("./", "nul"));
             if(ret_val)
             {
-                std::cout << "error: nsm.cpp: clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
                 return ret_val;
             }
 
-            if(std::ifstream(".nsm/nift.config") || std::ifstream(".siteinfo/nsm.config")) //found root branch
+            if(file_exists(".nsm/nift.config") || file_exists(".siteinfo/nsm.config")) //found root branch
             {
-                if(std::ifstream(".siteinfo/nsm.config")) //can delete this later (and half of above)
+                if(file_exists(".siteinfo/nsm.config")) //can delete this later (and half of above)
                     if(upgradeProject())
                         return 1;
 
@@ -680,12 +575,12 @@ int main(int argc, char* argv[])
 
                 if(!branches.count(project.rootBranch))
                 {
-                    std::cout << "error: nsm.cpp: clone: rootBranch " << quote(project.rootBranch) << " is not present in the git repository" << std::endl;
+                    start_err(std::cout) << "clone: rootBranch " << quote(project.rootBranch) << " is not present in the git repository" << std::endl;
                     return 1;
                 }
                 else if(!branches.count(project.outputBranch))
                 {
-                    std::cout << "error: nsm.cpp: clone: outputBranch " << quote(project.outputBranch) << " is not present in the git repository" << std::endl;
+                    start_err(std::cout) << "clone: outputBranch " << quote(project.outputBranch) << " is not present in the git repository" << std::endl;
                     return 1;
                 }
 
@@ -694,68 +589,68 @@ int main(int argc, char* argv[])
                     ret_val = chdir(parDir.c_str());
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+                        start_err(std::cout) << "clone: failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
 
                     ret_val = cpDir(dirName, ".temp-output-dir");
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: clone: failed to copy directory " << quote(dirName) << " to '.temp-output-dir/' from " << quote(get_pwd()) << std::endl;
+                        start_err(std::cout) << "clone: failed to copy directory " << quote(dirName) << " to '.temp-output-dir/' from " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
 
                     ret_val = chdir(".temp-output-dir");
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(".temp-output-dir") << " from " << quote(get_pwd()) << std::endl;
+                        start_err(std::cout) << "clone: failed to change directory to " << quote(".temp-output-dir") << " from " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
 
                     ret_val = delDir(".nsm/"); //can delete this later
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: clone: failed to delete directory " << get_pwd() << "/.nsm/" << std::endl;
+                        start_err(std::cout) << "clone: failed to delete directory " << get_pwd() << "/.nsm/" << std::endl;
                         return 1;
                     }
 
                     ret_val = system("git checkout -- . > /dev/null 2>&1 >nul 2>&1");
-                    if(std::ifstream("./nul"))
+                    if(file_exists("./nul"))
                         remove_file(Path("./", "nul"));
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: clone: system('git checkout -- .') failed in " << quote(get_pwd()) << std::endl;
+                        start_err(std::cout) << "clone: system('git checkout -- .') failed in " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
 
                     checkoutCmnd = "git checkout " + project.outputBranch + " > /dev/null 2>&1 >nul 2>&1";
                     ret_val = system(checkoutCmnd.c_str());
-                    if(std::ifstream("./nul"))
+                    if(file_exists("./nul"))
                         remove_file(Path("./", "nul"));
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
+                        start_err(std::cout) << "clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
 
                     ret_val = chdir((parDir + dirName).c_str());
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(parDir + dirName) << " from " << quote(get_pwd()) << std::endl;
+                        start_err(std::cout) << "clone: failed to change directory to " << quote(parDir + dirName) << " from " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
 
                     ret_val = delDir(project.outputDir);
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: clone: failed to delete directory " << quote(project.outputDir) << " from " << quote(get_pwd()) << std::endl;
+                        start_err(std::cout) << "clone: failed to delete directory " << quote(project.outputDir) << " from " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
 
                     ret_val = chdir(parDir.c_str());
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+                        start_err(std::cout) << "clone: failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
 
@@ -765,7 +660,7 @@ int main(int argc, char* argv[])
                     ret_val = chdir(dirName.c_str());
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(parDir + dirName) << " from " << quote(get_pwd()) << std::endl;
+                        start_err(std::cout) << "clone: failed to change directory to " << quote(parDir + dirName) << " from " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
 
@@ -774,7 +669,7 @@ int main(int argc, char* argv[])
                     ret_val = chdir(parDir.c_str());
                     if(ret_val)
                     {
-                        std::cout << "error: nsm.cpp: clone: failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
+                        start_err(std::cout) << "clone: failed to change directory to " << quote(parDir) << " from " << quote(get_pwd()) << std::endl;
                         return ret_val;
                     }
 
@@ -785,15 +680,179 @@ int main(int argc, char* argv[])
         //switches back to original branch
         checkoutCmnd = "git checkout " + obranch + " > /dev/null 2>&1 >nul 2>&1";
         ret_val = system(checkoutCmnd.c_str());
-        if(std::ifstream("./nul"))
+        if(file_exists("./nul"))
             remove_file(Path("./", "nul"));
         if(ret_val)
         {
-            std::cout << "error: nsm.cpp: clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
+            start_err(std::cout) << "clone: system(" << quote(checkoutCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
             return ret_val;
         }
 
         return 0;
+    }
+    else if(cmd == "interp" || cmd == "sh")
+    {
+        //ensures correct number of parameters given
+        if(noParams != 1 && noParams != 2)
+            return parError(noParams, argv, "1-2");
+
+        std::string langOpt;
+        Path path;
+
+        std::string lang = "?";
+        if(noParams == 1)
+            lang = "f++";
+        else
+        {
+            langOpt = argv[2];
+
+            if(langOpt.find_first_of('f') != std::string::npos)
+                lang = "f++";
+            else if(langOpt.find_first_of('n') != std::string::npos)
+                lang = "n++";
+            else if(cmd == "interp")
+            {
+                if(langOpt.find_first_of('l') != std::string::npos)
+                    lang = "lua";
+                else if(langOpt.find_first_of('x') != std::string::npos)
+                    lang = "exprtk";
+                else
+                {
+                    start_err(std::cout) << cmd << ": cannot determine chosen language from " << quote(langOpt) << ", ";
+                    std::cout << "valid options include '-n++', '-f++', '-lua', '-exprtk'" << std::endl;
+                    return 1;
+                }
+
+            }
+            else
+            {
+                start_err(std::cout) << cmd << ": cannot determine chosen language from " << quote(langOpt) << ", ";
+                std::cout << "valid options include '-n++', '-f++'" << std::endl;
+                return 1;
+            }
+        }
+
+        std::set<TrackedInfo> trackedAll;
+        std::mutex os_mtx;
+
+        ProjectInfo project;
+        if(file_exists(".nsm/nift.config"))
+        {
+            if(project.open_local_config())
+                return 1;
+
+            if(project.open_tracking())
+                return 1;
+        }
+        else if(project.open_global_config())
+                return 1;
+
+        Parser parser(&project.trackedAll,
+                      &os_mtx,
+                      project.contentDir,
+                      project.outputDir,
+                      project.contentExt,
+                      project.outputExt,
+                      project.scriptExt,
+                      project.defaultTemplate,
+                      project.backupScripts,
+                      project.unixTextEditor,
+                      project.winTextEditor);
+
+        if(cmd == "interp")
+            return parser.interpreter(lang, std::cout);
+        else
+            return parser.shell(lang, std::cout);
+    }
+    else if(cmd.substr(0, 3) == "run")
+    {
+        //ensures correct number of parameters given
+        if(noParams != 2 && noParams != 3)
+            return parError(noParams, argv, "2-3");
+
+        std::string langOpt;
+        Path path;
+
+        char lang = '?';
+        if(noParams == 2)
+        {
+            path.set_file_path_from(argv[2]);
+
+            if(cmd.size() > 3)
+            {
+                langOpt = cmd.substr(3, cmd.size()-3);
+                strip_surrounding_whitespace(langOpt);
+
+                if(langOpt.find_first_of('n') != std::string::npos)
+                    lang = 'n';
+                else if(langOpt.find_first_of('f') != std::string::npos)
+                    lang = 'f';
+                else if(langOpt.find_first_of('x') != std::string::npos)
+                    lang = 'x';
+                else if(langOpt.find_first_of('l') != std::string::npos)
+                    lang = 'l';
+                else
+                {
+                    start_err(std::cout) << "run: cannot determine chosen language from " << quote(langOpt) << ", ";
+                    std::cout << "valid options include '-n++', '-f++', '-lua', -exprtk'" << std::endl;
+                    return 1;
+                }
+            }
+        }
+        else if(noParams == 3)
+        {
+            path.set_file_path_from(argv[3]);
+
+            langOpt = argv[2];
+            if(langOpt.find_first_of('n') != std::string::npos)
+                lang = 'n';
+            else if(langOpt.find_first_of('f') != std::string::npos)
+                lang = 'f';
+            else if(langOpt.find_first_of('x') != std::string::npos)
+                lang = 'x';
+            else if(langOpt.find_first_of('l') != std::string::npos)
+                lang = 'l';
+            else
+            {
+                start_err(std::cout) << "run: cannot determine chosen language from " << quote(langOpt) << ", ";
+                std::cout << "valid options include '-f++', '-n++', '-lua', '-exprtk'" << std::endl;
+                return 1;
+            }
+        }
+
+        std::set<TrackedInfo> trackedAll;
+        std::mutex os_mtx;
+        
+        ProjectInfo project;
+        if(file_exists(".nsm/nift.config"))
+        {
+            if(project.open_local_config())
+                return 1;
+
+            if(project.open_tracking())
+                return 1;
+        }
+        else if(project.open_global_config())
+                return 1;
+
+        Parser parser(&project.trackedAll,
+                      &os_mtx,
+                      project.contentDir,
+                      project.outputDir,
+                      project.contentExt,
+                      project.outputExt,
+                      project.scriptExt,
+                      project.defaultTemplate,
+                      project.backupScripts,
+                      project.unixTextEditor,
+                      project.winTextEditor);
+
+        int ret_val = parser.run(path, lang, std::cout);
+
+        std::cout.precision(4);
+        std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
+
+        return ret_val;
     }
     else
     {
@@ -837,7 +896,7 @@ int main(int argc, char* argv[])
            cmd != "build-all" &&
            cmd != "serve")
         {
-            unrecognisedCommand("nsm", cmd);
+            unrecognisedCommand(cmd);
             return 1;
         }
 
@@ -849,7 +908,7 @@ int main(int argc, char* argv[])
             pwd = get_pwd(),
             prevPwd;
 
-        while(!std::ifstream(".nsm/nift.config") && !std::ifstream(".siteinfo/nsm.config"))
+        while(!file_exists(".nsm/nift.config") && !file_exists(".siteinfo/nsm.config"))
         {
             //sets old pwd
             prevPwd = pwd;
@@ -858,7 +917,7 @@ int main(int argc, char* argv[])
             ret_val = chdir(parentDir.c_str());
             if(ret_val)
             {
-                std::cout << "error: nsm.cpp: A: failed to change directory to " << quote(parentDir) << " from " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "failed to change directory to " << quote(parentDir) << " from " << quote(get_pwd()) << " when searching for project config" << std::endl;
                 return ret_val;
             }
 
@@ -868,12 +927,12 @@ int main(int argc, char* argv[])
             //checks we haven't made it to root directory or stuck at same dir
             if(pwd == rootDir || pwd == prevPwd)
             {
-                std::cout << "Nift is not managing a project from " << owd << " (or any accessible parent directories)" << std::endl;
+                start_err(std::cout) << "Nift is not managing a project from " << owd << " (or any accessible parent directories)" << std::endl;
                 return 1;
             }
         }
 
-        if(std::ifstream(".siteinfo/nsm.config"))
+        if(file_exists(".siteinfo/nsm.config"))
         {
             if(upgradeProject())
                 return 1;
@@ -881,15 +940,15 @@ int main(int argc, char* argv[])
         }
 
         //ensures both tracking.list and nift.config exist
-        if(!std::ifstream(".nsm/tracking.list"))
+        if(!file_exists(".nsm/tracking.list"))
         {
-            std::cout << "error: '" << get_pwd() << "/.nsm/tracking.list' is missing" << std::endl;
+            start_err(std::cout) << quote(get_pwd() + "/.nsm/tracking.list") << " is missing" << std::endl;
             return 1;
         }
 
-        if(!std::ifstream(".nsm/nift.config"))
+        if(!file_exists(".nsm/nift.config"))
         {
-            std::cout << "error: '" << get_pwd() << "/.nsm/nift.config' is missing" << std::endl;
+            start_err(std::cout) << quote(get_pwd() + "/.nsm/nift.config") << " is missing" << std::endl;
             return 1;
         }
 
@@ -899,19 +958,19 @@ int main(int argc, char* argv[])
             //ensures correct number of parameters given
             if(noParams != 2)
             {
-                std::cout << "error: correct usage 'diff file-path'" << std::endl;
+                start_err(std::cout) << "correct usage 'diff file-path'" << std::endl;
                 return parError(noParams, argv, "2");
             }
 
-            if(!std::ifstream(".git"))
+            if(!dir_exists(".git"))
             {
-                std::cout << "error: project directory not a git repository" << std::endl;
+                start_err(std::cout) << "project directory not a git repository" << std::endl;
                 return 1;
             }
 
-            if(!std::ifstream(argv[2]))
+            if(!path_exists(argv[2]))
             {
-                std::cout << "error: path " << quote(argv[2]) << " not in working tree" << std::endl;
+                start_err(std::cout) << "path " << quote(argv[2]) << " not in working tree" << std::endl;
                 return 1;
             }
             else
@@ -919,7 +978,7 @@ int main(int argc, char* argv[])
                 ret_val = system(("git diff " + std::string(argv[2])).c_str());
                 if(ret_val)
                 {
-                    std::cout << "error: nsm.cpp: diff: system('git diff " << std::string(argv[2]) << "') failed in " << quote(get_pwd()) << std::endl;
+                    start_err(std::cout) << "diff: system('git diff " << std::string(argv[2]) << "') failed in " << quote(get_pwd()) << std::endl;
                     return ret_val;
                 }
             }
@@ -928,7 +987,7 @@ int main(int argc, char* argv[])
         }
 
         ProjectInfo project;
-        if(project.open_config())
+        if(project.open_local_config())
             return 1;
 
         //Nift commands that need project information file open
@@ -960,17 +1019,11 @@ int main(int argc, char* argv[])
 
             //checks that git is configured
             if(!is_git_configured())
-            {
-                std::cout << "error: nsm.cpp: pull: is git configured?" << std::endl;
                 return 1;
-            }
 
             //checks that remote git url is set
             if(!is_git_remote_set())
-            {
-                std::cout << "error: nsm.cpp: pull: is the git remote url set?" << std::endl;
                 return 1;
-            }
 
             std::string pullCmnd,
                         projectDirRemote,
@@ -980,37 +1033,37 @@ int main(int argc, char* argv[])
 
             if(projectRootDirRemote == "##error##")
             {
-                std::cout << "error: nsm.cpp: pull: get_remote() failed in project root directory " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "pull: get_remote() failed in project root directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
             if(projectRootDirRemote == "##not-found##")
             {
-                std::cout << "error: nsm.cpp: pull: get_remote() did not find any git remote in project root directory " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "pull: get_remote() did not find any git remote in project root directory " << quote(get_pwd()) << std::endl;
             }
 
             if(projectRootDirBranch == "##error##")
             {
-                std::cout << "error: nsm.cpp: pull: get_pb() failed in project root directory " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "pull: get_pb() failed in project root directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
             if(projectRootDirBranch == "##not-found##")
             {
-                std::cout << "error: nsm.cpp: pull: no branch found in project root directory " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "pull: no branch found in project root directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
             if(projectRootDirBranch != project.rootBranch)
             {
-                std::cout << "error: nsm.cpp: pull: project root dir branch " << quote(projectRootDirBranch) << " is not the same as rootBranch " << quote(project.rootBranch) << " in .nsm/nift.config" << std::endl;
+                start_err(std::cout) << "pull: project root dir branch " << quote(projectRootDirBranch) << " is not the same as rootBranch " << quote(project.rootBranch) << " in .nsm/nift.config" << std::endl;
                 return 1;
             }
 
             ret_val = chdir(project.outputDir.c_str());
             if(ret_val)
             {
-                std::cout << "error: nsm.cpp: pull: failed to change directory to " << quote(project.outputDir) << " from " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "pull: failed to change directory to " << quote(project.outputDir) << " from " << quote(get_pwd()) << std::endl;
                 return ret_val;
             }
 
@@ -1018,7 +1071,7 @@ int main(int argc, char* argv[])
 
             if(projectDirRemote == "##error##")
             {
-                std::cout << "error: nsm.cpp: pull: get_remote() failed in project directory " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "pull: get_remote() failed in project directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
@@ -1026,19 +1079,19 @@ int main(int argc, char* argv[])
 
             if(projectDirBranch == "##error##")
             {
-                std::cout << "error: nsm.cpp: pull: get_pb() failed in project directory " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "pull: get_pb() failed in project directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
             if(projectDirBranch == "##not-found##")
             {
-                std::cout << "error: nsm.cpp: pull: no branch found in project directory " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "pull: no branch found in project directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
             if(projectDirBranch != project.outputBranch)
             {
-                std::cout << "error: nsm.cpp: pull: output dir branch " << quote(projectDirBranch) << " is not the same as outputBranch " << quote(project.outputBranch) << " in .nsm/nift.config" << std::endl;
+                start_err(std::cout) << "pull: output dir branch " << quote(projectDirBranch) << " is not the same as outputBranch " << quote(project.outputBranch) << " in .nsm/nift.config" << std::endl;
                 return 1;
             }
 
@@ -1049,7 +1102,7 @@ int main(int argc, char* argv[])
                 ret_val = system(pullCmnd.c_str());
                 if(ret_val)
                 {
-                    std::cout << "error: nsm.cpp: pull: system(" << quote(pullCmnd) << ") failed in project directory " << quote(get_pwd()) << std::endl;
+                    start_err(std::cout) << "pull: system(" << quote(pullCmnd) << ") failed in project directory " << quote(get_pwd()) << std::endl;
                     return ret_val;
                 }
             }
@@ -1057,7 +1110,7 @@ int main(int argc, char* argv[])
             ret_val = chdir(projectRootDir.c_str());
             if(ret_val)
             {
-                std::cout << "error: nsm.cpp: pull: failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "pull: failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
                 return ret_val;
             }
 
@@ -1066,7 +1119,7 @@ int main(int argc, char* argv[])
             ret_val = system(pullCmnd.c_str());
             if(ret_val)
             {
-                std::cout << "error: nsm.cpp: pull: system(" << quote(pullCmnd) << ") failed in project root directory " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "pull: system(" << quote(pullCmnd) << ") failed in project root directory " << quote(get_pwd()) << std::endl;
                 return ret_val;
             }
 
@@ -1079,12 +1132,17 @@ int main(int argc, char* argv[])
                 return parError(noParams, argv, "1 or 2");
 
             if(noParams == 1)
-                std::cout << project.buildThreads << std::endl;
+            {
+                if(project.buildThreads < 0)
+                    std::cout << project.buildThreads << " (" << -project.buildThreads*std::thread::hardware_concurrency() << " on this machine)" << std::endl;
+                else
+                    std::cout << project.buildThreads << std::endl;
+            }
             else
             {
-                if(!isNum(std::string(argv[2])))
+                if(!isInt(std::string(argv[2])))
                 {
-                    std::cout << "error: number of build threads should be a non-zero integer (use negative numbers for a multiple of the number of cores on the machine)" << std::endl;
+                    start_err(std::cout) << "number of build threads should be a non-zero integer (use negative numbers for a multiple of the number of cores on the machine)" << std::endl;
                     return 1;
                 }
                 return project.no_build_threads(std::stoi(std::string(argv[2])));
@@ -1102,16 +1160,16 @@ int main(int argc, char* argv[])
                 std::cout << project.backupScripts << std::endl;
             else
             {
-                if(std::string(argv[2]) == "")
+                if(!std::string(argv[2]).size())
                 {
-                    std::cout << "error: do not recognise the option " << argv[2] << std::endl;
+                    start_err(std::cout) << "do not recognise the option " << quote(argv[2]) << std::endl;
                     return 1;
                 }
                 if(std::string(argv[2])[0] == 'y' || std::string(argv[2]) == "1")
                 {
                     if(project.backupScripts)
                     {
-                        std::cout << "error: project is already set to backup scripts" << std::endl;
+                        start_err(std::cout) << "project is already set to backup scripts" << std::endl;
                         return 1;
                     }
                     project.backupScripts = 1;
@@ -1121,7 +1179,7 @@ int main(int argc, char* argv[])
                 {
                     if(!project.backupScripts)
                     {
-                        std::cout << "error: project is already set to not backup scripts" << std::endl;
+                        start_err(std::cout) << "project is already set to not backup scripts" << std::endl;
                         return 1;
                     }
                     project.backupScripts = 0;
@@ -1129,11 +1187,11 @@ int main(int argc, char* argv[])
                 }
                 else
                 {
-                    std::cout << "error: do not recognise the option " << argv[2] << std::endl;
+                    start_err(std::cout) << "do not recognise the option " << argv[2] << std::endl;
                     return 1;
                 }
 
-                project.save_config();
+                project.save_local_config();
 
                 return 0;
             }
@@ -1149,27 +1207,27 @@ int main(int argc, char* argv[])
             WatchList wl;
             if(wl.open())
             {
-                std::cout << "error: watch: failed to open watch list '.nsm/.watchinfo/watching.list'" << std::endl;
+                start_err(std::cout) << "watch: failed to open watch list '.nsm/.watchinfo/watching.list'" << std::endl;
                 return 1;
             }
 
             WatchDir wd;
             wd.watchDir = comparable(argv[2]);
-            if(!std::ifstream(std::string(argv[2])))
+            if(!dir_exists(std::string(argv[2])))
             {
-                std::cout << "error: cannot watch directory " << quote(wd.watchDir) << " as it does not exist" << std::endl;
+                start_err(std::cout) << "cannot watch directory " << quote(wd.watchDir) << " as it does not exist" << std::endl;
                 return 1;
             }
             else if(wd.watchDir.substr(0, project.contentDir.size()) != project.contentDir)
             {
-                std::cout << "error: cannot watch directory " << quote(wd.watchDir) << " as it is not a subdirectory of the project-wide content directory " << quote(project.contentDir) << std::endl;
+                start_err(std::cout) << "cannot watch directory " << quote(wd.watchDir) << " as it is not a subdirectory of the project-wide content directory " << quote(project.contentDir) << std::endl;
                 return 1;
             }
             std::string contExt, outputExt;
             Path templatePath;
             if(wd.watchDir[wd.watchDir.size()-1] != '/' && wd.watchDir[wd.watchDir.size()-1] != '\\')
             {
-                std::cout << "error: watch directory " << quote(wd.watchDir) << " must end with '/' or '\\'" << std::endl;
+                start_err(std::cout) << "watch directory " << quote(wd.watchDir) << " must end with '/' or '\\'" << std::endl;
                 return 1;
             }
             if(noParams >= 3)
@@ -1177,7 +1235,7 @@ int main(int argc, char* argv[])
                 contExt = argv[3];
                 if(contExt[0] != '.')
                 {
-                    std::cout << "error: content extension " << quote(contExt) << " must start with a '.'" << std::endl;
+                    start_err(std::cout) << "content extension " << quote(contExt) << " must start with a '.'" << std::endl;
                     return 1;
                 }
             }
@@ -1187,9 +1245,9 @@ int main(int argc, char* argv[])
             {
                 templatePath.set_file_path_from(argv[4]);
 
-                if(!std::ifstream(templatePath.str()))
+                if(!file_exists(templatePath.str()))
                 {
-                    std::cout << "error: template path " << templatePath << " does not exist" << std::endl;
+                    start_err(std::cout) << "template path " << templatePath << " does not exist" << std::endl;
                     return 1;
                 }
             }
@@ -1200,7 +1258,7 @@ int main(int argc, char* argv[])
                 outputExt = argv[5];
                 if(outputExt[0] != '.')
                 {
-                    std::cout << "error: output extension " << quote(outputExt) << " must start with a '.'" << std::endl;
+                    start_err(std::cout) << "output extension " << quote(outputExt) << " must start with a '.'" << std::endl;
                     return 1;
                 }
             }
@@ -1213,7 +1271,7 @@ int main(int argc, char* argv[])
             {
                 if(found->contExts.count(contExt))
                 {
-                    std::cout << "error: already watching directory " << quote(wd.watchDir) << " with content extension " << quote(contExt) << std::endl;
+                    start_err(std::cout) << "already watching directory " << quote(wd.watchDir) << " with content extension " << quote(contExt) << std::endl;
                     return 1;
                 }
                 else
@@ -1259,13 +1317,13 @@ int main(int argc, char* argv[])
             if(noParams < 2 || noParams > 3)
                 return parError(noParams, argv, "2 or 3");
 
-            if(std::ifstream(".nsm/.watchinfo/watching.list"))
+            if(file_exists(".nsm/.watchinfo/watching.list"))
             {
                 std::string contExt;
                 WatchList wl;
                 if(wl.open())
                 {
-                    std::cout << "error: unwatch: failed to open watch list '.nsm/.watchinfo/watching.list'" << std::endl;
+                    start_err(std::cout) << "unwatch: failed to open watch list '.nsm/.watchinfo/watching.list'" << std::endl;
                     return 1;
                 }
 
@@ -1286,7 +1344,8 @@ int main(int argc, char* argv[])
                         if(found->contExts.size() == 1)
                         {
                             wl.dirs.erase(found);
-                            remove_path(Path(".nsm/.watchinfo/", replace_slashes(wd.watchDir) + ".exts"));
+                            remove_path(Path(".nsm/.watchinfo/" + strip_trailing_slash(wd.watchDir) + ".exts"));
+                            remove_path(Path(".nsm/.watchinfo/" + strip_trailing_slash(wd.watchDir) + ".tracked"));
                         }
                         else
                         {
@@ -1305,19 +1364,19 @@ int main(int argc, char* argv[])
                     }
                     else
                     {
-                        std::cout << "error: not watching directory " << quote(argv[2]) << " with content extension " << quote(contExt) << std::endl;
+                        start_err(std::cout) << "not watching directory " << quote(argv[2]) << " with content extension " << quote(contExt) << std::endl;
                         return 1;
                     }
                 }
                 else
                 {
-                    std::cout << "error: not watching directory " << quote(argv[2]) << std::endl;
+                    start_err(std::cout) << "not watching directory " << quote(argv[2]) << std::endl;
                     return 1;
                 }
             }
             else
             {
-                std::cout << "error: not watching directory " << quote(argv[2]) << std::endl;
+                start_err(std::cout) << "not watching directory " << quote(argv[2]) << std::endl;
                 return 1;
             }
 
@@ -1334,7 +1393,7 @@ int main(int argc, char* argv[])
             //ensures correct number of parameters given
             if(noParams != 2)
             {
-                std::cout << "error: correct usage 'bcp \"commit message\"'" << std::endl;
+                start_err(std::cout) << "correct usage 'bcp \"commit message\"'" << std::endl;
                 return parError(noParams, argv, "2");
             }
 
@@ -1344,7 +1403,7 @@ int main(int argc, char* argv[])
             if(!is_git_remote_set())
                 return 1;
 
-            if(project.build_updated(std::cout))
+            if(project.build_updated(std::cout, 1, 0, 1))
                 return 1;
 
             std::string commitCmnd = "git commit -m \"" + std::string(argv[2]) + "\"",
@@ -1354,19 +1413,19 @@ int main(int argc, char* argv[])
 
             if(projectRootDirBranch == "##error##")
             {
-                std::cout << "error: nsm.cpp: bcp: get_pb() failed in " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "bcp: get_pb() failed in " << quote(get_pwd()) << std::endl;
                 return 0;
             }
 
             if(projectRootDirBranch == "##not-found##")
             {
-                std::cout << "error: nsm.cpp: bcp: no branch found in project root directory " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "bcp: no branch found in project root directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
             if(projectRootDirBranch != project.rootBranch)
             {
-                std::cout << "error: nsm.cpp: bcp: root dir branch " << quote(projectRootDirBranch) << " is not the same as rootBranch " << quote(project.rootBranch) << " in .nsm/nift.config" << std::endl;
+                start_err(std::cout) << "bcp: root dir branch " << quote(projectRootDirBranch) << " is not the same as rootBranch " << quote(project.rootBranch) << " in .nsm/nift.config" << std::endl;
                 return 1;
             }
 
@@ -1375,7 +1434,7 @@ int main(int argc, char* argv[])
             ret_val = chdir(project.outputDir.c_str());
             if(ret_val)
             {
-                std::cout << "error: nsm.cpp: bcp: failed to change directory to " << quote(project.outputDir) << " from " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "bcp: failed to change directory to " << quote(project.outputDir) << " from " << quote(get_pwd()) << std::endl;
                 return ret_val;
             }
 
@@ -1383,19 +1442,19 @@ int main(int argc, char* argv[])
 
             if(outputDirBranch == "##error##")
             {
-                std::cout << "error: nsm.cpp: bcp: get_pb() failed in " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "bcp: get_pb() failed in " << quote(get_pwd()) << std::endl;
                 return 0;
             }
 
             if(outputDirBranch == "##not-found##")
             {
-                std::cout << "error: nsm.cpp: bcp: no branch found in project directory " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "bcp: no branch found in project directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
             if(outputDirBranch != project.outputBranch)
             {
-                std::cout << "error: nsm.cpp: pull: output dir branch " << quote(outputDirBranch) << " is not the same as outputBranch " << quote(project.outputBranch) << " in .nsm/nift.config" << std::endl;
+                start_err(std::cout) << "bcp: output dir branch " << quote(outputDirBranch) << " is not the same as outputBranch " << quote(project.outputBranch) << " in .nsm/nift.config" << std::endl;
                 return 1;
             }
 
@@ -1406,7 +1465,7 @@ int main(int argc, char* argv[])
                 ret_val = system("git add -A .");
                 if(ret_val)
                 {
-                    std::cout << "error: nsm.cpp: bcp: system('git add -A .') failed in " << quote(get_pwd()) << std::endl;
+                    start_err(std::cout) << "bcp: system('git add -A .') failed in " << quote(get_pwd()) << std::endl;
                     return ret_val;
                 }
 
@@ -1416,7 +1475,7 @@ int main(int argc, char* argv[])
                 ret_val = system(pushCmnd.c_str());
                 if(ret_val)
                 {
-                    std::cout << "error: nsm.cpp: bcp: system(" << quote(pushCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
+                    start_err(std::cout) << "bcp: system(" << quote(pushCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
                     return ret_val;
                 }
             }
@@ -1424,7 +1483,7 @@ int main(int argc, char* argv[])
             ret_val = chdir(projectRootDir.c_str());
             if(ret_val)
             {
-                std::cout << "error: nsm.cpp: bcp: failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "bcp: failed to change directory to " << quote(projectRootDir) << " from " << quote(get_pwd()) << std::endl;
                 return ret_val;
             }
 
@@ -1433,7 +1492,7 @@ int main(int argc, char* argv[])
             ret_val = system("git add -A .");
             if(ret_val)
             {
-                std::cout << "error: nsm.cpp: bcp: system('git add -A .') failed in " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "bcp: system('git add -A .') failed in " << quote(get_pwd()) << std::endl;
                 return ret_val;
             }
 
@@ -1443,19 +1502,11 @@ int main(int argc, char* argv[])
             ret_val = system(pushCmnd.c_str());
             if(ret_val)
             {
-                std::cout << "error: nsm.cpp: bcp: system(" << quote(pushCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
+                start_err(std::cout) << "bcp: system(" << quote(pushCmnd) << ") failed in " << quote(get_pwd()) << std::endl;
                 return ret_val;
             }
 
             return 0;
-        }
-        else if(cmd == "status")
-        {
-            //ensures correct number of parameters given
-            if(noParams != 1)
-                return parError(noParams, argv, "1");
-
-            return project.status();
         }
         else if(cmd == "info")
         {
@@ -1506,10 +1557,10 @@ int main(int argc, char* argv[])
             if(noParams < 2 || noParams > 4)
                 return parError(noParams, argv, "2-4");
 
-            Name newName = quote(argv[2]); //surely this doesn't need to be quoted?
+            Name newName = quote(argv[2]); 
             Title newTitle;
             if(noParams >= 3)
-                newTitle = quote(argv[3]); //surely this doesn't need to be quoted?
+                newTitle = quote(argv[3]); 
             else
                 newTitle = get_title(newName);
 
@@ -1705,7 +1756,7 @@ int main(int argc, char* argv[])
                 int return_val =  project.new_template(name, newTemplatePath);
 
                 if(!return_val)
-                    std::cout << "successfully changed template path to " << newTemplatePath.str() << std::endl;
+                    std::cout << "successfully changed template path to " << newTemplatePath << std::endl;
 
                 return return_val;
             }
@@ -1718,7 +1769,7 @@ int main(int argc, char* argv[])
 
             Directory newOutputDir = argv[2];
 
-            if(newOutputDir != "" && newOutputDir[newOutputDir.size()-1] != '/' && newOutputDir[newOutputDir.size()-1] != '\\')
+            if(newOutputDir.size() && newOutputDir[newOutputDir.size()-1] != '/' && newOutputDir[newOutputDir.size()-1] != '\\')
                 newOutputDir += "/";
 
             return project.new_output_dir(newOutputDir);
@@ -1731,7 +1782,7 @@ int main(int argc, char* argv[])
 
             Directory newContDir = argv[2];
 
-            if(newContDir != "" && newContDir[newContDir.size()-1] != '/' && newContDir[newContDir.size()-1] != '\\')
+            if(newContDir.size() && newContDir[newContDir.size()-1] != '/' && newContDir[newContDir.size()-1] != '\\')
                 newContDir += "/";
 
             return project.new_content_dir(newContDir);
@@ -1796,20 +1847,87 @@ int main(int argc, char* argv[])
                 return return_val;
             }
         }
-        else if(cmd == "build-updated")
+        else if(cmd == "status")
         {
             //ensures correct number of parameters given
-            if(noParams > 1)
-                return parError(noParams, argv, "1");
+            if(noParams > 2)
+                return parError(noParams, argv, "1-2");
 
-            int result = project.build_updated(std::cout);
+            int result;
+
+            if(noParams == 1)
+                result = project.status(std::cout, 1, 0, 0);
+            else
+            {
+                std::string optStr = argv[2];
+
+                if(optStr == "-a") //add expl
+                    result = project.status(std::cout, 1, 1, 0);
+                else if(optStr == "-ab")
+                    result = project.status(std::cout, 1, 1, 1);
+                else if(optStr == "-as")
+                    result = project.status(std::cout, 0, 1, 0);
+                else if(optStr == "-abs")
+                    result = project.status(std::cout, 0, 1, 1);
+                else if(optStr == "-b") //basic
+                    result = project.status(std::cout, 1, 0, 1);
+                else if(optStr == "-bs")
+                    result = project.status(std::cout, 0, 0, 1);
+                else if(optStr == "-s") //silent
+                    result = project.status(std::cout, 0, 0, 0);
+                else
+                {
+                    start_err(std::cout) << "do not recognise build-updated option " << quote(argv[2]) << std::endl;
+                    return 1;
+                }
+            }
 
             std::cout.precision(4);
             std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
 
             return result;
         }
-        else if(cmd == "build-names")
+        else if(cmd == "build-updated")
+        {
+            //ensures correct number of parameters given
+            if(noParams > 2)
+                return parError(noParams, argv, "1-2");
+
+            int result;
+
+            if(noParams == 1)
+                result = project.build_updated(std::cout, 1, 0, 0);
+            else
+            {
+                std::string optStr = argv[2];
+
+                if(optStr == "-a") //add expl
+                    result = project.build_updated(std::cout, 1, 1, 0);
+                else if(optStr == "-ab")
+                    result = project.build_updated(std::cout, 1, 1, 1);
+                else if(optStr == "-as")
+                    result = project.build_updated(std::cout, 0, 1, 0);
+                else if(optStr == "-abs")
+                    result = project.build_updated(std::cout, 0, 1, 1);
+                else if(optStr == "-b") //basic
+                    result = project.build_updated(std::cout, 1, 0, 1);
+                else if(optStr == "-bs")
+                    result = project.build_updated(std::cout, 0, 0, 1);
+                else if(optStr == "-s") //silent
+                    result = project.build_updated(std::cout, 0, 0, 0);
+                else
+                {
+                    start_err(std::cout) << "do not recognise build-updated option " << quote(argv[2]) << std::endl;
+                    return 1;
+                }
+            }
+
+            std::cout.precision(4);
+            std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
+
+            return result;
+        }
+        else if(cmd == "build-names-old")
         {
             //ensures correct number of parameters given
             if(noParams <= 1)
@@ -1826,13 +1944,59 @@ int main(int argc, char* argv[])
 
             return result;
         }
+        else if(cmd == "build-names")
+        {
+            //ensures correct number of parameters given
+            if(noParams <= 1)
+                return parError(noParams, argv, ">1");
+
+            int p=2;
+            bool noOpt = 1;
+            std::string optStr = argv[2];
+            if(optStr == "-s")
+            {
+                noOpt = 0;
+                ++p;
+            }
+
+            std::vector<Name> namesToBuild;
+            for(; p<argc; p++)
+                namesToBuild.push_back(argv[p]);
+
+            int result;
+
+            if(noOpt)
+                result = project.build_names(std::cout, 1, namesToBuild);
+            else
+                result = project.build_names(std::cout, 0, namesToBuild);
+
+            std::cout.precision(4);
+            std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
+
+            return result;
+        }
         else if(cmd == "build-all")
         {
             //ensures correct number of parameters given
-            if(noParams != 1)
-                return parError(noParams, argv, "1");
+            if(noParams > 2)
+                return parError(noParams, argv, "1-2");
 
-            int result = project.build_all();
+            int result;
+
+            if(noParams == 1)
+                result = project.build_all(std::cout, 1);
+            else
+            {
+                std::string optStr = argv[2];
+
+                if(optStr == "-s")
+                    result = project.build_all(std::cout, 0);
+                else
+                {
+                    start_err(std::cout) << "do not recognise build-all option " << quote(argv[2]) << std::endl;
+                    return 1;
+                }
+            }
 
             std::cout.precision(4);
             std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
@@ -1845,21 +2009,37 @@ int main(int argc, char* argv[])
             if(noParams > 2)
                 return parError(noParams, argv, "1 or 2");
 
-            if(noParams == 2 && isNum(std::string(argv[2])))
+            if(noParams == 2 && isDouble(std::string(argv[2])))
             {
-                sleepTime = std::stoi(std::string(argv[2]))*1000;
+                double sleepTimeSec = std::strtod(argv[2], NULL);
+                sleepTime = sleepTimeSec*1000000;
                 noParams = 1;
-                std::cout << "sleep time " << sleepTime << std::endl;
+                if(sleepTimeSec >= 60)
+                    std::cout << "sleep time: " << int_to_timestr(sleepTimeSec) << std::endl;
+                else //need to consider 0 < sleepTimeSec < 1
+                    std::cout << "sleep time: " << sleepTimeSec << "s" << std::endl;
             }
 
             if(noParams == 2 && std::string(argv[2]) != "-s")
             {
-                std::cout << "error: Nift does not recognise command serve " << argv[2] << std::endl;
+                start_err(std::cout) << "do not recognise command serve " << argv[2] << std::endl;
                 return 1;
             }
 
+            Parser parser(&project.trackedAll, 
+                  &serve_mtx, 
+                  project.contentDir, 
+                  project.outputDir, 
+                  project.contentExt, 
+                  project.outputExt, 
+                  project.scriptExt, 
+                  project.defaultTemplate, 
+                  project.backupScripts, 
+                  project.unixTextEditor, 
+                  project.winTextEditor);
+
             //checks for pre-serve scripts
-            if(run_script(std::cout, "pre-serve" + project.scriptExt, project.backupScripts, &os_mtx2))
+            if(parser.run_script(std::cout, Path("", "pre-serve" + project.scriptExt), project.backupScripts, 1))
                 return 1;
 
             serving = 1;
@@ -1873,12 +2053,12 @@ int main(int argc, char* argv[])
             serve_thread.join();
 
             //checks for post-serve scripts
-            if(run_script(std::cout, "post-serve" + project.scriptExt, project.backupScripts, &os_mtx2))
+            if(parser.run_script(std::cout, Path("", "post-serve" + project.scriptExt), project.backupScripts, 1))
                 return 1;
         }
         else
         {
-            unrecognisedCommand("nsm", cmd);
+            unrecognisedCommand(cmd);
             return 1;
         }
     }

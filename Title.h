@@ -1,6 +1,7 @@
 #ifndef TITLE_H_
 #define TITLE_H_
 
+#include "ConsoleColor.h"
 #include "Quoted.h"
 
 struct Title

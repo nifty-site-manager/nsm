@@ -5,11 +5,16 @@ Path::Path()
     type = "none";
 }
 
-Path::Path(const Directory &Dir, const Filename &File)
+Path::Path(const Directory& Dir, const Filename& File)
 {
     dir = Dir;
     file = File;
     type = "file";
+}
+
+Path::Path(const std::string& path)
+{
+	set_file_path_from(path);
 }
 
 std::string Path::str() const
@@ -30,15 +35,19 @@ std::string Path::comparableStr() const
     return comparable(dir) + file;
 }
 
-//outputs path (quoted if it contains spaces)
-std::ostream& operator<<(std::ostream &os, const Path &path)
+//outputs path quoted (coloured purple if to console)
+std::ostream& operator<<(std::ostream& os, const Path& path)
 {
-    os << quote(path.str());
+	//check speed of this
+	if(&os == &std::cout)
+		os << c_purple << quote(path.str()) << c_white;
+	else
+	    os << quote(path.str());
 
     return os;
 }
 
-void Path::set_file_path_from(const std::string &s)
+void Path::set_file_path_from(const std::string& s)
 {
     size_t pos = s.find_last_of('/');
     if(pos == std::string::npos)
@@ -48,7 +57,7 @@ void Path::set_file_path_from(const std::string &s)
                      s.substr(pos+1, s.size()-(pos+1)) );
 }
 
-std::istream& Path::read_file_path_from(std::istream &is)
+std::istream& Path::read_file_path_from(std::istream& is)
 {
     std::string s;
     read_quoted(is, s);
@@ -58,7 +67,7 @@ std::istream& Path::read_file_path_from(std::istream &is)
 }
 
 //returns whether first file was modified after second file
-bool Path::modified_after(const Path &path2) const
+bool Path::modified_after(const Path& path2) const
 {
     struct stat sb1, sb2;
     stat(str().c_str(), &sb1);
@@ -107,20 +116,148 @@ bool Path::ensureFileExists() const
 }
 
 //equality relation
-bool operator==(const Path &path1, const Path &path2)
+bool operator==(const Path& path1, const Path& path2)
 {
     return (path1.comparableStr() == path2.comparableStr());
 }
 
 //inequality relation
-bool operator!=(const Path &path1, const Path &path2)
+bool operator!=(const Path& path1, const Path& path2)
 {
     return (path1.comparableStr() != path2.comparableStr());
 }
 
 //less than relation
-bool operator<(const Path &path1, const Path &path2)
+bool operator<(const Path& path1, const Path& path2)
 {
     return (path1.comparableStr() < path2.comparableStr());
+}
+
+#if defined _WIN32 || defined _WIN64
+	void clear_console_line()
+	{
+		std::string bLine = std::string(console_width()-1, '\b');
+		std::cout << bLine << std::string(bLine.size(), ' ') << bLine;
+
+		//std::cout << std::flush;
+		std::fflush(stdout);
+	}
+#else
+	void clear_console_line()
+	{
+		std::cout << "\33[2K\r";
+		//std::cout << std::flush;
+		std::fflush(stdout);
+	}
+#endif
+
+
+std::ostream& start_err(std::ostream& eos)
+{
+	clear_console_line();
+
+    if(&eos == &std::cout)
+        eos << c_red << "\aerror" << c_white << ": ";
+    else
+        eos << "error: ";
+
+    return eos;
+}
+
+std::ostream& start_err(std::ostream& eos, const Path& readPath)
+{
+	clear_console_line();
+
+    if(&eos == &std::cout)
+    {
+        eos << c_red << "\aerror" << c_white << ": ";
+		if(readPath.str() != "")
+			eos << readPath << ": ";
+    }
+    else
+        eos << "error: " << readPath << ": ";
+
+    return eos;
+}
+
+std::ostream& start_err(std::ostream& eos, const Path& readPath, const int& lineNo)
+{
+	clear_console_line();
+
+    if(&eos == &std::cout)
+    {
+        eos << c_red << "\aerror" << c_white << ": ";
+		if(readPath.str() != "")
+			eos << readPath;
+		eos << "[" << c_gold << lineNo << c_white << "]: ";
+    }
+    else
+        eos << "error: " << readPath << ": line " << lineNo << ": ";
+
+    return eos;
+}
+
+std::ostream& start_err_ml(std::ostream& eos, const Path& readPath, const int& sLineNo, const int& eLineNo)
+{
+    if(sLineNo == eLineNo)
+        return start_err(eos, readPath, sLineNo);
+
+    clear_console_line();
+    if(&eos == &std::cout)
+    {
+        eos << c_red << "\aerror" << c_white << ": ";
+		if(readPath.str() != "")
+			eos << readPath;
+		eos << "[" << c_gold << sLineNo << "-" << eLineNo << c_white << "]: ";
+    }
+    else
+        eos << "error: " << readPath << ": lines " << sLineNo << "-" << eLineNo << ": ";
+
+    return eos;
+}
+
+std::ostream& start_warn(std::ostream& eos)
+{
+	clear_console_line();
+
+    if(&eos == &std::cout)
+        eos << c_aqua << "warning" << c_white << ": ";
+    else
+        eos << "warning: ";
+
+    return eos;
+}
+
+std::ostream& start_warn(std::ostream& eos, const Path& readPath)
+{
+	clear_console_line();
+
+    if(&eos == &std::cout)
+    {
+        eos << c_aqua << "warning" << c_white << ": ";
+		if(readPath.str() != "")
+			eos << readPath << ": ";
+    }
+    else
+        eos << "warning: " << readPath << ": ";
+
+    return eos;
+}
+
+std::ostream& start_warn(std::ostream& eos, const Path& readPath, const int& lineNo)
+{
+	clear_console_line();
+
+    if(&eos == &std::cout)
+    {
+        eos << c_aqua << "warning: ";
+		if(readPath.str() != "")
+			eos << readPath;
+		eos << "[" << c_gold << lineNo << c_white << "]: ";
+    }
+    else
+        eos << "warning: " << readPath << ": line " << lineNo << ": ";
+
+    return eos;
 }
 

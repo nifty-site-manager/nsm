@@ -44,27 +44,41 @@ std::string quote(const std::string &unquoted)
     else if((unquoted.size() > 1 && unquoted[0] == '"' && unquoted[unquoted.size()-1] == '"') ||
        (unquoted.size() > 1 && unquoted[0] == '\'' && unquoted[unquoted.size()-1] == '\''))
         return unquoted;
-    else if(unquoted.find(' ') == std::string::npos)
+    /*else if(unquoted.find(' ') == std::string::npos)
     {
         for(size_t i=0; i<unquoted.size(); i++)
         {
             //quotes anything with special characters
             if(!std::isalnum(unquoted[i]))
             {
-                if(unquoted.find('\'') == std::string::npos)
-                    return "'" + unquoted + "'";
-                else if(unquoted.find('"') == std::string::npos)
-                    return "\"" + unquoted + "\"";
+				#if defined _WIN32 || defined _WIN64
+		            if(unquoted.find('"') == std::string::npos)
+		                return "\"" + unquoted + "\"";
+		            else if(unquoted.find('\'') == std::string::npos)
+		                return "'" + unquoted + "'";
+				#else
+		            if(unquoted.find('\'') == std::string::npos)
+		                return "'" + unquoted + "'";
+		            else if(unquoted.find('"') == std::string::npos)
+		                return "\"" + unquoted + "\"";
+				#endif
                 else
                     return "'" + unquoted + "'";
             }
         }
         return unquoted;
-    }
-    else if(unquoted.find('\'') == std::string::npos)
-        return "'" + unquoted + "'";
-    else if(unquoted.find('"') == std::string::npos)
-        return "\"" + unquoted + "\"";
+    }*/
+    #if defined _WIN32 || defined _WIN64
+		else if(unquoted.find('"') == std::string::npos)
+		    return "\"" + unquoted + "\"";
+		else if(unquoted.find('\'') == std::string::npos)
+		    return "'" + unquoted + "'";
+    #else  //unix
+		else if(unquoted.find('\'') == std::string::npos)
+		    return "'" + unquoted + "'";
+		else if(unquoted.find('"') == std::string::npos)
+		    return "\"" + unquoted + "\"";
+    #endif
     else
         return "'" + unquoted + "'";
 }

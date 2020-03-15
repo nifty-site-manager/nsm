@@ -3,6 +3,7 @@
 
 #include <set>
 
+#include "ConsoleColor.h"
 #include "FileSystem.h"
 
 bool is_git_configured(); //checks whether git is configured

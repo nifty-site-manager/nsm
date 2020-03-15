@@ -14,6 +14,11 @@ bool operator<(const TrackedInfo& tInfo1, const TrackedInfo& tInfo2)
     return (quote(tInfo1.name) < quote(tInfo2.name));
 }
 
+bool operator==(const TrackedInfo& tInfo1, const TrackedInfo& tInfo2)
+{
+    return (quote(tInfo1.name) == quote(tInfo2.name));
+}
+
 std::ostream& operator<<(std::ostream& os, const TrackedInfo& tInfo)
 {
     os << quote(tInfo.name) << "\n";
@@ -21,4 +26,19 @@ std::ostream& operator<<(std::ostream& os, const TrackedInfo& tInfo)
     os << tInfo.templatePath;
 
     return os;
+}
+
+std::string& operator<<(std::string& str, const TrackedInfo& tInfo)
+{
+    str += quote(tInfo.name) + "\n";
+    str += tInfo.title.str + "\n";
+    str += quote(tInfo.templatePath.str());
+
+    return str;
+}
+
+std::unordered_set<std::string>::hasher HashFn = std::unordered_set<std::string>().hash_function();
+int TrackedInfoIndex::operator()(const TrackedInfo &trackedInfo) const
+{
+	return HashFn(trackedInfo.name);
 }

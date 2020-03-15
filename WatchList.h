@@ -6,7 +6,8 @@
 
 #include "FileSystem.h"
 
-std::string replace_slashes(const std::string& source);
+std::string strip_trailing_slash(const std::string& source);
+std::string replace_slashes(const std::string& source); //can delete this later
 
 struct WatchDir
 {

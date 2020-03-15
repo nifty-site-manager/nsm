@@ -1,6 +1,18 @@
 #include "WatchList.h"
 
-std::string replace_slashes(const std::string& source)
+std::string strip_trailing_slash(const std::string& source)
+{
+    std::string result = "";
+
+	if(source.size() && (source[source.size()-1] == '/' || source[source.size()-1] == '\\'))
+		result = source.substr(0, source.size()-1);
+	else
+		result = source;
+
+	return result;
+}
+
+std::string replace_slashes(const std::string& source) //can delete this later
 {
     std::string result = "";
 
@@ -30,9 +42,9 @@ WatchList::WatchList()
 
 int WatchList::open()
 {
-    if(std::ifstream(".nsm/nift.config"))
+    if(file_exists(".nsm/nift.config"))
     {
-        if(std::ifstream(".nsm/.watchinfo/watching.list"))
+        if(file_exists(".nsm/.watchinfo/watching.list"))
         {
             WatchDir wd;
             std::string contExt;
@@ -47,9 +59,20 @@ int WatchList::open()
                 wd.outputExts.clear();
                 if(wd.watchDir != "" && wd.watchDir[0] != '#')
                 {
-                    std::string watchDirExtsFileStr = ".nsm/.watchinfo/" + replace_slashes(wd.watchDir) + ".exts";
+                    std::string watchDirExtsFileStr = ".nsm/.watchinfo/" + strip_trailing_slash(wd.watchDir) + ".exts";
 
-                    if(std::ifstream(watchDirExtsFileStr))
+					//can delete this later
+					std::string watchDirExtsFileStrOld = ".nsm/.watchinfo/" + replace_slashes(wd.watchDir) + ".exts";
+					if(file_exists(watchDirExtsFileStrOld))
+					{
+						Path(watchDirExtsFileStr).ensureDirExists();
+						if(rename(watchDirExtsFileStrOld.c_str(), watchDirExtsFileStr.c_str()))
+						{
+							std::cout << "error: failed to rename " << quote(watchDirExtsFileStrOld) << " to " << quote(watchDirExtsFileStr) << std::endl;
+						}
+					}
+
+                    if(file_exists(watchDirExtsFileStr))
                     {
                         std::ifstream ifxs(watchDirExtsFileStr);
                         while(read_quoted(ifxs, contExt))
@@ -102,7 +125,7 @@ int WatchList::open()
 
 int WatchList::save()
 {
-    if(std::ifstream(".nsm/nift.config"))
+    if(file_exists(".nsm/nift.config"))
     {
         if(dirs.size())
         {
@@ -113,7 +136,12 @@ int WatchList::save()
             {
                 ofs << quote(wd->watchDir) << "\n";
 
-                std::string watchDirExtsFileStr = ".nsm/.watchinfo/" + replace_slashes(wd->watchDir) + ".exts";
+                std::string watchDirExtsFileStr = ".nsm/.watchinfo/" + strip_trailing_slash(wd->watchDir) + ".exts";
+
+				Path watchDirExtsFilePath;
+				watchDirExtsFilePath.set_file_path_from(watchDirExtsFileStr);
+				watchDirExtsFilePath.ensureFileExists();
+				
                 std::ofstream ofxs(watchDirExtsFileStr);
                 for(auto ext=wd->contExts.begin(); ext!=wd->contExts.end(); ext++)
                     ofxs << *ext << " " << wd->templatePaths.at(*ext) << " " << wd->outputExts.at(*ext) << "\n";

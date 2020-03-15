@@ -7,7 +7,7 @@ bool is_git_configured()
     int ret_val = system("git config --global user.email > .nsm-git-email.txt");
     if(ret_val)
     {
-        std::cout << "error: nsm.cpp: is_git_configured(): system('git config --global user.email > .nsm-git-email.txt') failed in " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "is_git_configured(): system('git config --global user.email > .nsm-git-email.txt') failed in " << quote(get_pwd()) << std::endl;
         remove_file(Path("./", ".nsm-git-email.txt"));
         return 0;
     }
@@ -31,7 +31,7 @@ bool is_git_configured()
     ret_val = system("git config --global user.name > .nsm-git-username.txt");
     if(ret_val)
     {
-        std::cout << "error: nsm.cpp: is_git_configured(): system('git config --global user.name > .nsm-git-username.txt') failed in " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "is_git_configured(): system('git config --global user.name > .nsm-git-username.txt') failed in " << quote(get_pwd()) << std::endl;
         remove_file(Path("./", ".nsm-git-username.txt"));
         return 0;
     }
@@ -62,7 +62,7 @@ bool is_git_remote_set()
     int ret_val = system("git config --get remote.origin.url > .nsm-git-remote-url.txt");
     if(ret_val)
     {
-        std::cout << "error: nsm.cpp: is_git_remote_set(): system('git config --get remote.origin.url > .nsm-git-remote-url.txt') failed in " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "is_git_remote_set(): system('git config --get remote.origin.url > .nsm-git-remote-url.txt') failed in " << quote(get_pwd()) << std::endl;
         remove_file(Path("./", ".nsm-git-remote-url.txt"));
         return 0;
     }
@@ -73,7 +73,7 @@ bool is_git_remote_set()
     remove_file(Path("./", ".nsm-git-remote-url.txt"));
     if(str == "")
     {
-        std::cout << "error: no remote git url set" << std::endl;
+        start_err(std::cout) << "no remote git url set" << std::endl;
         return 0;
     }
 
@@ -88,7 +88,7 @@ std::string get_pb()
     int ret_val = system("git status > .nsm-present-branch.txt");
     if(ret_val)
     {
-        std::cout << "error: nsm.cpp: get_pb(): system('git status > .nsm-present-branch.txt') failed in " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "get_pb(): system('git status > .nsm-present-branch.txt') failed in " << quote(get_pwd()) << std::endl;
         remove_file(Path("./", ".nsm-present-branch.txt"));
         return "##error##";
     }
@@ -117,7 +117,7 @@ std::string get_remote()
     int ret_val = system("git remote > .nsm-git-remote.txt");
     if(ret_val)
     {
-        std::cout << "error: nsm.cpp: get_remote(): system('git remote > .nsm-git-remote.txt') failed in " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "get_remote(): system('git remote > .nsm-git-remote.txt') failed in " << quote(get_pwd()) << std::endl;
         remove_file(Path("./", ".nsm-git-remote.txt"));
         return "##error##";
     }

@@ -1,6 +1,7 @@
 #ifndef PROJECT_INFO_H_
 #define PROJECT_INFO_H_
 
+#include <algorithm>
 #include <cmath>
 #include <math.h>
 #include <mutex>
@@ -10,6 +11,7 @@
 
 #include "GitInfo.h"
 #include "Parser.h"
+#include "Timer.h"
 #include "WatchList.h"
 
 struct InfoToTrack
@@ -33,6 +35,13 @@ struct InfoToTrack
     }
 };
 
+int create_default_html_template(const Path& templatePath);
+int create_blank_template(const Path& templatePath);
+int create_config_file(const Path& configPath, 
+                       const std::string& outputExt, 
+                       bool global);
+bool upgradeProject();
+
 struct ProjectInfo
 {
     Directory contentDir,
@@ -48,17 +57,24 @@ struct ProjectInfo
                 outputBranch;
     Path defaultTemplate;
     std::set<TrackedInfo> trackedAll;
-    std::mutex os_mtx3;
+    std::mutex os_mtx3; //should this be removed?
 
     int open();
-    int open_config();
+    int open_config(const Path& configPath, bool global);
+    int open_global_config();
+    int open_local_config();
     int open_tracking();
+
+    int save_config(const std::string& configPathStr, bool global);
+    int save_global_config();
+    int save_local_config();
     int save_tracking();
-    int save_config();
 
     TrackedInfo make_info(const Name& name);
     TrackedInfo make_info(const Name& name, const Title& title);
-    TrackedInfo make_info(const Name& name, const Title& title, const Path& templatePath);
+    TrackedInfo make_info(const Name& name, 
+                          const Title& title, 
+                          const Path& templatePath);
     TrackedInfo get_info(const Name& name);
     int info(const std::vector<Name>& names);
     int info_all();
@@ -66,18 +82,28 @@ struct ProjectInfo
     int info_tracking();
     int info_names();
 
-    std::string get_ext(const TrackedInfo& trackedInfo, const std::string& extType);
+    std::string get_ext(const TrackedInfo& trackedInfo, 
+                        const std::string& extType);
     std::string get_cont_ext(const TrackedInfo& trackedInfo);
     std::string get_output_ext(const TrackedInfo& trackedInfo);
     std::string get_script_ext(const TrackedInfo& trackedInfo);
 
     bool tracking(const TrackedInfo& trackedInfo);
     bool tracking(const Name& name);
-    int track(const Name& name, const Title& title, const Path& templatePath);
+    int track(const Name& name, 
+              const Title& title, 
+              const Path& templatePath);
     int track_from_file(const std::string& filePath);
-    int track_dir(const Path& dirPath, const std::string& cExt, const Path& templatePath, const std::string& oExt);
+    int track_dir(const Path& dirPath, 
+                  const std::string& cExt, 
+                  const Path& templatePath, 
+                  const std::string& oExt);
     int track(const std::vector<InfoToTrack>& toTrack);
-    int track(const Name& name, const Title& title, const Path& templatePath, const std::string& cExt, const std::string& oExt);
+    int track(const Name& name, 
+              const Title& title, 
+              const Path& templatePath, 
+              const std::string& cExt, 
+              const std::string& oExt);
     int untrack(const Name& nameToUntrack);
     int untrack(const std::vector<Name>& namesToUntrack);
     int untrack_from_file(const std::string& filePath);
@@ -105,11 +131,24 @@ struct ProjectInfo
 
     int check_watch_dirs();
 
-    int build_names(const std::vector<Name>& namesToBuild);
-    int build_all();
-    int build_updated(std::ostream& os);
 
-    int status();
+    int build_names(const std::vector<Name>& namesToBuild);
+    int build_untracked(std::ostream& os, 
+                        const bool& addBuildStatus, 
+                        const std::set<TrackedInfo> infoToBuild);
+    int build_names(std::ostream& os, 
+                    const bool& addBuildStatus, 
+                    const std::vector<Name>& namesToBuild);
+    int build_all(std::ostream& os, const bool& addBuildStatus);
+    int build_updated(std::ostream& os, 
+                      const bool& addBuildStatus, 
+                      const bool& addExpl, 
+                      const bool& basicOpt);
+
+    int status(std::ostream& os, 
+               const bool& addBuildStatus, 
+               const bool& addExpl, 
+               const bool& basicOpt);
 };
 
 #endif //PROJECT_INFO_H_
