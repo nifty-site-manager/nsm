@@ -10,7 +10,7 @@ int create_default_html_template(const Path& templatePath)
     ofs << "\t\t@input(\"" <<  templatePath.dir << "head.content\")" << std::endl;
     ofs << "\t</head>" << std::endl << std::endl;
     ofs << "\t<body>" << std::endl;
-    ofs << "\t\t@content()" << std::endl;
+    ofs << "\t\t@content" << std::endl;
     ofs << "\t</body>" << std::endl;
     ofs << "</html>" << std::endl << std::endl;
     ofs.close();
@@ -27,7 +27,7 @@ int create_blank_template(const Path& templatePath)
     templatePath.ensureDirExists();
 
     std::ofstream ofs(templatePath.str());
-    ofs << "@content()" << std::endl;
+    ofs << "@content" << std::endl;
     ofs.close();
 
     return 0;
@@ -65,7 +65,7 @@ int create_config_file(const Path& configPath, const std::string& outputExt, boo
     project.unixTextEditor = "nano";
     project.winTextEditor = "notepad";
 
-    if(global)
+    if(!global)
     {
         if(dir_exists(".git/")) //should really be checking if outputDir exists and has .git directory
             project.rootBranch = project.outputBranch = get_pb();
@@ -3357,39 +3357,6 @@ void build_progress(const int& no_to_build, const bool& addBuildStatus)
     }
 }
 
-void build_progress_old(const int& no_to_build, const bool& addBuildStatus)
-{
-    if(!addBuildStatus)
-        return;
-
-    char c = 'a';
-
-    while(counter < no_to_build)
-    {
-        #if defined _WIN32 || defined _WIN64
-            c = _getch();
-        #else
-            enable_raw_mode();
-            c = getchar();
-            disable_raw_mode();
-        #endif // defined
-
-        if(c == 's')
-        {
-            os_mtx.lock();
-            clear_console_line();
-            std::cout << c_light_blue << "progress: " << c_white << counter << "/" << no_to_build << " files (" << (100*counter)/no_to_build << "% done)";
-            //std::cout << std::flush;
-            std::fflush(stdout);
-            usleep(1000000);
-            clear_console_line();
-            os_mtx.unlock();
-        }
-        else if(c == 'K')
-            counter = no_to_build;
-    }
-}
-
 void build_thread(std::ostream& os,
                   std::set<TrackedInfo>* trackedAll,
                   const int& no_to_build,
@@ -3485,8 +3452,9 @@ int ProjectInfo::build_names(std::ostream& os, const bool& addBuildStatus, const
     counter = noFinished = 0;
 
     os_mtx.lock();
-    clear_console_line();
-    std::cout << "building files.." << std::endl;
+    if(addBuildStatus) // should we check if os is std::cout?
+        clear_console_line();
+    os << "building files.." << std::endl;
     os_mtx.unlock();
 
     if(addBuildStatus)
@@ -3523,7 +3491,8 @@ int ProjectInfo::build_names(std::ostream& os, const bool& addBuildStatus, const
 
     thrd.detach();
     //can't lock console here because it gets stalled from build_progress
-    clear_console_line();
+    if(addBuildStatus)
+        clear_console_line();
 
     if(failedNames.size() || untrackedNames.size())
     {
@@ -3631,7 +3600,8 @@ int ProjectInfo::build_all(std::ostream& os, const bool& addBuildStatus)
     counter = noFinished = 0;
 
     os_mtx.lock();
-    clear_console_line();
+    if(addBuildStatus)
+        clear_console_line();
     std::cout << "building project.." << std::endl;
     os_mtx.unlock();
 
@@ -3669,7 +3639,8 @@ int ProjectInfo::build_all(std::ostream& os, const bool& addBuildStatus)
 
     thrd.detach();
     //can't lock console here because it gets stalled from build_progress
-    clear_console_line();
+    if(addBuildStatus)
+        clear_console_line();
 
     if(failedNames.size() > 0)
     {
@@ -3993,7 +3964,7 @@ int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, con
     cPhase = DUMMY_PHASE;
 
     thrd.detach();
-    if(!addBuildStatus)
+    if(addBuildStatus)
         clear_console_line();
 
     size_t noToDisplay = std::max(5, -5 + (int)console_height());
@@ -4100,10 +4071,11 @@ int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, con
         nextInfo = updatedInfo.begin();
         counter = noFinished = 0;
 
-        os_mtx.lock();
-        clear_console_line();
+        //os_mtx.lock();
+        if(addBuildStatus)
+            clear_console_line();
         os << "building updated files.." << std::endl;
-        os_mtx.unlock();
+        //os_mtx.unlock();
 
         if(addBuildStatus)
             timer.start();
@@ -4132,7 +4104,8 @@ int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, con
         cPhase = END_PHASE;
 
         thrd.detach();
-        clear_console_line();
+        if(addBuildStatus)
+            clear_console_line();
 
         if(failedNames.size() > 0)
         {
@@ -4264,7 +4237,8 @@ int ProjectInfo::status(std::ostream& os, const bool& addBuildStatus, const bool
     cPhase = END_PHASE;
 
     thrd.detach();
-    clear_console_line();
+    if(addBuildStatus)
+        clear_console_line();
 
     size_t noToDisplay = std::max(5, -5 + (int)console_height());
 

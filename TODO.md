@@ -31,9 +31,8 @@ TODO List (not in order of priority)
 	- https://luarocks.org/modules/luarocks/luahaml
 	- https://luarocks.org/modules/bungle/lua-resty-template
 	- https://luarocks.org/modules/gvvaughan/luaposix http://25thandclement.com/~william/projects/lunix.html
-	- https://luarocks.org/modules/moteus/lua-curl / https://luarocks.org/modules/luarocks/luacurl / https://luarocks.org/modules/sena-networks/luajit-curl / https://luarocks.org/modules/moteus/lua-curl
+	- https://luarocks.org/modules/moteus/lua-curl / https://luarocks.org/modules/luarocks/luacurl / https://luarocks.org/modules/sena-networks/luajit-curl 
 	- https://leafo.net/lapis/
-	- https://luarocks.org/modules/x25/luajwt
 	- https://luarocks.org/modules/jakeg/lua-requests
 	- https://luarocks.org/modules/benoitgermain/lanes https://luarocks.org/modules/moteus/lua-llthreads2
 	- https://luajit.org/ext_ffi.html

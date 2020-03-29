@@ -2,6 +2,11 @@
 Nift Release Notes
 ------------------
 
+Version 2.2 of Nift
+* added in mod functions % and %=
+* fixed various bugs
+* made various improvements
+
 Version 2.1 of Nift
 * embedded lua(jit) and exprtk
 * added in-built template language n++ and in-built scripting language f++

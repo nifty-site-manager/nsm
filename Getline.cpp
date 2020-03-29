@@ -137,71 +137,126 @@ void write_input_line(const std::string& lang,
 			}
 			else if(c == '\t') //tab completion
 			{
+				std::vector<int> searchPosVec, trimPosVec;
+				bool foundPaths = 0;
+
 				int searchPos = linePos-1,
 				    trimPos = -1;
+
 				for(; searchPos >= 0 && 
-				      str[searchPos] != '\t' && 
-				      str[searchPos] != '\n' && 
-				      str[searchPos] != '\'' &&
-				      str[searchPos] != '"' &&
-				      str[searchPos] != '(' &&
-				      str[searchPos] != ','; --searchPos)
+				      str[searchPos] != '\n'; --searchPos)
 				{
+					if(str[searchPos] == ' ' || 
+						str[searchPos] == '\t' ||
+						str[searchPos] == '"' || 
+						str[searchPos] == '\'' || 
+						str[searchPos] == '`' || 
+						str[searchPos] == '(' ||
+						str[searchPos] == '[' ||
+						str[searchPos] == '<' ||
+						str[searchPos] == '{' ||
+						str[searchPos] == ',')
+					{
+						searchPosVec.push_back(searchPos + 1);
+						if(trimPos == -1)
+							trimPosVec.push_back(searchPos + 1);
+						else
+							trimPosVec.push_back(trimPos);
+					}
 					if(searchPos && (str[searchPos] == '/' || str[searchPos] == '\\') && trimPos == -1)
 						trimPos = searchPos+1;
 				}
-				++searchPos;
+				searchPosVec.push_back(searchPos + 1);
 				if(trimPos == -1)
-					trimPos = searchPos;
-				Path tabPath;
-				std::set<std::string> paths;
-				std::string searchStr = str.substr(searchPos, linePos-searchPos);
-				strip_leading_whitespace(searchStr);
-				if(searchStr != "")
-				{
-					tabPath.set_file_path_from(searchStr.c_str());
-					makeSearchable(tabPath);
-					paths = lsSetStar(tabPath, 1);
-				}
-				if(paths.size())
-				{
-					auto path = paths.begin();
-					std::string foundStr = *path;
-					++path;
-					for(; path!=paths.end(); ++path)
-					{
-						int pMax = std::min(foundStr.size(), path->size()),
-						    pos = 0;
-						for(; pos < pMax; ++pos)
-						{
-							if(foundStr[pos] != (*path)[pos])
-								break;
-						}
-						foundStr = foundStr.substr(0, pos);
-					}
-
-					foundStr = foundStr.substr(linePos-trimPos, foundStr.size()-linePos+trimPos);
-
-					if(foundStr == "")
-					{
-						std::cout << std::endl;
-						coutPaths(tabPath.dir, paths, " ");
-						std::cout << std::endl;
-					}
-					else
-					{
-						str = str.substr(0, linePos) + foundStr + str.substr(linePos, str.size()-linePos);
-					
-						for(size_t i=0; i<foundStr.size(); i++)
-						{
-							++linePos;
-							if(sPos + usableLength +1 == linePos)
-								++sPos;
-						}
-					}
-				}
+					trimPosVec.push_back(searchPos + 1);
 				else
-					std::cout << "\a" << std::flush;
+					trimPosVec.push_back(trimPos);
+
+				for(int i=searchPosVec.size()-1; i>=0; --i)
+				{
+					searchPos = searchPosVec[i];
+					trimPos = trimPosVec[i];
+
+					Path tabPath;
+					std::set<std::string> paths;
+					std::string searchStr = str.substr(searchPos, linePos-searchPos);
+					strip_leading_whitespace(searchStr);
+					if(searchStr != "")
+					{
+						tabPath.set_file_path_from(searchStr.c_str());
+						makeSearchable(tabPath);
+						paths = lsSetStar(tabPath, -1);
+					}
+
+					if(paths.size())
+					{
+						foundPaths = 1;
+
+						auto path = paths.begin();
+						std::string foundStr = *path;
+						++path;
+						for(; path!=paths.end(); ++path)
+						{
+							int pMax = std::min(foundStr.size(), path->size()),
+							    pos = 0;
+							for(; pos < pMax; ++pos)
+							{
+								if(foundStr[pos] != (*path)[pos])
+									break;
+							}
+							foundStr = foundStr.substr(0, pos);
+						}
+
+						if(linePos-trimPos < foundStr.size())
+							foundStr = foundStr.substr(linePos-trimPos, foundStr.size()-linePos+trimPos);
+						else
+							foundStr = "";
+
+						if(foundStr == "" && paths.size() != 1)
+						{
+							std::cout << std::endl;
+							coutPaths(tabPath.dir, paths, " ");
+							std::cout << std::endl;
+						}
+						else
+						{
+							if(paths.size() == 1)
+							{
+								if(!foundStr.size() || (foundStr[foundStr.size()-1] != '/' && foundStr[foundStr.size()-1] != '\\'))
+								{
+									//add close quote if tab completion started with a quote and not a directory
+									if(searchPos > 0 && str[searchPos-1] == '"')
+										foundStr += "\"";
+									if(searchPos > 0 && str[searchPos-1] == '\'')
+										foundStr += "'";
+								}
+							}
+
+							str = str.substr(0, linePos) + foundStr + str.substr(linePos, str.size()-linePos);
+						
+							for(size_t i=0; i<foundStr.size(); i++)
+							{
+								++linePos;
+								if(sPos + usableLength +1 == linePos)
+									++sPos;
+							}
+						}
+					}
+				}
+				
+				if(!foundPaths)
+				{
+					//std::cout << "\a" << std::flush;
+
+					for(int i=0; i<2; i++)
+					{
+						str = str.substr(0, linePos) + " " + str.substr(linePos, str.size()-linePos);
+						++linePos;
+
+						if(sPos + usableLength + 1 == linePos)
+							++sPos;
+					}
+				}
 			}
 			else if(c == 0)
 			{
@@ -429,6 +484,14 @@ void write_input_line(const std::string& lang,
 					homeDir = home_dir();
 					if(homeDir != "" && homeDir == pwd.substr(0, homeDir.size()))
 						pwd = "~" + pwd.substr(homeDir.size(), pwd.size()-homeDir.size());
+					#if defined __FreeBSD__
+						else
+						{
+							homeDir = "/usr" + homeDir;
+							if(homeDir != "" && homeDir == pwd.substr(0, homeDir.size()))
+								pwd = "~" + pwd.substr(homeDir.size(), pwd.size()-homeDir.size());
+						}
+					#endif
 
 					const int MIN_USABLE_LENGTH = currConsoleWidth/2;
 					size_t maxPWDLength = std::max(0, (int)currConsoleWidth - (int)lang.size() - 3 - 1 - 2 - MIN_USABLE_LENGTH);
@@ -457,81 +520,125 @@ void write_input_line(const std::string& lang,
 			}
 			else if(c == '\t') //tab completion
 			{
+				std::vector<int> searchPosVec, trimPosVec;
+				bool foundPaths = 0;
+
 				int searchPos = linePos-1,
 				    trimPos = -1;
+
 				for(; searchPos >= 0 && 
-				      str[searchPos] != '\t' && 
-				      str[searchPos] != '\n' && 
-				      str[searchPos] != '\'' &&
-				      str[searchPos] != '"' &&
-				      str[searchPos] != '(' &&
-				      str[searchPos] != ','; --searchPos)
+				      str[searchPos] != '\n'; --searchPos)
 				{
+					if(str[searchPos] == ' ' || 
+						str[searchPos] == '\t' ||
+						str[searchPos] == '"' || 
+						str[searchPos] == '\'' || 
+						str[searchPos] == '`' || 
+						str[searchPos] == '(' ||
+						str[searchPos] == '[' ||
+						str[searchPos] == '<' ||
+						str[searchPos] == '{' ||
+						str[searchPos] == ',')
+					{
+						searchPosVec.push_back(searchPos + 1);
+						if(trimPos == -1)
+							trimPosVec.push_back(searchPos + 1);
+						else
+							trimPosVec.push_back(trimPos);
+					}
 					if(searchPos && (str[searchPos] == '/' || str[searchPos] == '\\') && trimPos == -1)
 						trimPos = searchPos+1;
 				}
-				++searchPos;
+				searchPosVec.push_back(searchPos + 1);
 				if(trimPos == -1)
-					trimPos = searchPos;
-				Path tabPath;
-				std::set<std::string> paths;
-				std::string searchStr = str.substr(searchPos, linePos-searchPos);
-				strip_leading_whitespace(searchStr);
-				if(searchStr != "")
-				{
-					tabPath.set_file_path_from(searchStr.c_str());
-					makeSearchable(tabPath);
-					paths = lsSetStar(tabPath, 1);
-				}
-				if(paths.size())
-				{
-					auto path = paths.begin();
-					std::string foundStr = *path;
-					++path;
-					for(; path!=paths.end(); ++path)
-					{
-						int pMax = std::min(foundStr.size(), path->size()),
-						    pos = 0;
-						for(; pos < pMax; ++pos)
-						{
-							if(foundStr[pos] != (*path)[pos])
-								break;
-						}
-						foundStr = foundStr.substr(0, pos);
-					}
-
-					foundStr = foundStr.substr(linePos-trimPos, foundStr.size()-linePos+trimPos);
-
-					if(foundStr == "")
-					{
-						std::cout << std::endl;
-						coutPaths(tabPath.dir, paths, " ");
-						std::cout << std::endl;
-					}
-					else
-					{
-						str = str.substr(0, linePos) + foundStr + str.substr(linePos, str.size()-linePos);
-					
-						for(size_t i=0; i<foundStr.size(); i++)
-						{
-							++linePos;
-							if(sPos + usableLength +1 == linePos)
-								++sPos;
-						}
-					}
-				}
+					trimPosVec.push_back(searchPos + 1);
 				else
-				{
-					std::cout << "\a" << std::flush;
+					trimPosVec.push_back(trimPos);
 
-					/*for(int i=0; i<4; i++)
+				for(int i=searchPosVec.size()-1; i>=0; --i)
+				{
+					searchPos = searchPosVec[i];
+					trimPos = trimPosVec[i];
+
+					Path tabPath;
+					std::set<std::string> paths;
+					std::string searchStr = str.substr(searchPos, linePos-searchPos);
+					strip_leading_whitespace(searchStr);
+					if(searchStr != "")
+					{
+						tabPath.set_file_path_from(searchStr.c_str());
+						makeSearchable(tabPath);
+						paths = lsSetStar(tabPath, -1);
+					}
+
+					if(paths.size())
+					{
+						foundPaths = 1;
+
+						auto path = paths.begin();
+						std::string foundStr = *path;
+						++path;
+						for(; path!=paths.end(); ++path)
+						{
+							int pMax = std::min(foundStr.size(), path->size()),
+							    pos = 0;
+							for(; pos < pMax; ++pos)
+							{
+								if(foundStr[pos] != (*path)[pos])
+									break;
+							}
+							foundStr = foundStr.substr(0, pos);
+						}
+
+						if(linePos-trimPos < foundStr.size())
+							foundStr = foundStr.substr(linePos-trimPos, foundStr.size()-linePos+trimPos);
+						else
+							foundStr = "";
+
+						if(foundStr == "" && paths.size() != 1)
+						{
+							std::cout << std::endl;
+							coutPaths(tabPath.dir, paths, " ");
+							std::cout << std::endl;
+						}
+						else
+						{
+							if(paths.size() == 1)
+							{
+								if(!foundStr.size() || (foundStr[foundStr.size()-1] != '/' && foundStr[foundStr.size()-1] != '\\'))
+								{
+									//add close quote if tab completion started with a quote and not a directory
+									if(searchPos > 0 && str[searchPos-1] == '"')
+										foundStr += "\"";
+									if(searchPos > 0 && str[searchPos-1] == '\'')
+										foundStr += "'";
+								}
+							}
+
+							str = str.substr(0, linePos) + foundStr + str.substr(linePos, str.size()-linePos);
+						
+							for(size_t i=0; i<foundStr.size(); i++)
+							{
+								++linePos;
+								if(sPos + usableLength +1 == linePos)
+									++sPos;
+							}
+						}
+					}
+				}
+				
+				if(!foundPaths)
+				{
+					//std::cout << "\a" << std::flush;
+
+					for(int i=0; i<2; i++)
 					{
 						str = str.substr(0, linePos) + " " + str.substr(linePos, str.size()-linePos);
 						++linePos;
 
 						if(sPos + usableLength + 1 == linePos)
 							++sPos;
-					}*/
+					}
 				}
 			}
 			else if(c == 1) //ctrl a
@@ -571,7 +678,11 @@ void write_input_line(const std::string& lang,
 						++sPos;
 				}
 			}
-			else if(c == 8 || c == 31) //ctrl backspace or ctrl (shift) -
+			#if defined __FreeBSD__
+		        else if(c == 127 || c == 31) //ctrl backspace or ctrl (shift) -
+		    #else  //unix
+		        else if(c == 8 || c == 31) //ctrl backspace or ctrl (shift) -
+		    #endif
 			{
 				bool foundNonWhitespace = 0;
 				do
@@ -591,7 +702,11 @@ void write_input_line(const std::string& lang,
 						break;
 				}while(!foundNonWhitespace || (linePos > 0 && std::isalnum(str[linePos-1])));
 			}
-			else if(c == 127) //backspace
+			#if defined __FreeBSD__
+		        else if(c == 8) //backspace
+		    #else  //unix
+		        else if(c == 127) //backspace
+		    #endif
 			{
 				if(linePos > 0)
 				{

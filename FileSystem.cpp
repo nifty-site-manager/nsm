@@ -15,7 +15,7 @@ bool path_exists(const std::string& path)
     if(stat( path.c_str(), &info ) != 0) //no file
         return 0;
     else
-		return 1;
+        return 1;
 }
 
 bool dir_exists(const std::string& path)
@@ -196,7 +196,7 @@ void makeSearchable(Path& path)
     path.dir = "./" + path.dir;
 }
 
-std::set<std::string> lsSetStar(const Path& path, const bool& incHidden)
+std::set<std::string> lsSetStar(const Path& path, const int& incHidden)
 {
     std::set<std::string> ans;
     struct dirent *entry;
@@ -209,6 +209,8 @@ std::set<std::string> lsSetStar(const Path& path, const bool& incHidden)
     {
         file = std::string(entry->d_name);
         if(!incHidden && file.size() && file[0] == '.')
+            continue;
+        else if(incHidden == -1 && (file == "." || file == ".."))
             continue;
         else if(file.substr(0, path.file.size()) == path.file)
         {

@@ -248,7 +248,7 @@ int lua_nsm_write(lua_State* L)
 		}
 		else
 		{
-			lua_nsm_pusherrmsg(L, "nsm_write(): pretty sure this will crash!");
+			lua_nsm_pusherrmsg(L, "nsm_write(): not defined for first parameter of type int, value given = " + std::to_string(param));
 			lua_error(L);
 			return 0;
 		}
@@ -287,12 +287,16 @@ int lua_nsm_write(lua_State* L)
 			else
 			{
 				//write not defined for varName of type vpos.type
+				lua_nsm_pusherrmsg(L, "nsm_write(): not defined for first parameter of type " + quote(vpos.type));
+				lua_error(L);
 				return 0;
 			}
 		}
 		else
 		{
 			//no variable named varName
+			lua_nsm_pusherrmsg(L, "nsm_write(): " + quote(varName) + " not defined");
+			lua_error(L);
 			return 0;
 		}
 	}

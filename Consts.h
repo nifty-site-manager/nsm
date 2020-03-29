@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <iostream>
 
-const double NSM_VERSION = 2.1;
+const double NSM_VERSION = 2.2;
 
 const int LANG_EXPRTK  = -2025;
 const int LANG_FPP     = -2026;

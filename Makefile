@@ -5,6 +5,7 @@ cppfiles=nsm.cpp ConsoleColor.cpp DateTimeInfo.cpp Directory.cpp Expr.cpp Exprtk
 DESTDIR?=
 PREFIX?=/usr/local
 BINDIR=${DESTDIR}${PREFIX}/bin
+LIBDIR=${DESTDIR}${PREFIX}/lib
 
 CXX?=g++
 CXXFLAGS=-std=c++11 -Wall -Wextra -pedantic -O3
@@ -21,14 +22,21 @@ ifeq ($(detected_OS),Darwin)        # Mac OSX
 	CXXFLAGS+= -pagezero_size 10000 -image_base 10000000 -Qunused-arguments
 	LINK+= -ldl -L. -lluajit 
 else ifeq ($(detected_OS),Windows)  # Windows
-	CXXFLAGS+= -s -Wa,-mbig-obj -Wno-cast-function-type -Wno-error=cast-function-type
+	#use these flags for a smaller binary
+	#CXXFLAGS+= -s -Wa,-mbig-obj -Wno-cast-function-type -Wno-error=cast-function-type
 	#flags to use when compiling for Chocolatey & Releases
-	#CXXFLAGS+= -s -Wa,-mbig-obj -static-libgcc -static-libstdc++ -Wno-cast-function-type -Wno-error=cast-function-type
+	CXXFLAGS+= -s -Wa,-mbig-obj -static-libgcc -static-libstdc++ -Wno-cast-function-type -Wno-error=cast-function-type
 	LINK+= -L. -llua51
+else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
+	CXX=clang
+	CXXFLAGS+= -s -Qunused-arguments -lstdc++
+	LINK+= -ldl -lm -LLuaJIT/src -lluajit            #use Nift built LuaJIT
+	#LINK+= -ldl -lm -L/usr/local/lib -lluajit-5.1   #use FreeBSD LuaJIT
 else                                # *nix
-	CXXFLAGS+= -s
+	#use these flags for a smaller binary
+	#CXXFLAGS+= -s
 	#flags to use when compiling for Netlify & Releases
-	#CXXFLAGS+= -s -static-libgcc -static-libstdc++
+	CXXFLAGS+= -s -static-libgcc -static-libstdc++
 	LINK+= -ldl -LLuaJIT/src -lluajit
 endif
 
@@ -54,6 +62,9 @@ ifeq ($(detected_OS),Darwin)        # Mac OSX
 else ifeq ($(detected_OS),Windows)  # Windows
 	cd LuaJIT && make
 	copy LuaJIT\src\lua51.dll .
+else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
+	cd LuaJIT && gmake
+	cp LuaJIT/src/libluajit.so ./
 else                                # *nix
 	cd LuaJIT && make
 endif
@@ -145,6 +156,12 @@ ifeq ($(detected_OS),Windows)  # Windows
 	@echo "Will need to manually add 'lua51.dll', 'nsm.exe' and "
 	@echo "'nift.exe' to a location searched by your path "
 	@echo "variable, for example try 'C:\Windows\System32'"
+else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
+	mkdir -p ${BINDIR}
+	chmod 755 nsm
+	mv libluajit.so ${LIBDIR}/libluajit-5.1.so.2
+	mv nift ${BINDIR}
+	mv nsm ${BINDIR}
 else                           # *nix
 	mkdir -p ${BINDIR}
 	chmod 755 nsm
@@ -157,6 +174,10 @@ ifeq ($(detected_OS),Windows)  # Windows
 	@echo "Will need to manually remove 'lua51.dll', 'nsm.exe' "
 	@echo "and 'nift.exe' from install location, typically "
 	@echo "'C:\Windows\System32'"
+else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
+	rm ${LIBDIR}/libluajit-5.1.so.2
+	rm ${BINDIR}/nift
+	rm ${BINDIR}/nsm
 else                                # *nix
 	rm ${BINDIR}/nift
 	rm ${BINDIR}/nsm
@@ -178,6 +199,9 @@ ifeq ($(detected_OS),Darwin)        # Mac OSX
 else ifeq ($(detected_OS),Windows)  # Windows
 	del -f $(objects)
 	#cd LuaJIT && make clean #this doesn't work for some reason
+else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
+	rm -f $(objects)
+	cd LuaJIT && gmake clean
 else                                # *nix
 	rm -f $(objects)
 	cd LuaJIT && make clean
@@ -190,6 +214,9 @@ ifeq ($(detected_OS),Darwin)        # Mac OSX
 else ifeq ($(detected_OS),Windows)  # Windows
 	del -f $(objects) nsm.exe nift.exe lua51.dll
 	#cd LuaJIT && make clean #see same line for clean
+else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
+	rm -f $(objects) nsm nift libluajit.so
+	cd LuaJIT && gmake clean
 else                                # *nix
 	rm -f $(objects) nsm nift
 	cd LuaJIT && make clean

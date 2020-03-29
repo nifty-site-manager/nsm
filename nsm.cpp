@@ -200,7 +200,7 @@ int main(int argc, char* argv[])
     //Nift commands that can run from anywhere
     if(cmd == "version")
     {
-        std::cout << "Nift (aka nsm) ©2015-" << DateTimeInfo().currentYYYY() << " " << c_gold << "v" << NSM_VERSION << c_white << std::endl;
+        std::cout << "Nift (aka nsm) (c)2015-" << DateTimeInfo().currentYYYY() << " " << c_gold << "v" << NSM_VERSION << c_white << std::endl;
 
         return 0;
     }
@@ -209,7 +209,7 @@ int main(int argc, char* argv[])
         if(console_width() > 22 && console_height() > 12)
             asciiNift();
 
-        std::cout << "Nift (aka nifty-site-manager or nsm) ©2015-" << DateTimeInfo().currentYYYY() << " is a cross-platform open source website and project generator." << std::endl;
+        std::cout << "Nift (aka nifty-site-manager or nsm) (c)2015-" << DateTimeInfo().currentYYYY() << " is a cross-platform open source website and project generator." << std::endl;
         std::cout << "Official Website: " << c_blue << "https://nift.cc/" << c_white << std::endl;
         std::cout << "Source: " << c_blue << "https://github.com/nifty-site-manager/nsm" << c_white << std::endl;
         std::cout << "Installed: " << c_gold << "v" << NSM_VERSION << c_white << std::endl;
@@ -390,7 +390,7 @@ int main(int argc, char* argv[])
             Name name = "index";
             Title title = get_title(name);
             project.track(name, title, project.defaultTemplate);
-            project.build_all(std::cout, 1);
+            project.build_all(std::cout, 0);
         }
         else
         {

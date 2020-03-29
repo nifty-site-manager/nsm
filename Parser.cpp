@@ -145,9 +145,12 @@ int Parser::run_script(std::ostream& os, const Path& scriptPath, const bool& mak
 
             result = f_read_and_process_fast(0, toProcess, lineNo, scriptPath, antiDepsOfReadPath, parsedText, os);
 
-            os_mtx->lock();
-            os << parsedText;
-            os_mtx->unlock();
+            if(!is_whitespace(parsedText))
+            {
+                os_mtx->lock();
+                os << parsedText;
+                os_mtx->unlock();
+            }
         }
         else if(cScriptExt == ".n")
         {
@@ -164,9 +167,12 @@ int Parser::run_script(std::ostream& os, const Path& scriptPath, const bool& mak
 
             result = n_read_and_process_fast(1, 0, toProcess, lineNo, scriptPath, antiDepsOfReadPath, parsedText, os);
 
-            os_mtx->lock();
-            os << parsedText;
-            os_mtx->unlock();
+            if(!is_whitespace(parsedText))
+            {
+                os_mtx->lock();
+                os << parsedText;
+                os_mtx->unlock();
+            }
         }
         else if(cScriptExt == ".lua")
         {
@@ -286,13 +292,13 @@ int Parser::run_script(std::ostream& os, const Path& scriptPath, const bool& mak
             if(makeBackup)
                 remove_file(Path("", scriptPath.str() + ".backup"));
 
-            std::ifstream ifxs(output_filename);
-            std::string str;
-            os_mtx->lock();
-            while(getline(ifxs, str))
+            std::string str = string_from_file(output_filename);
+            if(!is_whitespace(str))
+            {
+                os_mtx->lock();
                 os << str << std::endl;
-            os_mtx->unlock();
-            ifxs.close();
+                os_mtx->unlock();
+            }
             remove_file(Path("./", output_filename));
         }
 
@@ -364,7 +370,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
     //creates anti-deps set
     std::set<Path> antiDepsOfReadPath;
 
-    std::cout << "Nift (aka nsm) " << c_gold << "v" << NSM_VERSION << c_white << " ©2015-" << DateTimeInfo().currentYYYY() << " (" << c_blue << "https://nift.cc" << c_white << ")" << std::endl;
+    std::cout << "Nift (aka nsm) " << c_gold << "v" << NSM_VERSION << c_white << " (c)2015-" << DateTimeInfo().currentYYYY() << " (" << c_blue << "https://nift.cc" << c_white << ")" << std::endl;
 
     int result = 1;
     while(1)
@@ -377,19 +383,41 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
         else
             addPath = 0;
 
+        int netBrackets = 0;
         result = getline(lang, addPath, '$', inLine, 1);
+        for(size_t i=0; i<inLine.size(); ++i)
+        {
+            if(inLine[i] == '(' || inLine[i] == '{' || inLine[i] == '[' || inLine[i] == '<')
+                ++netBrackets;
+            else if(inLine[i] == ')' || inLine[i] == '}' || inLine[i] == ']' || inLine[i] == '>')
+                --netBrackets;
+        }
         if(result == NSM_KILL)
             return NSM_KILL;
 
-        while(result == NSM_SENTER || (inLine.size() && inLine[inLine.size()-1] == '\\'))
+        while(netBrackets || 
+              result == NSM_SENTER || 
+              (inLine.size() && inLine[inLine.size()-1] == '\\'))
         {
-            if(result == NSM_SENTER)
-                toProcess += inLine;
-            else
+            if(inLine.size() && result != NSM_SENTER && netBrackets && inLine[inLine.size()-1] == '=')
+            {
+                inLine = inLine.substr(0, inLine.size()-1) + '\n';
+                break;
+            }
+            else if(inLine.size() && inLine[inLine.size()-1] == '\\')
                 toProcess += inLine.substr(0, inLine.size()-1) + '\n';
+            else
+                toProcess += inLine;
 
             inLine = "";
             result = getline(lang, addPath, '>', inLine, 1);
+            for(size_t i=0; i<inLine.size(); ++i)
+            {
+                if(inLine[i] == '(' || inLine[i] == '{' || inLine[i] == '[' || inLine[i] == '<')
+                    ++netBrackets;
+                else if(inLine[i] == ')' || inLine[i] == '}' || inLine[i] == ']' || inLine[i] == '>')
+                    --netBrackets;
+            }
             if(result == NSM_KILL)
                 return NSM_KILL;
         }
@@ -625,6 +653,9 @@ int Parser::run(const Path& path, char lang, std::ostream& eos)
         os_mtx->unlock();
         return result;
     }
+
+    if(result == NSM_RET && isDouble(parsedText))
+        return std::strtod(parsedText.c_str(), NULL);
 
     return result;
 }
@@ -1811,7 +1842,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_warn(eos, readPath, lineNo) << "please change @inputcontent to @content(), @inputcontent will stop working in a few versions" << std::endl;
+                start_warn(eos, readPath, lineNo) << "please change @inputcontent to @content, @inputcontent will stop working in a few versions" << std::endl;
                 if(!consoleLocked)
                     os_mtx->unlock();
 
@@ -2540,7 +2571,8 @@ int Parser::read_and_process_fn(const bool& indent,
                 return 1;
             }
 
-            bool addScope = 0, addOut = addOutput;
+            bool addScope = 1, addOut = addOutput, addWhitespace = 0;
+            char iLang = lang;
             std::string block, parsedCondition, whitespace;
             std::vector<std::string> blocks, conditions;
             std::vector<int> bLineNos, cLineNos;
@@ -2550,8 +2582,18 @@ int Parser::read_and_process_fn(const bool& indent,
             {
                 for(size_t o=0; o<options.size(); o++)
                 {
+                    if(options[o] == "f++")
+                        iLang = 'f';
+                    else if(options[o] == "n++")
+                        iLang = 'n';
+                    else if(options[o] == "o")
+                        addOut = 1;
+                    else if(options[o] == "!o")
+                        addOut = 0;
                     if(options[o] == "s")
                         addScope = 1;
+                    else if(options[o] == "!s")
+                        addScope = 0;
                 }
             }
 
@@ -2566,23 +2608,58 @@ int Parser::read_and_process_fn(const bool& indent,
             if(read_else_blocks(conditions, cLineNos, blocks, bLineNos, whitespace, linePos, inStr, readPath, lineNo, "if(" + params[0] + ")", eos))
                 return 1;
 
-            bool addWhitespace = 0;
             bool result;
+
+            bool exprtkCond = 0;
+            Expr condExpr;
+            condExpr.register_symbol_table(symbol_table);
 
             for(size_t b=0; b<blocks.size(); b++)
             {
                 if(b < conditions.size())
                 {
-                    parsedCondition = conditions[b];
+                    if(get_bool(result, conditions[b]))
+                    {}
+                    else
+                    {
+                        exprtkCond = 0;
 
-                    if(parse_replace('f', parsedCondition, "if/else-if condition", readPath, antiDepsOfReadPath, conditionLineNo, "if(" + params[0] + ")", sLineNo, eos))
-                        return 1;
+                        if(conditions[b].size() > 1 && conditions[b][0] == '`' && conditions[b][conditions[b].size()-1] == '`')
+                        {
+                            exprtkCond = 1;
+                            conditions[b] = conditions[b].substr(1, conditions[b].size()-2);
+                        }
 
-                    if(replace_var(parsedCondition, readPath, conditionLineNo, "if/else-if()", eos))
-                        return 1;
+                        if(conditions[b] != "" && condExpr.set_expr(conditions[b]))
+                        {
+                            exprtkCond = 1;
+                            result = condExpr.evaluate();
+                        }
+                        else
+                        {
+                            if(exprtkCond)
+                            {
+                                if(!consoleLocked)
+                                    os_mtx->lock();
+                                print_exprtk_parser_errs(eos, condExpr.parser, condExpr.expr_str, readPath, sLineNo);
+                                os_mtx->unlock();
+                                return 1;
+                            }
+                            else
+                            {
+                                parsedCondition = conditions[b];
 
-                    if(!get_bool(result, parsedCondition, readPath, conditionLineNo, "if/else-if()", eos))
-                        return 1;
+                                if(parse_replace('f', parsedCondition, "if/else-if condition", readPath, antiDepsOfReadPath, conditionLineNo, "if(" + params[0] + ")", sLineNo, eos))
+                                    return 1;
+
+                                if(replace_var(parsedCondition, readPath, conditionLineNo, "if/else-if()", eos))
+                                    return 1;
+
+                                if(!get_bool(result, parsedCondition, readPath, conditionLineNo, "if/else-if()", eos))
+                                    return 1;
+                            }
+                        }
+                    }
                 }
                 else
                     result = 1;
@@ -2599,7 +2676,7 @@ int Parser::read_and_process_fn(const bool& indent,
                     }
 
                     int ret_val;
-                    if(lang == 'n')
+                    if(iLang == 'n')
                         ret_val = n_read_and_process_fast(1, addOut, blocks[b], bLineNos[b]-1, readPath, antiDepsOfReadPath, outStr, eos);
                     else
                         ret_val = f_read_and_process_fast(addOut, blocks[b], bLineNos[b]-1, readPath, antiDepsOfReadPath, outStr, eos);
@@ -2636,13 +2713,13 @@ int Parser::read_and_process_fn(const bool& indent,
 
             return 0;
         }
-        else if(funcName == "is-const")
+        else if(funcName == "is_const")
         {
             if(params.size() != 1)
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "is-const(): expected 1 parameter, got " << params.size() << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "is_const: expected 1 parameter, got " << params.size() << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
@@ -2666,20 +2743,20 @@ int Parser::read_and_process_fn(const bool& indent,
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "is-const(): no variables or functions named " << c_light_blue << params[0] << c_white << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "is_const: no variables or functions named " << c_light_blue << params[0] << c_white << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
 
             return 0;
         }
-        else if(funcName == "is-private")
+        else if(funcName == "is_private")
         {
             if(params.size() != 1)
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "is-private(): expected 1 parameter, got " << params.size() << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "is_private: expected 1 parameter, got " << params.size() << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
@@ -2703,7 +2780,7 @@ int Parser::read_and_process_fn(const bool& indent,
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "is-private(): no variables or functions named " << c_light_blue << params[0] << c_white << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "is_private: no variables or functions named " << c_light_blue << params[0] << c_white << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
@@ -2716,29 +2793,32 @@ int Parser::read_and_process_fn(const bool& indent,
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "imginclude(): expected 1 parameter, got " << params.size() << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "imginclude: expected 1 parameter, got " << params.size() << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
 
             std::string imgPathStr = params[0];
+            Path imgPath;
+            imgPath.set_file_path_from(imgPathStr);
 
             //warns user if img file doesn't exist
             if(!file_exists(imgPathStr.c_str()))
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_warn(eos, readPath, lineNo) << "imginclude(): img file " << imgPathStr << " does not exist" << std::endl;
+                start_warn(eos, readPath, lineNo) << "imginclude: image file " << imgPath << " does not exist" << std::endl;
                 if(!consoleLocked)
                     os_mtx->unlock();
             }
 
-            Path imgPath;
-            imgPath.set_file_path_from(imgPathStr);
-
             Path pathToIMGFile(pathBetween(toBuild.outputPath.dir, imgPath.dir), imgPath.file);
 
-            std::string imgInclude = "<img src=\"" + pathToIMGFile.str() + "\">";
+            std::string imgInclude = "<img src=\"" + pathToIMGFile.str() + "\"";
+            if(options.size())
+                for(size_t o=0; o<options.size(); ++o)
+                    imgInclude += " " + options[o];
+            imgInclude += ">";
 
             outStr += imgInclude;
             if(indent)
@@ -2758,15 +2838,42 @@ int Parser::read_and_process_fn(const bool& indent,
                 return 1;
             }
 
-            bool fromFile = 0;
+            bool fromFile = 0, readBlock = 0, parseBlock = 1;
+            int bLineNo;
             std::string userInput, inputMsg;
             if(params.size() > 0)
                 inputMsg = params[0];
 
             if(options.size())
+            {
                 for(size_t o=0; o<options.size(); o++)
-                    if(options[o] == "from-file")
+                {
+                    if(options[o] == "b" || options[o] == "block")
+                        readBlock = 1;
+                    else if(options[o] == "!pb")
+                        parseBlock = 0;
+                    else if(options[o] == "from-file")
                         fromFile = 1;
+                }
+            }
+
+            if(readBlock)
+            {
+                if(params.size() != 0)
+                {
+                    if(!consoleLocked)
+                        os_mtx->lock();
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << "in{block}: expected 0 parameters, got " << params.size() << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
+
+                if(read_block(inputMsg, linePos, inStr, readPath, lineNo, bLineNo, "in{block}", eos))
+                   return 1;
+
+                if(parseBlock && parse_replace(lang, inputMsg, "in block", readPath, antiDepsOfReadPath, bLineNo, "in{block}()", sLineNo, eos))
+                    return 1;
+            }
 
             if(!fromFile)
             {
@@ -2821,7 +2928,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 {
                     if(!consoleLocked)
                         os_mtx->lock();
-                    start_err_ml(eos, readPath, sLineNo, lineNo) << "in{file}(): text editor system call failed" << std::endl;
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << "in{from-file}(): text editor system call failed" << std::endl;
                     os_mtx->unlock();
                     return 1;
                 }
@@ -2830,7 +2937,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 {
                     if(!consoleLocked)
                         os_mtx->lock();
-                    start_err_ml(eos, readPath, sLineNo, lineNo) << "in{file}(): user did not save file" << std::endl;
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << "in{from-file}(): user did not save file" << std::endl;
                     os_mtx->unlock();
                     return 1;
                 }
@@ -2842,7 +2949,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 {
                     if(!consoleLocked)
                         os_mtx->lock();
-                    start_err_ml(eos, readPath, sLineNo, lineNo) << "in{file}(): inputting file " << inputPath << " would result in an input loop" << std::endl;
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << "in{from-file}(): inputting file " << inputPath << " would result in an input loop" << std::endl;
                     os_mtx->unlock();
                     return 1;
                 }
@@ -2854,7 +2961,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 {
                     if(!consoleLocked)
                         os_mtx->lock();
-                    start_err_ml(eos, readPath, sLineNo, lineNo) << "in{file}(): failed to parse input user saved to file" << std::endl;
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << "in{from-file}(): failed to parse input user saved to file" << std::endl;
                     os_mtx->unlock();
                     return 1;
                 }
@@ -2993,6 +3100,21 @@ int Parser::read_and_process_fn(const bool& indent,
 
                 return 0;
             }
+            else if(luaFnName == "setglobal")
+            {
+                if(params.size() != 1)
+                {
+                    if(!consoleLocked)
+                        os_mtx->lock();
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": expected 1 parameter, got " << params.size() << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
+
+                lua_setglobal(lua.L, params[0].c_str());
+
+                return 0;
+            }
             else if(luaFnName == "pop")
             {
                 if(params.size() != 1)
@@ -3113,6 +3235,62 @@ int Parser::read_and_process_fn(const bool& indent,
                     if(!consoleLocked)
                         os_mtx->lock();
                     start_err_ml(eos, readPath, sLineNo, lineNo) << "lua_tostring: item number " << params[0] << " on Lua stack is not a string" << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
+
+                return 0;
+            }
+            else if(luaFnName == "pushlightuserdata")
+            {
+                if(params.size() != 1)
+                {
+                    if(!consoleLocked)
+                        os_mtx->lock();
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": expected 1 parameter, got " << params.size() << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
+
+                VPos vpos;
+                if(vars.find(params[0], vpos))
+                {
+                    if(vpos.type == "bool" || vpos.type == "int" || vpos.type == "double" || vpos.type == "std::double")
+                        lua_pushlightuserdata(lua.L, &vars.layers[vpos.layer].doubles[vpos.name]);
+                    else if(vpos.type == "char" || vpos.type == "string" || vpos.type == "std::string")
+                        lua_pushlightuserdata(lua.L, &vars.layers[vpos.layer].strings[vpos.name]);
+                    else if(vpos.type == "std::bool")
+                        lua_pushlightuserdata(lua.L, &vars.layers[vpos.layer].bools[vpos.name]);
+                    else if(vpos.type == "std::int")
+                        lua_pushlightuserdata(lua.L, &vars.layers[vpos.layer].ints[vpos.name]);
+                    else if(vpos.type == "std::char")
+                        lua_pushlightuserdata(lua.L, &vars.layers[vpos.layer].chars[vpos.name]);
+                    else if(vpos.type == "std::long long int")
+                        lua_pushlightuserdata(lua.L, &vars.layers[vpos.layer].llints[vpos.name]);
+                    else if(vpos.type == "std::vector<double>")
+                        lua_pushlightuserdata(lua.L, &vars.layers[vpos.layer].doubVecs[vpos.name]);
+                    else if(vpos.type == "fstream")
+                        lua_pushlightuserdata(lua.L, &vars.layers[vpos.layer].fstreams[vpos.name]);
+                    else if(vpos.type == "ifstream")
+                        lua_pushlightuserdata(lua.L, &vars.layers[vpos.layer].ifstreams[vpos.name]);
+                    else if(vpos.type == "ofstream")
+                        lua_pushlightuserdata(lua.L, &vars.layers[vpos.layer].ofstreams[vpos.name]);
+                    else if(vpos.type == "function")
+                        lua_pushlightuserdata(lua.L, &vars.layers[vpos.layer].functions[vpos.name]);
+                    else
+                    {
+                        if(!consoleLocked)
+                            os_mtx->lock();
+                        start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": do not recognise the type " << quote(vpos.type) << " for " << quote(params[0]) << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+                }
+                else
+                {
+                    if(!consoleLocked)
+                        os_mtx->lock();
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": no variables named " << quote(params[0]) << std::endl;
                     os_mtx->unlock();
                     return 1;
                 }
@@ -3254,8 +3432,8 @@ int Parser::read_and_process_fn(const bool& indent,
             }
 
             if(params.size() == 0)
-                params.push_back("");
-            else if(params.size() > 1) // do we want this?
+                params.push_back("./");
+            else if(params.size() > 1) 
             {
                 for(size_t p=0; p+1<params.size(); ++p)
                     options.push_back(params[p]);
@@ -3365,7 +3543,13 @@ int Parser::read_and_process_fn(const bool& indent,
                 }
             }
             else
+            {
+                #if defined _WIN32 || defined _WIN64
+                    funcName = "dir"; 
+                #else  //*nix
+                #endif
                 return try_system_call(funcName, options, params, readPath, antiDepsOfReadPath, sLineNo, lineNo, eos);
+            }
 
             return 0;
         }
@@ -3390,29 +3574,18 @@ int Parser::read_and_process_fn(const bool& indent,
                 for(size_t o=0; o<options.size(); o++)
                 {
                     if(options[o] == "name")
-                    {
-                        if(toFile)
-                        {
-                            if(!consoleLocked)
-                                os_mtx->lock();
-                            start_err_ml(eos, readPath, sLineNo, lineNo) << "pathto(" << params[0] << ") failed, cannot have both options file and name" << std::endl;
-                            os_mtx->unlock();
-                            return 1;
-                        }
                         fromName = 1;
-                    }
                     else if(options [o] == "file")
-                    {
-                        if(fromName)
-                        {
-                            if(!consoleLocked)
-                                os_mtx->lock();
-                            start_err_ml(eos, readPath, sLineNo, lineNo) << "pathto(" << params[0] << ") failed, cannot have both options file and name" << std::endl;
-                            os_mtx->unlock();
-                            return 1;
-                        }
                         toFile = 1;
-                    }
+                }
+
+                if(fromName && toFile)
+                {
+                    if(!consoleLocked)
+                        os_mtx->lock();
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << "pathto(" << params[0] << ") failed, cannot have both options file and name" << std::endl;
+                    os_mtx->unlock();
+                    return 1;
                 }
             }
 
@@ -3561,25 +3734,16 @@ int Parser::read_and_process_fn(const bool& indent,
         }
         else if(funcName == "parse")
         {
-            if(params.size() != 1 && params.size() != 2)
+            if(params.size() != 2)
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "parse(): expected 1-2 parameters, got " << params.size() << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "parse(): expected 2 parameters, got " << params.size() << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
 
-            if(params.size() == 1)
-            {
-                if(parse_replace(lang, params[0], "parse string", readPath, antiDepsOfReadPath, lineNo, "parse()", sLineNo, eos))
-                    return 1;
-
-                outStr += params[0];
-                if(indent)
-                    indentAmount += into_whitespace(params[0]);
-            }
-            else if(params.size() == 2)
+            if(params.size() == 2)
             {
                 if(isPosInt(params[0]))
                 {
@@ -3682,17 +3846,13 @@ int Parser::read_and_process_fn(const bool& indent,
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo)  << "content(): expected 0 parameters, got " << params.size() << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo)  << "content: expected 0 parameters, got " << params.size() << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
 
             contentAdded = 1;
-            std::string toParse;
-            if(lang == 'n')
-                toParse = "@input";
-            else
-                toParse = "input";
+            std::string toParse = "@input";
             if(options.size())
             {
                 toParse += "{" + options[0];
@@ -4005,31 +4165,32 @@ int Parser::read_and_process_fn(const bool& indent,
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "cssinclude(): expected 1 parameter, got " << params.size() << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "cssinclude: expected 1 parameter, got " << params.size() << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
 
             std::string cssPathStr = params[0];
+            Path cssPath;
+            cssPath.set_file_path_from(cssPathStr);
 
             //warns user if css file doesn't exist
             if(!file_exists(cssPathStr.c_str()))
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_warn(eos, readPath, lineNo) << "cssinclude(): css file " << cssPathStr << " does not exist" << std::endl;
+                start_warn(eos, readPath, lineNo) << "cssinclude: css file " << cssPath << " does not exist" << std::endl;
                 if(!consoleLocked)
                     os_mtx->unlock();
             }
 
-            Path cssPath;
-            cssPath.set_file_path_from(cssPathStr);
-
             Path pathToCSSFile(pathBetween(toBuild.outputPath.dir, cssPath.dir), cssPath.file);
 
-            std::string cssInclude = "<link rel='stylesheet' type='text/css' href='";
-            cssInclude += pathToCSSFile.str();
-            cssInclude += "'>";
+            std::string cssInclude = "<link rel=\"stylesheet\" type=\"text/css\" href=\"" + pathToCSSFile.str() + "\"";
+            if(options.size())
+                for(size_t o=0; o<options.size(); ++o)
+                    cssInclude += " " + options[o];
+            cssInclude += ">";
 
             outStr += cssInclude;
             if(indent)
@@ -4046,38 +4207,17 @@ int Parser::read_and_process_fn(const bool& indent,
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "!(): expected 1 parameter, got " << params.size() << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "!: expected 1 parameter, got " << params.size() << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
 
-            if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "!()", eos))
+            if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "!", eos))
                 return 1;
-
-            /*std::string result = "1";
-
-            if(isDouble(params[0]))
-            {
-                if(isInt(params[0]))
-                {
-                    if(std::atoi(params[0].c_str()))
-                        result = "0";
-                }
-                else if(std::strtod(params[0].c_str(), NULL))
-                    result = "0";
-            }
-            else if(params[0] != "")
-            {
-                if(!consoleLocked)
-                    os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "@!(): cannot convert " << quote(params[0]) << " to bool" << std::endl;
-                os_mtx->unlock();
-                return 1;
-            }*/
 
             bool result;
 
-            if(!get_bool(result, params[0], readPath, lineNo, "!()", eos))
+            if(!get_bool(result, params[0], readPath, lineNo, "!", eos))
                 return 1;
 
             outStr += std::to_string(!result);
@@ -5883,6 +6023,116 @@ int Parser::read_and_process_fn(const bool& indent,
             return 0;
         }
     }
+    else if(funcName[0] == '%')
+    {
+        if(funcName == "%")
+        {
+            if(params.size() != 2)
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "%(): expected 2 parameters, got " << params.size() << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+
+            bool oldFP = vars.fixedPrecision;
+            vars.fixedPrecision = 1;
+
+            /*if(parse_replace(lang, params, "/ params", readPath, antiDepsOfReadPath, sLineNo, "@/()", sLineNo, eos))
+                return 1;*/ //should change fixed precision earlier for this function!!
+
+            if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "%()", eos))
+                return 1;
+
+            vars.fixedPrecision = oldFP;
+
+            int typeInt;
+
+            for(size_t p=0; p<params.size(); p++)
+            {
+                typeInt = getTypeInt(params[p]);
+
+                if(typeInt != 0)
+                {
+                    if(!consoleLocked)
+                        os_mtx->lock();
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << "%(): cannot perform operator on " << params[p] << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
+            }
+
+            int ans = std::atoi(params[0].c_str())%std::atoi(params[1].c_str());
+
+            params[0] = std::to_string(ans);
+
+            outStr += params[0];
+            if(indent)
+                indentAmount += into_whitespace(params[0]);
+
+            return 0;
+        }
+        else if(funcName == "%=")
+        {
+            if(params.size() != 2)
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "%=(): expected 2 parameters, got " << params.size() << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+
+            VPos vpos;
+            if(vars.find(params[0], vpos))
+            {
+                bool oldFP = vars.fixedPrecision;
+                vars.fixedPrecision = 1;
+
+                /*if(parse_replace(lang, params, "/ params", readPath, antiDepsOfReadPath, sLineNo, "@%()", sLineNo, eos))
+                    return 1;*/ //should change fixed precision earlier for this function!!
+
+                if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "%=()", eos))
+                    return 1;
+
+                vars.fixedPrecision = oldFP;
+
+                int typeInt;
+
+                for(size_t p=0; p<params.size(); p++)
+                {
+                    typeInt = getTypeInt(params[p]);
+
+                    if(typeInt != 0)
+                    {
+                        if(!consoleLocked)
+                            os_mtx->lock();
+                        start_err_ml(eos, readPath, sLineNo, lineNo) << "%=(): operator not defined for parameter " << p << " = " << quote(params[p]) << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+                }
+
+                int ans = std::atoi(params[0].c_str())%std::atoi(params[1].c_str());
+
+                params[0] = std::to_string(ans);
+
+                if(!set_var_from_str(vpos, params[0], readPath, sLineNo, "%=()", eos))
+                    return 1;
+            }
+            else
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "%=(): there are no variables defined as " << quote(params[0]) << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+
+            return 0;
+        }
+    }
     else if(funcName[0] == ':')
     {
         if(funcName == ":=")
@@ -5912,7 +6162,7 @@ int Parser::read_and_process_fn(const bool& indent,
             {
                 for(size_t o=0; o<options.size(); o++)
                 {
-                    if(options[o] == "!expr")
+                    if(options[o] == "!exprtk")
                         addToExpr = 0;
                     if(options[o] == "const")
                         constants = 1;
@@ -6548,7 +6798,7 @@ int Parser::read_and_process_fn(const bool& indent,
                                 if(vars.layers[layer].constants.count("types.size"))
                                     typWasConst[types.size()] = 1;
                                 oldTypTypes[types.size()] = vars.layers[layer].typeOf["types.size"];
-                                if(oldTypTypes[types.size()] == "int")
+                                if(oldTypTypes[types.size()] == "std::int")
                                     old_no_types = vars.layers[layer].ints["types.size"];
                             }
 
@@ -6572,7 +6822,7 @@ int Parser::read_and_process_fn(const bool& indent,
                                 if(vars.layers[layer].constants.count("options.size"))
                                     optWasConst[options.size()] = 1;
                                 oldOptTypes[options.size()] = vars.layers[layer].typeOf["options.size"];
-                                if(oldOptTypes[options.size()] == "int")
+                                if(oldOptTypes[options.size()] == "std::int")
                                     old_no_options = vars.layers[layer].ints["options.size"];
                             }
 
@@ -6605,7 +6855,7 @@ int Parser::read_and_process_fn(const bool& indent,
                                 if(vars.layers[layer].constants.count("params.size"))
                                     parWasConst[params.size()] = 1;
                                 oldParTypes[params.size()] = vars.layers[layer].typeOf["params.size"];
-                                if(oldParTypes[params.size()] == "int")
+                                if(oldParTypes[params.size()] == "std::int")
                                     old_no_params = vars.layers[layer].ints["params.size"];
                             }
 
@@ -6625,7 +6875,7 @@ int Parser::read_and_process_fn(const bool& indent,
                             //defines types/params/options
                             vars.layers[layer].typeOf[inputVars[v].first] = varType;
 
-                            vars.layers[layer].typeOf["types.size"] = "int";
+                            vars.layers[layer].typeOf["types.size"] = "std::int";
                             vars.layers[layer].ints["types.size"] = types.size();
                             vars.layers[layer].constants.insert("types.size");
 
@@ -6640,7 +6890,7 @@ int Parser::read_and_process_fn(const bool& indent,
                             vars.layers[layer].strings["params.name"] = inputVars[v].first;
                             vars.layers[layer].constants.insert("params.name");
 
-                            vars.layers[layer].typeOf["params.size"] = "int";
+                            vars.layers[layer].typeOf["params.size"] = "std::int";
                             vars.layers[layer].ints["params.size"] = params.size();
                             vars.layers[layer].constants.insert("params.size");
 
@@ -6651,7 +6901,7 @@ int Parser::read_and_process_fn(const bool& indent,
                                 vars.layers[layer].constants.insert("params[" + std::to_string(p) + "]");
                             }
 
-                            vars.layers[layer].typeOf["options.size"] = "int";
+                            vars.layers[layer].typeOf["options.size"] = "std::int";
                             vars.layers[layer].ints["options.size"] = options.size();
                             vars.layers[layer].constants.insert("options.size");
 
@@ -6664,19 +6914,33 @@ int Parser::read_and_process_fn(const bool& indent,
 
                             //parses typedef function
                             std::string defOutput;
-                            if(n_read_and_process_fast(1, vars.typeDefs[preType], vars.typeDefLineNo[preType]-1, vars.typeDefPath[preType], antiDepsOfReadPath, defOutput, eos) > 0)
+                            if(lang == 'f')
                             {
-                                if(!consoleLocked)
-                                    os_mtx->lock();
-                                start_err_ml(eos, readPath, sLineNo, lineNo) << ":=(" << varType << "): failed here" << std::endl;
-                                os_mtx->unlock();
-                                return 1;
+                                if(f_read_and_process_fast(1, vars.typeDefs[preType], vars.typeDefLineNo[preType]-1, vars.typeDefPath[preType], antiDepsOfReadPath, defOutput, eos) > 0)
+                                {
+                                    if(!consoleLocked)
+                                        os_mtx->lock();
+                                    start_err_ml(eos, readPath, sLineNo, lineNo) << ":=(" << varType << "): failed here" << std::endl;
+                                    os_mtx->unlock();
+                                    return 1;
+                                }
+                            }
+                            else 
+                            {
+                                if(n_read_and_process_fast(1, vars.typeDefs[preType], vars.typeDefLineNo[preType]-1, vars.typeDefPath[preType], antiDepsOfReadPath, defOutput, eos) > 0)
+                                {
+                                    if(!consoleLocked)
+                                        os_mtx->lock();
+                                    start_err_ml(eos, readPath, sLineNo, lineNo) << ":=(" << varType << "): failed here" << std::endl;
+                                    os_mtx->unlock();
+                                    return 1;
+                                }
                             }
 
                             //reverts existing variables otherwise deletes them
                             if(!typWasConst[types.size()])
                                 vars.layers[layer].constants.erase("types.size");
-                            if(oldTypTypes[types.size()] == "int")
+                            if(oldTypTypes[types.size()] == "std::int")
                                 vars.layers[layer].ints["types.size"] = old_no_types;
                             else
                             {
@@ -6706,7 +6970,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
                             if(!optWasConst[options.size()])
                                 vars.layers[layer].constants.erase("options.size");
-                            if(oldOptTypes[options.size()] == "int")
+                            if(oldOptTypes[options.size()] == "std::int")
                                 vars.layers[layer].ints["options.size"] = old_no_options;
                             else
                             {
@@ -6748,7 +7012,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
                             if(!parWasConst[params.size()])
                                 vars.layers[layer].constants.erase("params.size");
-                            if(oldParTypes[params.size()] == "int")
+                            if(oldParTypes[params.size()] == "std::int")
                                 vars.layers[layer].ints["params.size"] = old_no_params;
                             else
                             {
@@ -6863,13 +7127,25 @@ int Parser::read_and_process_fn(const bool& indent,
             std::string txt;
             bool result = 1, addResult = 1;
 
+            if(options.size())
+            {
+                for(size_t o=0; o<options.size(); ++o)
+                {
+                    if(options[o] == "!r")
+                        addResult = 0;
+                }
+            }
+
             if(params.size() == 1)
             {
                 if(fromConsole)
                 {
                     if(!consoleLocked)
                         os_mtx->lock();
-                    std::cin >> txt;
+                    if(getline(std::cin, txt))
+                        result = 1;
+                    else
+                        result = 0;
                     if(!consoleLocked)
                         os_mtx->unlock();
                 }
@@ -6897,7 +7173,10 @@ int Parser::read_and_process_fn(const bool& indent,
                 {
                     if(!consoleLocked)
                         os_mtx->lock();
-                    std::cin >> txt;
+                    if(getline(std::cin, txt))
+                        result = 1;
+                    else
+                        result = 0;
                     if(!consoleLocked)
                         os_mtx->unlock();
                 }
@@ -6975,7 +7254,7 @@ int Parser::read_and_process_fn(const bool& indent,
     {
         if(funcName == "write")
         {
-            if(params.size() == 0)
+            if(params.size() < 1)
             {
                 if(!consoleLocked)
                     os_mtx->lock();
@@ -7006,6 +7285,16 @@ int Parser::read_and_process_fn(const bool& indent,
 
                 if(parseBlock && parse_replace(lang, txt, "write block", readPath, antiDepsOfReadPath, lineNo, "write{block}()", sLineNo, eos))
                     return 1;
+
+                txt += "\r\n";
+            }
+            else if(params.size() == 1)
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "write(): expected 2+ parameters, got " << params.size() << std::endl;
+                os_mtx->unlock();
+                return 1;
             }
 
             VPos vpos;
@@ -7309,6 +7598,15 @@ int Parser::read_and_process_fn(const bool& indent,
             std::string txt;
             bool result = 1, addResult = 1;
 
+            if(options.size())
+            {
+                for(size_t o=0; o<options.size(); ++o)
+                {
+                    if(options[o] == "!r")
+                        addResult = 0;
+                }
+            }
+
             if(params.size() == 1)
             {
                 if(fromConsole)
@@ -7418,6 +7716,12 @@ int Parser::read_and_process_fn(const bool& indent,
         }
         else if(funcName == "return")
         {
+            if(params.size() < 1)
+            {
+                if(read_sh_params(params, linePos, inStr, readPath, lineNo, funcName, eos))
+                    return 1;
+            }
+
             if(params.size() > 1)
             {
                 if(!consoleLocked)
@@ -7602,8 +7906,11 @@ int Parser::read_and_process_fn(const bool& indent,
                     return 1;
             }
 
+            if(params[1] == "")
+                params[1] = "1";
+
             //determines condition type
-            if(get_bool(result, params[0]))
+            if(get_bool(result, params[1]))
                 boolCond = 1;
             else
             {
@@ -7835,6 +8142,8 @@ int Parser::read_and_process_fn(const bool& indent,
                         inScopes.insert(unquote(options[o].substr(7, options[o].size()-7)));
                     else if(options[o] == "!s")
                         unscopedFn = 1;
+                    else if(options[o] == "s")
+                        unscopedFn = 0;
                     else if(options[o] == "pb")
                         parseBlock = 1;
                     else if(options[o].substr(0, 6) == "layer=")
@@ -7953,25 +8262,26 @@ int Parser::read_and_process_fn(const bool& indent,
             }
 
             std::string faviconPathStr = params[0];
+            Path faviconPath;
+            faviconPath.set_file_path_from(faviconPathStr);
 
             //warns user if favicon file doesn't exist
             if(!file_exists(faviconPathStr.c_str()))
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_warn(eos, readPath, lineNo) << "faviconinclude(): favicon file " << faviconPathStr << " does not exist" << std::endl;
+                start_warn(eos, readPath, lineNo) << "faviconinclude(): favicon file " << faviconPath << " does not exist" << std::endl;
                 if(!consoleLocked)
                     os_mtx->unlock();
             }
 
-            Path faviconPath;
-            faviconPath.set_file_path_from(faviconPathStr);
-
             Path pathToFavicon(pathBetween(toBuild.outputPath.dir, faviconPath.dir), faviconPath.file);
 
-            std::string faviconInclude = "<link rel='icon' type='image/png' href='";
-            faviconInclude += pathToFavicon.str();
-            faviconInclude += "'>";
+            std::string faviconInclude = "<link rel=\"icon\" type=\"image/png\" href=\"" + pathToFavicon.str() + "\"";
+            if(options.size())
+                for(size_t o=0; o<options.size(); ++o)
+                    faviconInclude += " " + options[o];
+            faviconInclude += ">";
 
             outStr += faviconInclude;
             if(indent)
@@ -8035,7 +8345,7 @@ int Parser::read_and_process_fn(const bool& indent,
             {
                 for(size_t o=0; o<options.size(); o++)
                 {
-                    if(options[o] == "dir")
+                    if(options[o] == "dirs")
                         createFiles = 0;
                 }
             }
@@ -8453,7 +8763,13 @@ int Parser::read_and_process_fn(const bool& indent,
             {
                 outStr += "&nhArr;";
                 if(indent)
-                    indentAmount += std::string(6, ' ');
+                    indentAmount += std::string(7, ' ');
+            }
+            else if(ent == "...")
+            {
+                outStr += "&hellip;";
+                if(indent)
+                    indentAmount += std::string(8, ' ');
             }
             else
             {
@@ -8498,66 +8814,39 @@ int Parser::read_and_process_fn(const bool& indent,
             return NSM_EXIT; //check this??
         }
     }
-    else if(funcName[0] == 'o')
-    {
-        if(funcName == "out") //do we want this?
-        {
-            if(params.size() != 1)
-            {
-                if(!consoleLocked)
-                    os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "out(): expected 1 parameter, got " << params.size() << std::endl;
-                os_mtx->unlock();
-                return 1;
-            }
-
-            std::istringstream iss(params[0]);
-            std::string str, oldLine;
-            int fileLineNo = 0;
-
-            while(!iss.eof())
-            {
-                getline(iss, str);
-                if(0 < fileLineNo++)
-                    outStr += "\n" + indentAmount;
-                outStr += str;
-                oldLine = str;
-            }
-            if(indent)
-                indentAmount += into_whitespace(oldLine);
-
-            return 0;
-        }
-    }
     else if(funcName[0] == 'd')
     {
         if(funcName == "dep")
         {
-            if(params.size() != 1)
+            if(params.size() == 0)
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "dep(): expected 1 parameter, got " << params.size() << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "dep(): expected parameters, got " << params.size() << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
 
-            std::string depPathStr = params[0];
-
+            std::string depPathStr;
             Path depPath;
-            depPath.set_file_path_from(depPathStr);
-            depFiles.insert(depPath);
 
-            if(depPath == toBuild.contentPath)
-                contentAdded = 1;
-
-            if(!path_exists(depPathStr))
+            for(size_t p=0; p<params.size(); ++p)
             {
-                if(!consoleLocked)
-                    os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "dep(" << quote(depPathStr) << ") failed as dependency does not exist" << std::endl;
-                os_mtx->unlock();
-                return 1;
+                depPathStr = params[p];
+                depPath.set_file_path_from(depPathStr);
+                depFiles.insert(depPath);
+
+                if(depPath == toBuild.contentPath)
+                    contentAdded = 1;
+
+                if(!path_exists(depPathStr))
+                {
+                    if(!consoleLocked)
+                        os_mtx->lock();
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << "dep(" << quote(depPathStr) << ") failed as dependency does not exist" << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
             }
 
             return 0;
@@ -8731,90 +9020,36 @@ int Parser::read_and_process_fn(const bool& indent,
         }
         else if(funcName == "dir")
         {
-            if(params.size() != 0 && params.size() != 1)
+            if(params.size() < 1)
             {
-                if(!consoleLocked)
-                    os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "dir(): expected 0-1 parameters, got " << params.size() << std::endl;
-                os_mtx->unlock();
-                return 1;
+                if(read_sh_params(params, linePos, inStr, readPath, lineNo, funcName, eos))
+                    return 1;
             }
 
-            if(params.size() == 0)
-                params.push_back("");
-
-            bool toConsole = 0;
-            std::string sys_call;
-            std::string output_filename = ".@diroutput" + std::to_string(sys_counter++);
-
+            std::string toParse = "@ls";
             if(options.size())
             {
-                for(size_t o=0; o<options.size(); o++)
-                {
-                    if(options[o] == "c")
-                        toConsole = 1;
-                }
+                toParse += "{" + options[0];
+                for(size_t o=1; o<options.size(); ++o)
+                    toParse += ", " + options[o];
+                toParse += '}';
+            }
+            if(params.size())
+            {
+                toParse += "(" + params[0];
+                for(size_t p=1; p<params.size(); ++p)
+                    toParse += ", " + params[p];
+                toParse += ')';
             }
 
-            #if defined _WIN32 || defined _WIN64
-                sys_call = "dir " + params[0];
-            #else
-                sys_call = "ls " + params[0];
-            #endif // defined
-
-            int result;
-            if(file_exists("/.flatpak-info")) //sys_call has to be quoted for cURL to work
-                result = system(("flatpak-spawn --host bash -c " + quote(sys_call) + " > " + output_filename).c_str());
-            else //sys_call has to be unquoted for cURL to work
-                result = system((sys_call + " > " + output_filename).c_str());
-
-            if(result)
+            if(n_read_and_process_fast(indent, toParse, lineNo-1, readPath, antiDepsOfReadPath, outStr, eos))
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "dir(" << quote(params[0]) << ") failed, ";
-                eos << "see " << quote(output_filename) << " for system output" << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo) <<  "dir: failed to list directory files" << std::endl;
                 os_mtx->unlock();
-                //remove_file(Path("./", output_filename));
                 return 1;
             }
-
-            std::string fileLine;
-            std::ifstream ifs(output_filename);
-
-            if(toConsole)
-            {
-                if(!consoleLocked)
-                    os_mtx->lock();
-                while(getline(ifs, fileLine))
-                {
-                    if(fileLine.find_first_of('.') == std::string::npos)
-                        eos << c_light_blue << fileLine << c_white << std::endl;
-                    else
-                        eos << fileLine << std::endl;
-                }
-                if(!consoleLocked)
-                    os_mtx->unlock();
-            }
-            else
-            {
-                std::string oldLine;
-                int fileLineNo = 0;
-
-                while(!ifs.eof())
-                {
-                    getline(ifs, fileLine);
-                    if(0 < fileLineNo++)
-                        outStr += "\n" + indentAmount;
-                    oldLine = fileLine;
-                    outStr += fileLine;
-                }
-                if(indent)
-                    indentAmount += into_whitespace(oldLine);
-            }
-            ifs.close();
-
-            remove_file(Path("./", output_filename));
 
             return 0;
         }
@@ -8832,23 +9067,8 @@ int Parser::read_and_process_fn(const bool& indent,
                 return 1;
             }
 
-            if(replaceVars)
-            {
-                VPos vpos;
-                if(vars.find(params[0], vpos))
-                {
-                    std::string trashIndent;
-                    params[0] = "";
-                    if(!vars.add_str_from_var(vpos, params[0], 0, indent, trashIndent))
-                    {
-                        if(!consoleLocked)
-                            os_mtx->lock();
-                        start_err_ml(eos, readPath, sLineNo, lineNo) << "size(): cannot get size for type " << vpos.type << std::endl;
-                        os_mtx->unlock();
-                        return 1;
-                    }
-                }
-            }
+            if(replaceVars && replace_var(params[0], readPath, sLineNo, "size", eos))
+                return 1;
 
             params[0] = std::to_string(params[0].size());
             outStr += params[0];
@@ -8868,30 +9088,8 @@ int Parser::read_and_process_fn(const bool& indent,
                 return 1;
             }
 
-            if(replaceVars)
-            {
-                VPos vpos;
-
-                if(vars.find(params[0], vpos))
-                {
-                    if(vpos.type == "string")
-                        params[0] = vars.layers[vpos.layer].strings[params[0]];
-                    else if(vpos.type == "int")
-                        params[0] = std::to_string(vars.layers[vpos.layer].ints[params[0]]);
-                    else if(vpos.type == "long long int")
-                        params[0] = std::to_string(vars.layers[vpos.layer].llints[params[0]]);
-                    else if(vpos.type == "double")
-                        params[0] = vars.double_to_string(vars.layers[vpos.layer].doubles[params[0]], 0);
-                    else
-                    {
-                        if(!consoleLocked)
-                            os_mtx->lock();
-                        start_err_ml(eos, readPath, sLineNo, lineNo) << "substr(): cannot take substring of first parameter " << params[0] << " of type " << vpos.type << std::endl;
-                        os_mtx->unlock();
-                        return 1;
-                    }
-                }
-            }
+            if(replaceVars && replace_var(params[0], readPath, sLineNo, "substr", eos))
+                return 1;
 
             size_t pos = std::atoi(params[1].c_str()),
                 length = std::atoi(params[2].c_str());
@@ -9078,7 +9276,7 @@ int Parser::read_and_process_fn(const bool& indent,
                         injectRaw = 1;
                     else if(options[o] == "!o")
                         noOutput = 1;
-                    else if(options[o] == "!r")
+                    else if(options[o] == "!ret")
                         noReturnValue = 1;
                     else if(options[o] == "content")
                         attachContentPath = 1;
@@ -9395,7 +9593,7 @@ int Parser::read_and_process_fn(const bool& indent,
                         injectRaw = 1;
                     else if(options[o] == "!o")
                         noOutput = 1;
-                    else if(options[o] == "!r")
+                    else if(options[o] == "!ret")
                         noReturnValue = 1;
                     else if(options[o] == "content")
                         attachContentPath = 1;
@@ -9653,23 +9851,8 @@ int Parser::read_and_process_fn(const bool& indent,
 
             std::string str;
 
-            if(replaceVars)
-            {
-                VPos vpos;
-                if(vars.find(params[0], vpos))
-                {
-                    std::string trashIndent;
-                    params[0] = "";
-                    if(!vars.add_str_from_var(vpos, params[0], 1, indent, trashIndent))
-                    {
-                        if(!consoleLocked)
-                            os_mtx->lock();
-                        start_err_ml(eos, readPath, sLineNo, lineNo) << "quote(): can't get string of var type " << vpos.type << std::endl;
-                        os_mtx->unlock();
-                        return 1;
-                    }
-                }
-            }
+            if(replaceVars && replace_var(params[0], readPath, sLineNo, "quote", eos))
+                return 1;
 
             params[0] = quote(params[0]);
             outStr += params[0];
@@ -9707,23 +9890,8 @@ int Parser::read_and_process_fn(const bool& indent,
 
             std::string str;
 
-            if(replaceVars)
-            {
-                VPos vpos;
-                if(vars.find(params[0], vpos))
-                {
-                    std::string trashIndent;
-                    params[0] = "";
-                    if(!vars.add_str_from_var(vpos, params[0], 0, indent, trashIndent))
-                    {
-                        if(!consoleLocked)
-                            os_mtx->lock();
-                        start_err_ml(eos, readPath, sLineNo, lineNo) << "unquote(): can't get string of var type " << vpos.type << params.size() << std::endl;
-                        os_mtx->unlock();
-                        return 1;
-                    }
-                }
-            }
+            if(replaceVars && replace_var(params[0], readPath, sLineNo, "unquote", eos))
+                return 1;
 
             params[0] = unquote(params[0]);
             outStr += params[0];
@@ -9737,6 +9905,12 @@ int Parser::read_and_process_fn(const bool& indent,
     {
         if(funcName == "mv" || funcName == "move")
         {
+            if(params.size() < 2)
+            {
+                if(read_sh_params(params, linePos, inStr, readPath, lineNo, funcName, eos))
+                    return 1;
+            }
+
             if(params.size() != 2)
             {
                 if(!consoleLocked)
@@ -10018,25 +10192,26 @@ int Parser::read_and_process_fn(const bool& indent,
             }
 
             std::string jsPathStr = params[0];
+            Path jsPath;
+            jsPath.set_file_path_from(jsPathStr);
 
             //warns user if js file doesn't exist
             if(!file_exists(jsPathStr.c_str()))
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_warn(eos, readPath, lineNo) << "jsinclude(): js file " << jsPathStr << " does not exist" << std::endl;
+                start_warn(eos, readPath, lineNo) << "jsinclude(): javascript file " << jsPath << " does not exist" << std::endl;
                 if(!consoleLocked)
                     os_mtx->unlock();
             }
 
-            Path jsPath;
-            jsPath.set_file_path_from(jsPathStr);
-
             Path pathToJSFile(pathBetween(toBuild.outputPath.dir, jsPath.dir), jsPath.file);
 
-            std::string jsInclude="<script src='";
-            jsInclude += pathToJSFile.str();
-            jsInclude+="'></script>";
+            std::string jsInclude="<script src=\"" + pathToJSFile.str() + "\"";
+            if(options.size())
+                for(size_t o=0; o<options.size(); ++o)
+                    jsInclude += " " + options[o];
+            jsInclude+="></script>";
 
             outStr += jsInclude;
             if(indent)
@@ -10047,13 +10222,13 @@ int Parser::read_and_process_fn(const bool& indent,
     }
     else if(funcName[0] == 'v')
     {
-        if(funcName == "valid-type")
+        if(funcName == "valid_type")
         {
             if(params.size() == 0)
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "valid-type(): expected parameters, got " << params.size() << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "valid_type: expected parameters, got " << params.size() << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
@@ -10061,7 +10236,7 @@ int Parser::read_and_process_fn(const bool& indent,
             for(size_t p=1; p<params.size(); p++)
                 params[0] += ", " + params[p];
 
-            outStr += std::to_string(valid_type(params[0], readPath, antiDepsOfReadPath, lineNo, "valid-type()", sLineNo, eos));
+            outStr += std::to_string(valid_type(params[0], readPath, antiDepsOfReadPath, lineNo, "valid_type", sLineNo, eos));
             if(indent)
                 indentAmount += " ";
 
@@ -10139,7 +10314,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 if(vars.layers[layer].constants.count("options.size"))
                     optWasConst[options.size()] = 1;
                 oldOptTypes[options.size()] = vars.layers[layer].typeOf["options.size"];
-                if(oldOptTypes[options.size()] == "int")
+                if(oldOptTypes[options.size()] == "std::int")
                     old_no_options = vars.layers[layer].ints["options.size"];
             }
 
@@ -10162,7 +10337,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 if(vars.layers[layer].constants.count("params.size"))
                     parWasConst[params.size()] = 1;
                 oldParTypes[params.size()] = vars.layers[layer].typeOf["params.size"];
-                if(oldParTypes[params.size()] == "int")
+                if(oldParTypes[params.size()] == "std::int")
                     old_no_params = vars.layers[layer].ints["params.size"];
             }
 
@@ -10181,7 +10356,7 @@ int Parser::read_and_process_fn(const bool& indent,
         }
 
         //defines params/options
-        vars.layers[layer].typeOf["params.size"] = "int";
+        vars.layers[layer].typeOf["params.size"] = "std::int";
         vars.layers[layer].ints["params.size"] = params.size();
         vars.layers[layer].constants.insert("params.size");
 
@@ -10192,7 +10367,7 @@ int Parser::read_and_process_fn(const bool& indent,
             vars.layers[layer].constants.insert("params[" + std::to_string(p) + "]");
         }
 
-        vars.layers[layer].typeOf["options.size"] = "int";
+        vars.layers[layer].typeOf["options.size"] = "std::int";
         vars.layers[layer].ints["options.size"] = options.size();
         vars.layers[layer].constants.insert("options.size");
 
@@ -10237,7 +10412,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
             if(!optWasConst[options.size()])
                 vars.layers[layer].constants.erase("options.size");
-            if(oldOptTypes[options.size()] == "int")
+            if(oldOptTypes[options.size()] == "std::int")
                 vars.layers[layer].ints["options.size"] = old_no_options;
             else
             {
@@ -10267,7 +10442,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
             if(!parWasConst[params.size()])
                 vars.layers[layer].constants.erase("params.size");
-            if(oldParTypes[params.size()] == "int")
+            if(oldParTypes[params.size()] == "std::int")
                 vars.layers[layer].ints["params.size"] = old_no_params;
             else
             {
@@ -12606,6 +12781,12 @@ int Parser::read_else_blocks(std::vector<std::string>& conditions,
     {
         whitespace = "";
 
+        if(linePos < inStr.size() && inStr[linePos] == '!')
+        {
+            ++linePos;
+            break;
+        }
+
         //skips to next non-whitespace
         while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
         {
@@ -12659,7 +12840,7 @@ int Parser::read_else_blocks(std::vector<std::string>& conditions,
         else
             break;
     }
-    whitespace += '\n';
+    //whitespace += '\n';
 
     return 0;
 }

@@ -2,9 +2,9 @@
 #define FILE_SYSTEM_H_
 
 #include <dirent.h>
-#include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <vector>
 #include <set>
 
@@ -22,7 +22,7 @@ std::string ls(const char* path);
 std::vector<std::string> lsVec(const char* path);
 std::set<std::string> lsSet(const char* path);
 void makeSearchable(Path& path);
-std::set<std::string> lsSetStar(const Path& path, const bool& incHidden);
+std::set<std::string> lsSetStar(const Path& path, const int& incHidden);
 void coutPaths(const std::string& dir, const std::set<std::string>& paths, const std::string& separator);
 int delDir(const std::string& dir); //don't use this anywhere with multithreading!
 int cpDir(const std::string& sourceDir, const std::string& targetDir);

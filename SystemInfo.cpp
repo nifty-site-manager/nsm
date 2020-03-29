@@ -102,6 +102,11 @@
 		if((homedir = getenv("HOME")) == NULL)
 			homedir = getpwuid(getuid())->pw_dir;
 
+		/*#if defined __FreeBSD__
+			if(!dir_exists(std::string(homedir)))
+				homedir = ("/usr" + std::string(homedir)).c_str();
+		#endif*/
+
 		return homedir;
 	}
 
