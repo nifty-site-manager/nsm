@@ -1,13 +1,7 @@
 #ifndef PROJECT_INFO_H_
 #define PROJECT_INFO_H_
 
-#include <algorithm>
-#include <cmath>
-#include <math.h>
-#include <mutex>
 #include <thread>
-
-#include <atomic>
 
 #include "GitInfo.h"
 #include "Parser.h"

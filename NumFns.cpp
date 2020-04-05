@@ -84,7 +84,12 @@ bool isDouble(const std::string& str)
 		}
 		else if(str[i] == '-')
 		{
-			if(i > 0)
+			if(i > 0 && str[i-1] != 'e')
+				return 0;
+		}
+		else if(str[i] == '+')
+		{
+			if(i > 0 && str[i-1] != 'e')
 				return 0;
 		}
 		else if(str[i] == '.')
@@ -128,8 +133,13 @@ int getTypeInt(const std::string& str)
 		}
 		else if(str[i] == '-')
 		{
-			if(i > 0)
+			if(i > 0 && str[i-1] != 'e')
 				return 2;
+		}
+		else if(str[i] == '+')
+		{
+			if(i > 0 && str[i-1] != 'e')
+				return 0;
 		}
 		else if(str[i] == '.')
 		{

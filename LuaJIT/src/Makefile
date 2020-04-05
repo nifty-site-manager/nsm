@@ -16,6 +16,12 @@ RELVER=  0
 ABIVER=  5.1
 NODOTABIVER= 51
 
+ifeq ($(OS),Windows_NT) 
+    detected_OS := Windows
+else
+    detected_OS := $(shell sh -c 'uname 2>/dev/null || echo Unknown')
+endif
+
 ##############################################################################
 #############################  COMPILER OPTIONS  #############################
 ##############################################################################
@@ -24,7 +30,11 @@ NODOTABIVER= 51
 # removing the '#' in front of them. Make sure you force a full recompile
 # with "make clean", followed by "make" if you change any options.
 #
-DEFAULT_CC = gcc
+ifeq ($(detected_OS),FreeBSD)  #FreeBSD
+  DEFAULT_CC = clang
+else                                # *nix
+  DEFAULT_CC = gcc
+endif
 #
 # LuaJIT builds as a native 32 or 64 bit binary by default.
 CC= $(DEFAULT_CC)

@@ -3236,7 +3236,7 @@ int ProjectInfo::check_watch_dirs()
 
 std::mutex os_mtx;
 
-int ProjectInfo::build_names(const std::vector<Name>& namesToBuild)
+/*int ProjectInfo::build_names(const std::vector<Name>& namesToBuild)
 {
     if(check_watch_dirs())
         return 1;
@@ -3262,7 +3262,7 @@ int ProjectInfo::build_names(const std::vector<Name>& namesToBuild)
     {
         if(tracking(*name))
         {
-            if(parser.build(get_info(*name), std::cout) > 0)
+            if(parser.build(get_info(*name), noPagesToBuild, std::cout))
                 failedNames.insert(*name);
         }
         else
@@ -3295,14 +3295,15 @@ int ProjectInfo::build_names(const std::vector<Name>& namesToBuild)
     }
 
     return 0;
-}
+}*/
 
 std::mutex fail_mtx, built_mtx, set_mtx;
 std::set<Name> failedNames, builtNames;
 std::set<TrackedInfo>::iterator nextInfo;
 
 Timer timer;
-std::atomic<int> counter, noFinished;
+std::atomic<int> counter, noFinished, noPagesToBuild;
+std::atomic<double> noPagesFinished;
 std::atomic<int> cPhase;
 const int DUMMY_PHASE = 1;
 const int UPDATE_PHASE = 2;
@@ -3316,34 +3317,36 @@ void build_progress(const int& no_to_build, const bool& addBuildStatus)
 
     int phaseToCheck = cPhase;
 
-    int no_to_build_length = std::to_string(no_to_build).size();
+    int total_no_to_build = no_to_build + noPagesToBuild,
+        no_to_build_length = std::to_string(total_no_to_build).size(),
+        cFinished = noFinished + noPagesFinished;
 
-    while(cPhase == phaseToCheck && noFinished < no_to_build)
+    while(cPhase == phaseToCheck && cFinished < total_no_to_build)
     {
         os_mtx.lock();
         clear_console_line();
         double cTime = timer.getTime();
-        std::string remStr = int_to_timestr(cTime*(double)no_to_build/(double)(noFinished+1) - cTime);
+        std::string remStr = int_to_timestr(cTime*(double)total_no_to_build/(double)(cFinished+1) - cTime);
         size_t cWidth = console_width();
         if(19 + 2*no_to_build_length + remStr.size() <= cWidth)
         {
-            if(noFinished < no_to_build)
-                std::cout << c_light_blue << "progress: " << c_white << noFinished << "/" << no_to_build << " " << (100*noFinished)/no_to_build << "% (" << remStr << ")";
+            if(cFinished < total_no_to_build)
+                std::cout << c_light_blue << "progress: " << c_white << cFinished << "/" << total_no_to_build << " " << (100*cFinished)/total_no_to_build << "% (" << remStr << ")";
         }
         else if(17 + remStr.size() <= cWidth)
         {
-            if(noFinished < no_to_build)
-                std::cout << c_light_blue << "progress: " << c_white << (100*noFinished)/no_to_build << "% (" << remStr << ")";
+            if(cFinished < total_no_to_build)
+                std::cout << c_light_blue << "progress: " << c_white << (100*cFinished)/total_no_to_build << "% (" << remStr << ")";
         }
         else if(9 + remStr.size() <= cWidth)
         {
-            if(noFinished < no_to_build)
-                std::cout << c_light_blue << ": " << c_white << (100*noFinished)/no_to_build << "% (" << remStr << ")";
+            if(cFinished < total_no_to_build)
+                std::cout << c_light_blue << ": " << c_white << (100*cFinished)/total_no_to_build << "% (" << remStr << ")";
         }
         else if(4 <= cWidth)
         {
-            if(noFinished < no_to_build)
-                std::cout << c_light_blue << (100*noFinished)/no_to_build << "%" << c_white;
+            if(cFinished < total_no_to_build)
+                std::cout << c_light_blue << (100*cFinished)/total_no_to_build << "%" << c_white;
         }
         //std::cout << std::flush;
         std::fflush(stdout);
@@ -3354,10 +3357,70 @@ void build_progress(const int& no_to_build, const bool& addBuildStatus)
 
         //usleep(4000000);
         usleep(10000);
+
+        total_no_to_build = no_to_build + noPagesToBuild;
+        no_to_build_length = std::to_string(total_no_to_build).size();
+        cFinished = noFinished + noPagesFinished;
     }
 }
 
-void build_thread(std::ostream& os,
+std::atomic<size_t> paginationCounter;
+
+void pagination_thread(const Pagination& pagesInfo,
+                       const std::string& outputExt,
+                       const Path& mainOutputPath)
+{
+    std::string pageStr;
+    size_t cPageNo;
+
+    while(1)
+    {
+        cPageNo = paginationCounter++;
+        if(cPageNo >= pagesInfo.noPages)
+            break;
+
+        std::istringstream iss(pagesInfo.pages[cPageNo]);
+        std::string issLine;
+        int fileLineNo = 0;
+
+        pageStr = pagesInfo.splitFile.first;
+
+        while(!iss.eof())
+        {
+            getline(iss, issLine);
+            if(0 < fileLineNo++)
+                pageStr += "\n" + pagesInfo.indentAmount;
+            pageStr += issLine;
+        }
+
+        pageStr += pagesInfo.splitFile.second;
+
+        Path outputPath;
+        if(cPageNo)
+            outputPath = Path(pagesInfo.pagesDir, std::to_string(cPageNo+1) + outputExt);
+        else
+            outputPath = mainOutputPath;
+
+        chmod(outputPath.str().c_str(), 0666);
+
+        //removing file here gives significant speed improvements
+        //same improvements NOT observed for output files or info files at scale
+        //not sure why!
+        remove_file(outputPath); 
+
+        std::ofstream ofs(outputPath.str());
+        ofs << pageStr << "\n";
+        ofs.close();
+
+        chmod(outputPath.str().c_str(), 0444);
+
+        noPagesFinished = noPagesFinished + 0.55;
+    }
+
+}
+
+void build_thread(std::ostream& eos,
+                  const int& no_threads,
                   std::set<TrackedInfo>* trackedAll,
                   const int& no_to_build,
                   const Directory& ContentDir,
@@ -3395,18 +3458,73 @@ void build_thread(std::ostream& os,
         cInfo = nextInfo++;
         set_mtx.unlock();
 
-        if(parser.build(*cInfo, os) > 0)
+        int result = parser.build(*cInfo, noPagesFinished, noPagesToBuild, eos);
+
+        //more pagination here
+        parser.pagesInfo.noPages = parser.pagesInfo.pages.size();
+        if(parser.pagesInfo.noPages)
+        {
+            Directory outputDirBackup = parser.outputDir;
+            Path outputPathBackup = parser.toBuild.outputPath;
+            std::string innerPageStr;
+            std::set<Path> antiDepsOfReadPath;
+            for(size_t p=0; p<parser.pagesInfo.noPages; ++p)
+            {
+                if(p)
+                {
+                    parser.outputDir = parser.pagesInfo.pagesDir;
+                    parser.toBuild.outputPath = Path(parser.pagesInfo.pagesDir, std::to_string(p+1) + parser.outputExt);
+                }
+                antiDepsOfReadPath.clear();
+                parser.pagesInfo.cPageNo = p+1;
+                innerPageStr = parser.pagesInfo.templateStr;
+                result = parser.parse_replace('n', 
+                                       innerPageStr, 
+                                       "pagination template string", 
+                                       parser.pagesInfo.callPath, 
+                                       antiDepsOfReadPath, 
+                                       parser.pagesInfo.templateLineNo, 
+                                       "paginate.template", 
+                                       parser.pagesInfo.templateCallLineNo, 
+                                       eos);
+                if(result)
+                {
+                    if(!parser.consoleLocked)
+                        parser.os_mtx->lock();
+                    start_err(eos, parser.pagesInfo.callPath, parser.pagesInfo.callLineNo) << "paginate: failed here" << std::endl;
+                    parser.os_mtx->unlock();
+                    break;
+                }
+
+                parser.pagesInfo.pages[p] = innerPageStr;
+                noPagesFinished = noPagesFinished + 0.4;
+            }
+
+            //pagination threads
+            std::vector<std::thread> threads;
+            for(int i=0; i<no_threads; i++)
+                threads.push_back(std::thread(pagination_thread, 
+                                  parser.pagesInfo,
+                                  parser.outputExt,
+                                  outputPathBackup));
+
+            for(int i=0; i<no_threads; i++)
+                threads[i].join();
+        }
+
+        if(result)
         {
             fail_mtx.lock();
             failedNames.insert(cInfo->name);
             fail_mtx.unlock();
         }
-		else
-		{
+        else
+        {
 			built_mtx.lock();
 			builtNames.insert(cInfo->name);
 			built_mtx.unlock();
-		}
+        }
+
 		noFinished++;
     }
 }
@@ -3449,7 +3567,7 @@ int ProjectInfo::build_names(std::ostream& os, const bool& addBuildStatus, const
         return 1;
 
     nextInfo = trackedInfoToBuild.begin();
-    counter = noFinished = 0;
+    counter = noFinished = noPagesFinished = 0;
 
     os_mtx.lock();
     if(addBuildStatus) // should we check if os is std::cout?
@@ -3468,8 +3586,9 @@ int ProjectInfo::build_names(std::ostream& os, const bool& addBuildStatus, const
 
     std::vector<std::thread> threads;
     for(int i=0; i<no_threads; i++)
-        threads.push_back(std::thread(build_thread, 
-                          std::ref(std::cout), 
+        threads.push_back(std::thread(build_thread,  
+                          std::ref(std::cout),
+                          no_threads, 
                           &trackedAll, 
                           trackedInfoToBuild.size(), 
                           contentDir, 
@@ -3597,7 +3716,7 @@ int ProjectInfo::build_all(std::ostream& os, const bool& addBuildStatus)
         return 1;
 
     nextInfo = trackedAll.begin();
-    counter = noFinished = 0;
+    counter = noFinished = noPagesFinished = 0;
 
     os_mtx.lock();
     if(addBuildStatus)
@@ -3618,6 +3737,7 @@ int ProjectInfo::build_all(std::ostream& os, const bool& addBuildStatus)
     for(int i=0; i<no_threads; i++)
         threads.push_back(std::thread(build_thread, 
                                       std::ref(std::cout), 
+                                      no_threads,
                                       &trackedAll, 
                                       trackedAll.size(), 
                                       contentDir, 
@@ -3927,7 +4047,7 @@ int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, con
     removedFiles.clear();
 
     nextInfo = trackedAll.begin();
-    counter = noFinished = 0;
+    counter = noFinished = noPagesFinished = 0;
 
     if(addBuildStatus)
     {
@@ -4084,6 +4204,7 @@ int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, con
         for(int i=0; i<no_threads; i++)
             threads.push_back(std::thread(build_thread, 
                                           std::ref(os), 
+                                          no_threads, 
                                           &trackedAll, 
                                           updatedInfo.size(), 
                                           contentDir, 

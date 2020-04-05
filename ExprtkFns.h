@@ -6,123 +6,76 @@
 
 #include "Consts.h"
 #include "Expr.h"
+#include "FileSystem.h"
+#include "Quoted.h"
 #include "Variables.h"
 
 template <typename T>
-struct foo : public exprtk::ifunction<T>
-{
-	foo() : exprtk::ifunction<T>(3)
-	{}
-
-	T operator()(const T& v1, const T& v2, const T& v3)
-	{
-		return v1+v2+v3;
-	}
-};
-
-template <typename T>
-struct rec : public exprtk::ifunction<T>
-{
-	T maxx;
-
-	rec() : exprtk::ifunction<T>(2)
-	{}
-
-	T lol(const T& v1)
-	{
-		T vn = v1 + 1;
-		//std::cout << vn << std::endl;
-		if(vn < maxx)
-			lol(vn);
-		else
-			std::cout << vn << std::endl;
-		return vn;
-	}
-
-	T operator()(const T& v1, const T& v2)
-	{
-		maxx = v2;
-		T vn = v1 + 1;
-		if(vn < 10)
-			lol(vn);
-		return vn;
-	}
-};
-
-template <typename T>
-struct boo : public exprtk::ivararg_function<T>
-{
-	inline T operator()(const std::vector<T>& arglist)
-	{
-		T result = T(0);
-
-		for(std::size_t i = 0; i < arglist.size(); ++i)
-		{
-			result += arglist[i] / arglist[i > 0 ? (i - 1) : 0];
-		}
-
-		return result;
-	}
-};
-
-template <typename T>
-struct too : public exprtk::igeneric_function<T>
+struct exprtk_cd : public exprtk::igeneric_function<T>
 {
 	typedef typename exprtk::igeneric_function<T>::parameter_list_t parameter_list_t;
 
-	too()
-	{}
-
-	inline T operator()(std::vector<std::string> parameters)
-	{
-		std::cout << "name: " << parameters[0] << " " << std::endl;
-		for(size_t i = 0; i < parameters.size(); ++i)
-		{
-			std::cout << "param: " << parameters[i] << std::endl;
-		}
-
-		return T(0);
-	}
-};
-
-template <typename T>
-struct gen_fn : public exprtk::igeneric_function<T>
-{
-	typedef typename exprtk::igeneric_function<T>::parameter_list_t parameter_list_t;
-
-	Variables* vars;
-
-	gen_fn()
+	exprtk_cd() : exprtk::igeneric_function<T>("S")
 	{}
 
 	inline T operator()(parameter_list_t parameters)
 	{
 		typedef typename exprtk::igeneric_function<T>::generic_type generic_type;
-
-		typedef typename generic_type::scalar_view scalar_t;
-		typedef typename generic_type::vector_view vector_t;
 		typedef typename generic_type::string_view string_t;
 
-		for(std::size_t i = 0; i < parameters.size(); ++i)
-		{
-			generic_type& gt = parameters[i];
+		generic_type& gt = parameters[0];
+		string_t param_strt(gt);
+		std::string inStr = std::string(param_strt.begin(), param_strt.size());
+		std::string target = replace_home_dir(inStr);
 
-			if(generic_type::e_scalar == gt.type)
-			{
-				scalar_t param_numt(gt);
-			}
-			else if(generic_type::e_vector == gt.type)
-			{
-				vector_t param_vect(gt);
-			}
-			else if(generic_type::e_string == gt.type)
-			{
-				string_t param_strt(gt);
-				std::string param = std::string(param_strt.begin(), param_strt.size());
-			}
-		}
+		if(!dir_exists(target))
+	    	return 1;
 
-		return -1;
+		if(chdir(target.c_str()))
+	    	return 1;
+
+		return 0;
+	}
+};
+
+template <typename T>
+struct exprtk_sys : public exprtk::igeneric_function<T>
+{
+	typedef typename exprtk::igeneric_function<T>::parameter_list_t parameter_list_t;
+
+	int* nsm_mode;
+
+	exprtk_sys() : exprtk::igeneric_function<T>("S")
+	{}
+
+	inline T operator()(parameter_list_t parameters)
+	{
+		typedef typename exprtk::igeneric_function<T>::generic_type generic_type;
+		typedef typename generic_type::string_view string_t;
+
+		generic_type& gt = parameters[0];
+		string_t param_strt(gt);
+		std::string sys_call = std::string(param_strt.begin(), param_strt.size());
+
+		#if defined _WIN32 || defined _WIN64
+	        if(unquote(sys_call).substr(0, 2) == "./")
+	            sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
+	    #else  //*nix
+	        if(file_exists("/.flatpak-info"))
+	            sys_call = "flatpak-spawn --host bash -c " + quote(sys_call);
+	    #endif
+
+	    int result = system(sys_call.c_str());
+
+		if(result && (*nsm_mode == MODE_INTERP || *nsm_mode == MODE_SHELL))
+			std::cout << "\a" << std::flush;
+
+		return result;
+	}
+
+	void setModePtr(int* modePtr)
+	{
+		nsm_mode = modePtr;
 	}
 };
 
@@ -493,6 +446,47 @@ struct exprtk_nsm_setstring : public exprtk::igeneric_function<T>
 	void setVars(Variables* Vars)
 	{
 		vars = Vars;
+	}
+};
+
+template <typename T>
+struct gen_fn : public exprtk::igeneric_function<T>
+{
+	typedef typename exprtk::igeneric_function<T>::parameter_list_t parameter_list_t;
+
+	Variables* vars;
+
+	gen_fn()
+	{}
+
+	inline T operator()(parameter_list_t parameters)
+	{
+		typedef typename exprtk::igeneric_function<T>::generic_type generic_type;
+
+		typedef typename generic_type::scalar_view scalar_t;
+		typedef typename generic_type::vector_view vector_t;
+		typedef typename generic_type::string_view string_t;
+
+		for(std::size_t i = 0; i < parameters.size(); ++i)
+		{
+			generic_type& gt = parameters[i];
+
+			if(generic_type::e_scalar == gt.type)
+			{
+				scalar_t param_numt(gt);
+			}
+			else if(generic_type::e_vector == gt.type)
+			{
+				vector_t param_vect(gt);
+			}
+			else if(generic_type::e_string == gt.type)
+			{
+				string_t param_strt(gt);
+				std::string param = std::string(param_strt.begin(), param_strt.size());
+			}
+		}
+
+		return -1;
 	}
 };
 

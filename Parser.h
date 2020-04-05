@@ -2,6 +2,8 @@
 #define PARSER_H_
 
 #include <atomic>
+#include <cmath>
+#include <math.h>
 #include <map>
 #include <mutex>
 #include <sstream>
@@ -12,10 +14,10 @@
 #include "DateTimeInfo.h"
 #include "Expr.h"
 #include "ExprtkFns.h"
-#include "FileSystem.h"
 #include "Getline.h"
 #include "LuaFns.h"
 #include "LuaJIT.h"
+#include "Pagination.h"
 #include "SystemInfo.h"
 #include "TrackedInfo.h"
 #include "Variables.h"
@@ -39,19 +41,21 @@ struct Parser
     std::set<Path> depFiles, includedFiles;
     std::istringstream dummy_iss;
 
+    std::vector<std::string> tabCompletionStrs;
+
+    Pagination pagesInfo;
+
     Variables vars;
     Lua lua;
     exprtk::symbol_table<double>           symbol_table;
     exprtk::rtl::io::package<double>       basicio_package; //could potentially make these pointers and
-    exprtk::rtl::io::file::package<double> fileio_package; //only initialise if/when added
+    exprtk::rtl::io::file::package<double> fileio_package;  //only initialise if/when added
     exprtk::rtl::vecops::package<double>   vectorops_package;
     Expr expr;
     ExprSet exprset;
 
-    foo<double> f;
-    rec<double> r;
-    boo<double> b;
-    too<double> t;
+    exprtk_cd<double>            exprtk_cd_fn;
+    exprtk_sys<double>           exprtk_sys_fn;
     exprtk_nsm_tonumber<double>  exprtk_nsm_tonumber_fn;
     exprtk_nsm_tostring<double>  exprtk_nsm_tostring_fn;
     exprtk_nsm_setnumber<double> exprtk_nsm_setnumber_fn;
@@ -90,11 +94,15 @@ struct Parser
                    const bool& makeBackup, 
                    const bool& outputWhatDoing);
 
+    int refresh_completions();
     int shell(std::string& lang, std::ostream& eos);
     int interpreter(std::string& lang, std::ostream& eos);
     int interactive(std::string& lang, std::ostream& eos);
     int run(const Path& path, char lang, std::ostream& eos);
-    int build(const TrackedInfo& ToBuild, std::ostream& eos);
+    int build(const TrackedInfo& ToBuild,
+              std::atomic<double>& noPagesFinished,
+              std::atomic<int>& noPagesToBuild,
+              std::ostream& eos);
     int n_read_and_process(const bool& indent,
                            const std::string& inStr,
                            int lineNo,
@@ -233,6 +241,7 @@ struct Parser
                  const std::string& callType,
                  std::ostream& eos);
     int read_sh_params(std::vector<std::string>& params,
+                       const char& separator,
                        size_t& linePos,
                        const std::string& inStr,
                        const Path& readPath,

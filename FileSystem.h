@@ -23,7 +23,11 @@ std::vector<std::string> lsVec(const char* path);
 std::set<std::string> lsSet(const char* path);
 void makeSearchable(Path& path);
 std::set<std::string> lsSetStar(const Path& path, const int& incHidden);
-void coutPaths(const std::string& dir, const std::set<std::string>& paths, const std::string& separator);
+void coutPaths(const std::string& dir,
+               const std::set<std::string>& paths, 
+               const std::string& separator, 
+               const bool& highlight,
+               const size_t& maxNoPaths);
 int delDir(const std::string& dir); //don't use this anywhere with multithreading!
 int cpDir(const std::string& sourceDir, const std::string& targetDir);
 int cpFile(const std::string& sourceFile, const std::string& targetFile);

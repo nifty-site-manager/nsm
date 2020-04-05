@@ -120,11 +120,11 @@ void asciiNift()
     if(console_width() < 23 || console_height() < 12)
         return;
     else if(console_width() < 26)
-        T = 1;
-    else if(console_width() < 30)
         T = 2;
-    else
+    else if(console_width() < 30)
         T = 3;
+    else
+        T = 4;
 
     int t = rand()%T;
 
@@ -141,21 +141,30 @@ void asciiNift()
 
     if(t == 0)
     {
-        std::cout << "         _  ___ _    " << std::endl;
+        std::cout << "         _  _____   " << std::endl;
+        std::cout << "   ____ (_)/ __/ |   " << std::endl;
+        std::cout << "  |  _ \\ _ | |_| |_ " << std::endl;
+        std::cout << "  | | | | || _/  __) " << std::endl;
+        std::cout << "  |_| | |_|| | | |_ " << std::endl;
+        std::cout << "      |/   |/  |___) " << std::endl;
+    }
+    if(t == 1)
+    {
+        std::cout << "         _  _____   " << std::endl;
         std::cout << "   ____ |_|/ __/ |   " << std::endl;
         std::cout << "  |  _ \\ _ | |_| |__ " << std::endl;
         std::cout << "  | | | | || _/  __/ " << std::endl;
         std::cout << "  |_| | |_|| | | |__ " << std::endl;
         std::cout << "      |/   |/  |___/ " << std::endl;
     }
-    else if(t == 1)
+    else if(t == 2)
     {
         std::cout << "   ____ ____ ____ ____ " << std::endl;
         std::cout << "  ||n |||i |||f |||t ||" << std::endl;
         std::cout << "  ||__|||__|||__|||__||" << std::endl;
         std::cout << "  |/__\\|/__\\|/__\\|/__\\|" << std::endl;
     }
-    else if(t == 2)
+    else if(t == 3)
     {
         std::cout << "         _________________  " << std::endl;
         std::cout << "  __________(_)  / __/_/ /_ " << std::endl;
@@ -710,20 +719,10 @@ int main(int argc, char* argv[])
                 lang = "f++";
             else if(langOpt.find_first_of('n') != std::string::npos)
                 lang = "n++";
-            else if(cmd == "interp")
-            {
-                if(langOpt.find_first_of('l') != std::string::npos)
-                    lang = "lua";
-                else if(langOpt.find_first_of('x') != std::string::npos)
-                    lang = "exprtk";
-                else
-                {
-                    start_err(std::cout) << cmd << ": cannot determine chosen language from " << quote(langOpt) << ", ";
-                    std::cout << "valid options include '-n++', '-f++', '-lua', '-exprtk'" << std::endl;
-                    return 1;
-                }
-
-            }
+            if(langOpt.find_first_of('l') != std::string::npos)
+                lang = "lua";
+            else if(langOpt.find_first_of('x') != std::string::npos)
+                lang = "exprtk";
             else
             {
                 start_err(std::cout) << cmd << ": cannot determine chosen language from " << quote(langOpt) << ", ";
@@ -1921,23 +1920,6 @@ int main(int argc, char* argv[])
                     return 1;
                 }
             }
-
-            std::cout.precision(4);
-            std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
-
-            return result;
-        }
-        else if(cmd == "build-names-old")
-        {
-            //ensures correct number of parameters given
-            if(noParams <= 1)
-                return parError(noParams, argv, ">1");
-
-            std::vector<Name> namesToBuild;
-            for(int p=2; p<argc; p++)
-                namesToBuild.push_back(argv[p]);
-
-            int result = project.build_names(namesToBuild);
 
             std::cout.precision(4);
             std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;

@@ -41,6 +41,7 @@ struct Path
 	bool ensureFileExists() const;
 
     Path getInfoPath() const;
+    Path getPaginationPath() const;
 };
 
 //outputs path (quoted if it contains spaces)

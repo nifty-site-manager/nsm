@@ -26,6 +26,11 @@ void write_info(const std::string& info,
 
 #endif
 
-int getline(const std::string& lang, const bool& addPwd, const char& promptCh, std::string& str, bool trackLines);
+int getline(const std::string& lang,
+            const bool& addPwd, 
+            const char& promptCh, 
+            std::string& str, 
+            bool trackLines, 
+            const std::vector<std::string>& tabCompletionStrs);
 
 #endif //GETLINE_H_

@@ -226,25 +226,37 @@ std::set<std::string> lsSetStar(const Path& path, const int& incHidden)
     return ans;
 }
 
-void coutPaths(const std::string& dir, const std::set<std::string>& paths, const std::string& separator)
+void coutPaths(const std::string& dir,
+               const std::set<std::string>& paths, 
+               const std::string& separator,
+               const bool& highlight,
+               const size_t& maxNoPaths)
 {
     bool first = 1;
-    for(auto path=paths.begin(); path!=paths.end(); ++path)
+    size_t p=0;
+    for(auto path=paths.begin(); p < maxNoPaths && path!=paths.end(); ++p, ++path)
     {
         if(first)
             first = 0;
         else
             std::cout << separator; 
 
-        if(dir_exists(dir + *path))
-            std::cout << c_light_blue << *path << c_white;
-        else if(exec_exists(dir + *path))
-            std::cout << c_green << *path << c_white;
-        else if(file_exists(dir + *path))
-            std::cout << *path;
+        if(highlight)
+        {
+            if(dir_exists(dir + *path))
+                std::cout << c_light_blue << *path << c_white;
+            else if(exec_exists(dir + *path))
+                std::cout << c_green << *path << c_white;
+            else if(file_exists(dir + *path))
+                std::cout << *path;
+            else
+                std::cout << c_red << *path << c_white;
+        }
         else
-            std::cout << c_red << *path << c_white;
+            std::cout << *path;
     }
+    if(maxNoPaths < paths.size())
+        std::cout << c_white << " (and " << paths.size() - maxNoPaths << " more)";
     std::cout << std::flush;
 }
 

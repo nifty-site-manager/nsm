@@ -56,6 +56,7 @@ struct Variables
 	std::vector<VLayer> layers;
 	std::unordered_set<std::string> basic_types;
 	std::map<std::string, std::string> typeDefs;
+	std::unordered_set<std::string> nTypes;
 	std::map<std::string, Path> typeDefPath;
 	std::map<std::string, int> typeDefLineNo;
 

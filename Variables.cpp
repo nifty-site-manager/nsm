@@ -36,6 +36,8 @@ Variables::Variables()
 {
     add_layer("");
 
+    precision = 6;
+
 	basic_types.insert("bool");
 	basic_types.insert("int");
 	basic_types.insert("double");

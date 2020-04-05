@@ -16,6 +16,184 @@ void lua_nsm_pusherrmsg(lua_State* L, const std::string& errStr)
 	lua_pushstring(L, ("error: " + std::to_string(ar.currentline) + ": " + errStr).c_str());
 }
 
+void lua_nsm_pusherrmsg(lua_State* L, const std::string& errStr, int lineNoOffset)
+{
+	lua_Debug ar;
+	lua_getstack(L, 1, &ar);
+	lua_getinfo(L, "nSl", &ar);
+	lua_pushstring(L, ("error: " + std::to_string(ar.currentline + lineNoOffset) + ": " + errStr).c_str());
+}
+
+int lua_cd(lua_State* L)
+{
+	if(lua_gettop(L) != 1)
+	{
+		lua_nsm_pusherrmsg(L, "cd: expected 1 parameter, got " + std::to_string(lua_gettop(L)));
+		lua_error(L);
+		return 0;
+	}
+	else if(!lua_isstring(L, 1))
+	{
+		lua_nsm_pusherrmsg(L, "cd: parameter is not a string");
+		lua_error(L);
+		return 0;
+	}
+
+	std::string inStr = lua_tostring(L, 1);
+	std::string target = replace_home_dir(inStr);
+	lua_remove(L, 1);
+
+    if(!dir_exists(target))
+    {
+        lua_nsm_pusherrmsg(L, "cd: cannot change directory to " + quote(inStr) + " as it is not a directory");
+        lua_error(L);
+        return 0;
+    }
+
+    if(chdir(target.c_str()))
+    {
+        lua_nsm_pusherrmsg(L, "cd: failed to change directory to " + quote(inStr));
+        lua_error(L);
+        return 0;
+    }
+
+    return 0;
+}
+
+int lua_sys(lua_State* L)
+{
+	if(lua_gettop(L) != 1)
+	{
+		lua_nsm_pusherrmsg(L, "sys: expected 1 parameter, got " + std::to_string(lua_gettop(L)));
+		lua_error(L);
+		return 0;
+	}
+	else if(!lua_isstring(L, 1))
+	{
+		lua_nsm_pusherrmsg(L, "sys: parameter is not a string");
+		lua_error(L);
+		return 0;
+	}
+
+	std::string sys_call = lua_tostring(L, 1);
+	lua_remove(L, 1);
+
+	#if defined _WIN32 || defined _WIN64
+        if(unquote(sys_call).substr(0, 2) == "./")
+            sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
+    #else  //*nix
+        if(file_exists("/.flatpak-info"))
+            sys_call = "flatpak-spawn --host bash -c " + quote(sys_call);
+    #endif
+
+    lua_pushnumber(L, system(sys_call.c_str()));
+    
+	return 1;
+}
+
+int lua_sys_bell(lua_State* L)
+{
+	if(lua_gettop(L) != 1)
+	{
+		lua_nsm_pusherrmsg(L, "sys: expected 1 parameter, got " + std::to_string(lua_gettop(L)));
+		lua_error(L);
+		return 0;
+	}
+	else if(!lua_isstring(L, 1))
+	{
+		lua_nsm_pusherrmsg(L, "sys: parameter is not a string");
+		lua_error(L);
+		return 0;
+	}
+
+	std::string sys_call = lua_tostring(L, 1);
+	lua_remove(L, 1);
+
+	#if defined _WIN32 || defined _WIN64
+        if(unquote(sys_call).substr(0, 2) == "./")
+            sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
+    #else  //*nix
+        if(file_exists("/.flatpak-info"))
+            sys_call = "flatpak-spawn --host bash -c " + quote(sys_call);
+    #endif
+
+    int result = system(sys_call.c_str());
+
+    if(result) //checks mode
+    {
+    	lua_getglobal(L, "nsm_mode__");
+
+		if(!lua_islightuserdata(L, 1))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk: variable 'nsm_mode__' should be of type 'lightuserdata'");
+			lua_error(L);
+			return 0;
+		}
+		int* modeID = (int*)lua_topointer(L, 1);
+		lua_remove(L, 1);
+
+		if(*modeID == MODE_INTERP || *modeID == MODE_SHELL)
+			std::cout << "\a" << std::flush;
+    }
+
+	lua_pushnumber(L, result);
+	return 1;
+}
+
+int lua_exprtk(lua_State* L)
+{
+	if(lua_gettop(L) != 1)
+	{
+		lua_nsm_pusherrmsg(L, "exprtk: expected 1 parameter, got " + std::to_string(lua_gettop(L)));
+		lua_error(L);
+		return 0;
+	}
+	else if(!lua_isstring(L, 1))
+	{
+		lua_nsm_pusherrmsg(L, "exprtk: parameter is not a string");
+		lua_error(L);
+		return 0;
+	}
+
+	std::string exprStr = lua_tostring(L, 1);
+	lua_remove(L, 1);
+
+	lua_getglobal(L, "nsm_exprtk__");
+
+	if(!lua_islightuserdata(L, 1))
+	{
+		lua_nsm_pusherrmsg(L, "exprtk: variable 'nsm_exprtk__' should be of type 'lightuserdata'");
+		lua_error(L);
+		return 0;
+	}
+	Expr* expr = (Expr*)lua_topointer(L, 1);
+	lua_remove(L, 1);
+
+	if(!expr->set_expr(exprStr))
+	{
+		//lua_nsm_pusherrmsg(L, "exprtk: failed to compile expression");
+
+		size_t errLineNo;
+	    for(size_t i=0; i < expr->parser.error_count(); ++i)
+	    {
+	        exprtk::parser_error::type error = expr->parser.get_error(i);
+
+	        if(std::to_string(error.token.position) == "18446744073709551615")
+	            errLineNo = 0;
+	        else
+	            errLineNo = 0 + std::count(expr->expr_str.begin(), expr->expr_str.begin() + error.token.position, '\n');
+
+	        lua_nsm_pusherrmsg(L, "exprtk: " + exprtk::parser_error::to_str(error.mode) + ": " + error.diagnostic, errLineNo);
+	    }
+
+		lua_error(L);
+		return 0;
+	}
+	
+	lua_pushnumber(L, expr->evaluate());
+	return 1;
+}
+
 int lua_nsm_lang(lua_State* L)
 {
 	if(lua_gettop(L) != 1)
@@ -69,7 +247,7 @@ int lua_nsm_lang(lua_State* L)
 		{
 			lua_nsm_pusherrmsg(L, "nsm_lang(): do not recognise language " + quote(langStr));
 			lua_error(L);
-			return 1;
+			return 0;
 		}
 	}
 }

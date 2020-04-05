@@ -84,6 +84,11 @@ Path Path::getInfoPath() const
     return Path(".nsm/" + dir,  strippedExtension(file) + ".info");
 }
 
+Path Path::getPaginationPath() const
+{
+    return Path(".nsm/" + dir,  strippedExtension(file) + ".pagination");
+}
+
 bool Path::ensureDirExists() const
 {
     std::deque<Directory> dDeque = dirDeque(dir);

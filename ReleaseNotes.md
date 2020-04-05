@@ -2,6 +2,29 @@
 Nift Release Notes
 ------------------
 
+Version 2.3.1 of Nift
+* added in pagination, including fns:
+	- item
+	- paginate
+	- paginate.no_items_per_page
+	- paginate.separator
+	- paginate.template
+  and constants:
+    - paginate.no_items_per_page
+  	- paginate.no_pages
+  	- paginate.page
+  	- paginate.page_no
+  	- paginate.separator
+* added in getenv, refresh_completions and replace_all functions
+* added in sys fn for ExprTk
+* added in exprtk and sys fns for Lua
+* added in alternative way to define variables, now very similar to other languages
+* added in way to add $[] print syntax with user-defined types
+* added in f++/n++ options when defining structs/types
+* added round option to exprtk fn
+* fixed various bugs
+* made various improvements
+
 Version 2.2 of Nift
 * added in mod functions % and %=
 * fixed various bugs

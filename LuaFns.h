@@ -6,6 +6,8 @@
 
 #include "Consts.h"
 #include "ConsoleColor.h"
+#include "ExprtkFns.h"
+#include "FileSystem.h"
 #include "LuaJIT.h"
 #include "Path.h"
 #include "Quoted.h"
@@ -13,6 +15,14 @@
 
 int lua_nsm_linenumber(lua_State* L);
 void lua_nsm_pusherrmsg(lua_State* L, const std::string& errStr);
+void lua_nsm_pusherrmsg(lua_State* L, const std::string& errStr, int lineNoOffset);
+
+int lua_cd(lua_State* L);
+
+int lua_sys(lua_State* L);
+int lua_sys_bell(lua_State* L);
+
+int lua_exprtk(lua_State* L);
 
 int lua_nsm_lang(lua_State* L);
 int lua_nsm_mode(lua_State* L);
