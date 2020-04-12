@@ -1,0 +1,11 @@
+*.o
+nift
+nsm
+LuaJIT/src/host/buildvm
+LuaJIT/src/host/buildvm_arch.h
+LuaJIT/src/host/minilua
+LuaJIT/src/jit/vmdef.lua
+LuaJIT/src/libluajit.a
+LuaJIT/src/libluajit.so
+LuaJIT/src/lj_vm.S
+LuaJIT/src/luajit
