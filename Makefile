@@ -6,6 +6,13 @@ DESTDIR?=
 PREFIX?=/usr/local
 BINDIR=${DESTDIR}${PREFIX}/bin
 LIBDIR=${DESTDIR}${PREFIX}/lib
+LUAJIT?=1
+
+ifeq ($(LUAJIT),1)
+LUAJIT_INC?=-LLuaJIT/src
+else
+LUAJIT_INC?=
+endif
 
 CXX?=g++
 CXXFLAGS=-std=c++11 -Wall -Wextra -pedantic -O3
@@ -13,9 +20,9 @@ LINK=-pthread
 
 #https://stackoverflow.com/a/14777895
 ifeq ($(OS),Windows_NT) 
-    detected_OS := Windows
+	detected_OS := Windows
 else
-    detected_OS := $(shell sh -c 'uname 2>/dev/null || echo Unknown')
+	detected_OS := $(shell sh -c 'uname 2>/dev/null || echo Unknown')
 endif
 
 ifeq ($(detected_OS),Darwin)        # Mac OSX
@@ -28,26 +35,17 @@ else ifeq ($(detected_OS),Windows)  # Windows
 	CXXFLAGS+= -s -Wa,-mbig-obj -static-libgcc -static-libstdc++ -Wno-cast-function-type -Wno-error=cast-function-type
 	LINK+= -L. -llua51
 else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
-	CXX=clang
+	# CXX=clang
 	CXXFLAGS+= -s -Qunused-arguments -lstdc++
-	LINK+= -ldl -lm -LLuaJIT/src -lluajit            #use Nift built LuaJIT
+	LINK+= -ldl -lm $(LUAJIT_INC) -lluajit            #use Nift built LuaJIT
 	#LINK+= -ldl -lm -L/usr/local/lib -lluajit-5.1   #use FreeBSD LuaJIT
 else                                # *nix
 	#use these flags for a smaller binary
 	#CXXFLAGS+= -s
 	#flags to use when compiling for Netlify & Releases
 	CXXFLAGS+= -s -static-libgcc -static-libstdc++
-	LINK+= -ldl -LLuaJIT/src -lluajit
+	LINK+= -ldl $(LUAJIT_INC) -lluajit
 endif
-
-#ifeq ($(detected_OS),Linux)              # Linux
-#else ifeq ($(detected_OS),GNU)           # Debian GNU Hurd
-#else ifeq ($(detected_OS),GNU/kFreeBSD)  # Debian kFreeBSD
-#else ifeq ($(detected_OS),FreeBSD)       # FreeBSD
-#else ifeq ($(detected_OS),NetBSD)        # NetBSD
-#else ifeq ($(detected_OS),DragonFly)     # DragonFly
-#else ifeq ($(detected_OS),Haiku)         # Haiku
-#endif
 
 ###
 
@@ -56,19 +54,20 @@ all: make-luajit nsm
 ###
 
 make-luajit:
+ifeq ($(LUAJIT),1)
 ifeq ($(detected_OS),Darwin)        # Mac OSX
-	cd LuaJIT && make MACOSX_DEPLOYMENT_TARGET=10.9
+	cd LuaJIT && $(MAKE) MACOSX_DEPLOYMENT_TARGET=10.9
 	cp LuaJIT/src/libluajit.a ./
 else ifeq ($(detected_OS),Windows)  # Windows
-	cd LuaJIT && make
+	cd LuaJIT && $(MAKE)
 	copy LuaJIT\src\lua51.dll .
 else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
-	cd LuaJIT && gmake
+	cd LuaJIT && $(MAKE)
 	cp LuaJIT/src/libluajit.so ./
 else                                # *nix
-	cd LuaJIT && make
+	cd LuaJIT && $(MAKE)
 endif
-
+endif
 ###
 
 nsm: $(objects)
@@ -159,7 +158,9 @@ ifeq ($(detected_OS),Windows)  # Windows
 else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
 	mkdir -p ${BINDIR}
 	chmod 755 nsm
+ifeq ($(LUAJIT),1)
 	mv libluajit.so ${LIBDIR}/libluajit-5.1.so.2
+endif
 	mv nift ${BINDIR}
 	mv nsm ${BINDIR}
 else                           # *nix
@@ -182,7 +183,7 @@ else                                # *nix
 	rm ${BINDIR}/nift
 	rm ${BINDIR}/nsm
 endif 
-	
+
 git-bash-install:
 	chmod 755 nsm
 	mv nift ~/bin
@@ -195,29 +196,29 @@ git-bash-uninstall:
 clean:
 ifeq ($(detected_OS),Darwin)        # Mac OSX
 	rm -f $(objects)
-	cd LuaJIT && make clean
+	cd LuaJIT && $(MAKE) clean
 else ifeq ($(detected_OS),Windows)  # Windows
 	del -f $(objects)
-	#cd LuaJIT && make clean #this doesn't work for some reason
+	#cd LuaJIT && $(MAKE) clean #this doesn't work for some reason
 else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
 	rm -f $(objects)
-	cd LuaJIT && gmake clean
+	cd LuaJIT && $(MAKE) clean
 else                                # *nix
 	rm -f $(objects)
-	cd LuaJIT && make clean
+	cd LuaJIT && $(MAKE) clean
 endif 
 
 clean-all:
 ifeq ($(detected_OS),Darwin)        # Mac OSX
 	rm -f $(objects) nsm nift libluajit.a
-	cd LuaJIT && make clean
+	cd LuaJIT && $(MAKE) clean
 else ifeq ($(detected_OS),Windows)  # Windows
 	del -f $(objects) nsm.exe nift.exe lua51.dll
 	#cd LuaJIT && make clean #see same line for clean
 else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
 	rm -f $(objects) nsm nift libluajit.so
-	cd LuaJIT && gmake clean
+	cd LuaJIT && $(MAKE) clean
 else                                # *nix
 	rm -f $(objects) nsm nift
-	cd LuaJIT && make clean
+	cd LuaJIT && $(MAKE) clean
 endif 
