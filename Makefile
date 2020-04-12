@@ -79,16 +79,16 @@ all: make-luajit nsm
 
 make-luajit:
 ifeq ($(detected_OS),Darwin)        # Mac OSX
-	cd LuaJIT && make MACOSX_DEPLOYMENT_TARGET=10.9
+	cd LuaJIT && $(MAKE) MACOSX_DEPLOYMENT_TARGET=10.9
 	cp LuaJIT/src/libluajit.a ./
 else ifeq ($(detected_OS),Windows)  # Windows
-	cd LuaJIT && make
+	cd LuaJIT && $(MAKE)
 	copy LuaJIT\src\lua51.dll .
 else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
-	cd LuaJIT && gmake
+	cd LuaJIT && $(MAKE)
 	cp LuaJIT/src/libluajit.so ./
 else                                # *nix
-	cd LuaJIT && make
+	cd LuaJIT && $(MAKE)
 endif
 
 ###
@@ -207,7 +207,7 @@ else                                # *nix
 	rm ${BINDIR}/nift
 	rm ${BINDIR}/nsm
 endif 
-	
+
 git-bash-install:
 	chmod 755 nsm
 	mv nift ~/bin
@@ -220,27 +220,27 @@ git-bash-uninstall:
 clean:
 ifeq ($(detected_OS),Darwin)        # Mac OSX
 	rm -f $(objects)
-	cd LuaJIT && make clean
+	cd LuaJIT && $(MAKE) clean
 else ifeq ($(detected_OS),Windows)  # Windows
 	del $(objects)
 else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
 	rm -f $(objects)
-	cd LuaJIT && gmake clean
+	cd LuaJIT && $(MAKE) clean
 else                                # *nix
 	rm -f $(objects)
-	cd LuaJIT && make clean
+	cd LuaJIT && $(MAKE) clean
 endif 
 
 clean-all:
 ifeq ($(detected_OS),Darwin)        # Mac OSX
 	rm -f $(objects) nsm nift libluajit.a
-	cd LuaJIT && make clean
+	cd LuaJIT && $(MAKE) clean
 else ifeq ($(detected_OS),Windows)  # Windows
 	del $(objects) nsm.exe nift.exe lua51.dll
 else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
 	rm -f $(objects) nsm nift libluajit.so
-	cd LuaJIT && gmake clean
+	cd LuaJIT && $(MAKE) clean
 else                                # *nix
 	rm -f $(objects) nsm nift
-	cd LuaJIT && make clean
+	cd LuaJIT && $(MAKE) clean
 endif 
