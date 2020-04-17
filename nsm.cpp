@@ -16,7 +16,9 @@
 std::atomic<bool> serving;
 std::mutex serve_mtx;
 
-#if defined __APPLE__ || defined __linux__
+#if __APPLE__ 
+    const std::string badgerStr = "🦡 ";
+#elif __linux__
     const std::string badgerStr = "🦡  ";
 #else  //*nix
     const std::string badgerStr = "";

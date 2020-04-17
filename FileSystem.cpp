@@ -88,9 +88,40 @@ bool remove_path(const Path& path,
           std::mutex* os_mtx)
 {
 	if(remove_file(path))
-		return 1;
+    {
+        if(!consoleLocked)
+            os_mtx->lock();
+        if(lineNo > 0)
+            start_err(eos, readPath, lineNo) << "remove_path: failed to remove " << path << std::endl;
+        else
+            start_err(eos) << "remove_path: failed to remove " << path << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
 
-	return delDir(path.dir, lineNo, readPath, eos, consoleLocked, os_mtx);
+    std::string delDir = path.dir;
+    size_t pos;
+
+    int delDirSize = delDir.size();
+    if(delDirSize && (delDir[delDirSize-1] == '/' || delDir[delDirSize-1] == '\\'))
+        delDir = delDir.substr(0, delDirSize-1);
+
+    while(delDir.size() &&
+          delDir != "/" && 
+          delDir != "C:" &&
+          delDir != "C:\\" &&
+          delDir != "C:/" &&
+          delDir != "./" &&
+          !rmdir(delDir.c_str()))
+    {
+        pos = delDir.find_last_of("/\\");
+        if(pos == std::string::npos)
+            break;
+        else
+            delDir = delDir.substr(0, pos);
+    }
+
+    return 0;
 }
 
 std::string ls(const char* path)

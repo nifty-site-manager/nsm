@@ -2,6 +2,9 @@
 Nift Release Notes
 ------------------
 
+Version 2.3.3 of Nift
+* fixed major bug where project content directory was deleted when removing a single tracked file
+
 Version 2.3.2 of Nift
 * added in proper cpy/lst/mve/rmv functions
 * renamed touch fn to poke
