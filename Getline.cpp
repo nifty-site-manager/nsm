@@ -73,12 +73,72 @@ void write_input_line(const std::string& lang,
 	std::fflush(stdout);
 }
 
+int nsm_getch()
+{
+	char c;
 
+	#if defined _WIN32 || defined _WIN64
+		c = _getch();
+	#else
+		enable_raw_mode();
+		c = getchar();
+		disable_raw_mode();
+	#endif
+
+	return c;
+}
+
+int rnbwcout(const std::string& str, const std::string& lolcatCmd)
+{
+    std::ofstream ofs(".lolcat.output");
+    ofs << str << std::endl;
+    ofs.close();
+
+    int ret_val;
+
+    #if defined _WIN32 || defined _WIN64
+        ret_val = system(("cat .lolcat.output | " + lolcatCmd).c_str());
+    #else
+        ret_val = system(("cat .lolcat.output | " + lolcatCmd).c_str());
+    #endif
+
+    remove(".lolcat.output");
+
+    return ret_val;
+}
+
+int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd)
+{
+    std::ofstream ofs(".lolcat.output");
+    if(strs.size())
+    {
+	    auto str=strs.begin();
+	    ofs << *str++;
+	    for(; str!=strs.end(); ++str)
+		    ofs << " " << *str;
+		ofs << std::endl;
+	}
+    ofs.close();
+
+    int ret_val;
+
+    #if defined _WIN32 || defined _WIN64
+        ret_val = system(("cat .lolcat.output | " + lolcatCmd).c_str());
+    #else
+        ret_val = system(("cat .lolcat.output | " + lolcatCmd).c_str());
+    #endif
+
+    remove(".lolcat.output");
+
+    return ret_val;
+}
 
 #if defined _WIN32 || defined _WIN64
 	int getline(const std::string& lang,
 	            const bool& addPwd, 
 	            const char& promptCh, 
+	            const int& lolcat,
+	            const std::string& lolcatCmd,
 	            std::string& str, 
 	            bool trackLines, 
 	            const std::vector<std::string>& tabCompletionStrs)
@@ -194,70 +254,63 @@ void write_input_line(const std::string& lang,
 						tabPath.set_file_path_from(searchStr.c_str());
 						makeSearchable(tabPath);
 						paths = lsSetStar(tabPath, -1);
-
-						for(size_t j=0; j<tabCompletionStrs.size(); ++j)
-						{
-							if(searchStr == tabCompletionStrs[j].substr(0, searchStr.size()))
-								programs.insert(tabCompletionStrs[j]);
-						}
 					}
 
 					if(paths.size())
 					{
 						foundCompletions = 1;
 
-						if(programs.size())
+						auto path = paths.begin();
+						std::string foundStr = *path;
+						++path;
+						for(; path!=paths.end(); ++path)
 						{
-							std::cout << "\n" << "execs: " << c_green;
-							coutPaths("", programs, " ", 0, 15);
-							std::cout << c_white << "\n" << "local: ";
-							coutPaths(tabPath.dir, paths, " ", 1, 15);
-							std::cout << std::endl;
+							int pMax = std::min(foundStr.size(), path->size()),
+							    pos = 0;
+							for(; pos < pMax; ++pos)
+							{
+								if(foundStr[pos] != (*path)[pos])
+									break;
+							}
+							foundStr = foundStr.substr(0, pos);
+						}
+
+						if(linePos-trimPos < foundStr.size())
+							foundStr = foundStr.substr(linePos-trimPos, foundStr.size()-linePos+trimPos);
+						else
+							foundStr = "";
+
+						if(foundStr == "" && paths.size() != 1)
+						{
+							std::cout << "\n";
+							if(lolcat)
+								rnbwcout(paths, lolcatCmd);
+							else
+							{
+								coutPaths(tabPath.dir, paths, " ", 1, 20);
+								std::cout << std::endl;
+							}
 						}
 						else
 						{
-							auto path = paths.begin();
-							std::string foundStr = *path;
-							++path;
-							for(; path!=paths.end(); ++path)
+							if(paths.size() == 1)
 							{
-								int pMax = std::min(foundStr.size(), path->size()),
-								    pos = 0;
-								for(; pos < pMax; ++pos)
+								if(!foundStr.size() || (foundStr[foundStr.size()-1] != '/' && foundStr[foundStr.size()-1] != '\\'))
 								{
-									if(foundStr[pos] != (*path)[pos])
-										break;
+									//add close quote if tab completion started with a quote and not a directory
+									if(searchPos > 0 && str[searchPos-1] == '"')
+										foundStr += "\"";
+									if(searchPos > 0 && str[searchPos-1] == '\'')
+										foundStr += "'";
+
+									//foundStr += " ";
 								}
-								foundStr = foundStr.substr(0, pos);
 							}
 
-							if(linePos-trimPos < foundStr.size())
-								foundStr = foundStr.substr(linePos-trimPos, foundStr.size()-linePos+trimPos);
-							else
-								foundStr = "";
-
-							if(foundStr == "" && paths.size() != 1)
-							{
-								std::cout << "\n";
-								coutPaths(tabPath.dir, paths, " ", 1, 15);
-								std::cout << std::endl;
-							}
+							if(foundStr == "")
+								std::cout << "\a" << std::flush;
 							else
 							{
-								if(paths.size() == 1)
-								{
-									if(!foundStr.size() || (foundStr[foundStr.size()-1] != '/' && foundStr[foundStr.size()-1] != '\\'))
-									{
-										//add close quote if tab completion started with a quote and not a directory
-										if(searchPos > 0 && str[searchPos-1] == '"')
-											foundStr += "\"";
-										if(searchPos > 0 && str[searchPos-1] == '\'')
-											foundStr += "'";
-
-										//foundStr += " ";
-									}
-								}
-
 								str = str.substr(0, linePos) + foundStr + str.substr(linePos, str.size()-linePos);
 							
 								for(size_t i=0; i<foundStr.size(); i++)
@@ -271,15 +324,30 @@ void write_input_line(const std::string& lang,
 
 						break;
 					}
-					else if(programs.size())
+					
+					if(searchStr != "")
+					{
+						for(size_t j=0; j<tabCompletionStrs.size(); ++j)
+						{
+							if(searchStr == tabCompletionStrs[j].substr(0, searchStr.size()))
+								programs.insert(tabCompletionStrs[j]);
+						}
+					}
+
+					if(programs.size())
 					{						
 						foundCompletions = 1;
 
 						if(programs.size() != 1)
 						{
 							std::cout << "\n";
-							coutPaths("", programs, " ", 0, 15);
-							std::cout << std::endl;
+							if(lolcat)
+								rnbwcout(programs, lolcatCmd);
+							else
+							{
+								coutPaths("", programs, " ", 0, 20);
+								std::cout << std::endl;
+							}
 						}
 						else
 						{
@@ -287,13 +355,19 @@ void write_input_line(const std::string& lang,
 							foundStr = foundStr.substr(searchStr.size(), foundStr.size() - searchStr.size());
 							//if(!foundStr.size() || (foundStr[foundStr.size()-1] != '/' && foundStr[foundStr.size()-1] != '\\'))
 							//	foundStr += " ";
-							str = str.substr(0, linePos) + foundStr + str.substr(linePos, str.size()-linePos);
-					
-							for(size_t i=0; i<foundStr.size(); i++)
+
+							if(foundStr == "")
+								std::cout << "\a" << std::flush;
+							else
 							{
-								++linePos;
-								if(sPos + usableLength +1 == linePos)
-									++sPos;
+								str = str.substr(0, linePos) + foundStr + str.substr(linePos, str.size()-linePos);
+						
+								for(size_t i=0; i<foundStr.size(); i++)
+								{
+									++linePos;
+									if(sPos + usableLength +1 == linePos)
+										++sPos;
+								}
 							}
 						}
 						break;
@@ -302,8 +376,6 @@ void write_input_line(const std::string& lang,
 				
 				if(!foundCompletions)
 				{
-					//std::cout << "\a" << std::flush;
-
 					for(int i=0; i<2; i++)
 					{
 						str = str.substr(0, linePos) + " " + str.substr(linePos, str.size()-linePos);
@@ -523,6 +595,8 @@ void write_input_line(const std::string& lang,
 	int getline(const std::string& lang, 
 	            const bool& addPwd, 
 	            const char& promptCh, 
+	            const int& lolcat,
+	            const std::string& lolcatCmd,
 	            std::string& str, 
 	            bool trackLines, 
 	            const std::vector<std::string>& tabCompletionStrs)
@@ -644,70 +718,63 @@ void write_input_line(const std::string& lang,
 						tabPath.set_file_path_from(searchStr.c_str());
 						makeSearchable(tabPath);
 						paths = lsSetStar(tabPath, -1);
-
-						for(size_t j=0; j<tabCompletionStrs.size(); ++j)
-						{
-							if(searchStr == tabCompletionStrs[j].substr(0, searchStr.size()))
-								programs.insert(tabCompletionStrs[j]);
-						}
 					}
 
 					if(paths.size())
 					{
 						foundCompletions = 1;
 
-						if(programs.size())
+						auto path = paths.begin();
+						std::string foundStr = *path;
+						++path;
+						for(; path!=paths.end(); ++path)
 						{
-							std::cout << "\n" << "execs: " << c_green;
-							coutPaths("", programs, " ", 0, 15);
-							std::cout << c_white << "\n" << "local: ";
-							coutPaths(tabPath.dir, paths, " ", 1, 15);
-							std::cout << std::endl;
+							int pMax = std::min(foundStr.size(), path->size()),
+							    pos = 0;
+							for(; pos < pMax; ++pos)
+							{
+								if(foundStr[pos] != (*path)[pos])
+									break;
+							}
+							foundStr = foundStr.substr(0, pos);
+						}
+
+						if(linePos-trimPos < foundStr.size())
+							foundStr = foundStr.substr(linePos-trimPos, foundStr.size()-linePos+trimPos);
+						else
+							foundStr = "";
+
+						if(foundStr == "" && paths.size() != 1)
+						{
+							std::cout << "\n";
+							if(lolcat)
+								rnbwcout(paths, lolcatCmd);
+							else
+							{
+								coutPaths(tabPath.dir, paths, " ", 1, 20);
+								std::cout << std::endl;
+							}
 						}
 						else
 						{
-							auto path = paths.begin();
-							std::string foundStr = *path;
-							++path;
-							for(; path!=paths.end(); ++path)
+							if(paths.size() == 1)
 							{
-								int pMax = std::min(foundStr.size(), path->size()),
-								    pos = 0;
-								for(; pos < pMax; ++pos)
+								if(!foundStr.size() || (foundStr[foundStr.size()-1] != '/' && foundStr[foundStr.size()-1] != '\\'))
 								{
-									if(foundStr[pos] != (*path)[pos])
-										break;
+									//add close quote if tab completion started with a quote and not a directory
+									if(searchPos > 0 && str[searchPos-1] == '"')
+										foundStr += "\"";
+									if(searchPos > 0 && str[searchPos-1] == '\'')
+										foundStr += "'";
+
+									//foundStr += " ";
 								}
-								foundStr = foundStr.substr(0, pos);
 							}
 
-							if(linePos-trimPos < foundStr.size())
-								foundStr = foundStr.substr(linePos-trimPos, foundStr.size()-linePos+trimPos);
-							else
-								foundStr = "";
-
-							if(foundStr == "" && paths.size() != 1)
-							{
-								std::cout << "\n";
-								coutPaths(tabPath.dir, paths, " ", 1, 15);
-								std::cout << std::endl;
-							}
+							if(foundStr == "")
+								std::cout << "\a" << std::flush;
 							else
 							{
-								if(paths.size() == 1)
-								{
-									if(!foundStr.size() || (foundStr[foundStr.size()-1] != '/' && foundStr[foundStr.size()-1] != '\\'))
-									{
-										//add close quote if tab completion started with a quote and not a directory
-										if(searchPos > 0 && str[searchPos-1] == '"')
-											foundStr += "\"";
-										if(searchPos > 0 && str[searchPos-1] == '\'')
-											foundStr += "'";
-
-										//foundStr += " ";
-									}
-								}
-
 								str = str.substr(0, linePos) + foundStr + str.substr(linePos, str.size()-linePos);
 							
 								for(size_t i=0; i<foundStr.size(); i++)
@@ -721,15 +788,30 @@ void write_input_line(const std::string& lang,
 
 						break;
 					}
-					else if(programs.size())
+					
+					if(searchStr != "")
+					{
+						for(size_t j=0; j<tabCompletionStrs.size(); ++j)
+						{
+							if(searchStr == tabCompletionStrs[j].substr(0, searchStr.size()))
+								programs.insert(tabCompletionStrs[j]);
+						}
+					}
+
+					if(programs.size())
 					{						
 						foundCompletions = 1;
 
 						if(programs.size() != 1)
 						{
 							std::cout << "\n";
-							coutPaths("", programs, " ", 0, 15);
-							std::cout << std::endl;
+							if(lolcat)
+								rnbwcout(programs, lolcatCmd);
+							else
+							{
+								coutPaths("", programs, " ", 0, 20);
+								std::cout << std::endl;
+							}
 						}
 						else
 						{
@@ -737,13 +819,19 @@ void write_input_line(const std::string& lang,
 							foundStr = foundStr.substr(searchStr.size(), foundStr.size() - searchStr.size());
 							//if(!foundStr.size() || (foundStr[foundStr.size()-1] != '/' && foundStr[foundStr.size()-1] != '\\'))
 							//	foundStr += " ";
-							str = str.substr(0, linePos) + foundStr + str.substr(linePos, str.size()-linePos);
-					
-							for(size_t i=0; i<foundStr.size(); i++)
+
+							if(foundStr == "")
+								std::cout << "\a" << std::flush;
+							else
 							{
-								++linePos;
-								if(sPos + usableLength +1 == linePos)
-									++sPos;
+								str = str.substr(0, linePos) + foundStr + str.substr(linePos, str.size()-linePos);
+						
+								for(size_t i=0; i<foundStr.size(); i++)
+								{
+									++linePos;
+									if(sPos + usableLength +1 == linePos)
+										++sPos;
+								}
 							}
 						}
 						break;
@@ -752,8 +840,6 @@ void write_input_line(const std::string& lang,
 				
 				if(!foundCompletions)
 				{
-					//std::cout << "\a" << std::flush;
-
 					for(int i=0; i<2; i++)
 					{
 						str = str.substr(0, linePos) + " " + str.substr(linePos, str.size()-linePos);

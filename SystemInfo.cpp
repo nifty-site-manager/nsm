@@ -140,7 +140,7 @@
 	}
 #endif
 
-std::string replace_home_dir(std::string str)
+std::string replace_home_dir(const std::string& str)
 {
 	if(str.size() && str[0] == '~')
 		return home_dir() + str.substr(1, str.size()-1);

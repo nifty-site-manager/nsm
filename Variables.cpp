@@ -45,7 +45,7 @@ Variables::Variables()
 	basic_types.insert("string");
 	basic_types.insert("std::bool");
 	basic_types.insert("std::int");
-	basic_types.insert("std::long long int");
+	basic_types.insert("std::llint");
 	basic_types.insert("std::double");
 	basic_types.insert("std::char");
 	basic_types.insert("std::string");
@@ -120,7 +120,7 @@ int Variables::get_bool_from_var(const VPos& vpos, bool& val)
             val = layers[vpos.layer].doubles[vpos.name];
             return 1;
         }
-        else if(vpos.type == "std::long long int")
+        else if(vpos.type == "std::llint")
         {
             val = layers[vpos.layer].llints[vpos.name];
             return 1;
@@ -157,7 +157,7 @@ int Variables::get_double_from_var(const VPos& vpos, double& val)
             val = layers[vpos.layer].doubles[vpos.name];
             return 1;
         }
-        else if(vpos.type == "std::long long int")
+        else if(vpos.type == "std::llint")
         {
             val = layers[vpos.layer].llints[vpos.name];
             return 1;
@@ -250,7 +250,7 @@ int Variables::add_str_from_var(const VPos& vpos, std::string& str, const bool& 
 
             return 1;
         }
-        else if(vpos.type == "std::long long int")
+        else if(vpos.type == "std::llint")
         {
             str += std::to_string(layers[vpos.layer].llints[vpos.name]);
             if(indent)
@@ -402,7 +402,7 @@ int Variables::set_var_from_str(const VPos& vpos, const std::string& value)
         }
         else if(varType == "std::string")
             layers[vpos.layer].strings[vpos.name] = value;
-        else if(varType == "std::long long int")
+        else if(varType == "std::llint")
         {
             if(isInt(value))
                 layers[vpos.layer].llints[vpos.name] = std::atoll(value.c_str());
@@ -477,7 +477,7 @@ int Variables::set_var_from_double(const VPos& vpos, const double& value)
             layers[vpos.layer].chars[vpos.name] = std::to_string(value)[0];
         else if(varType == "std::string")
             layers[vpos.layer].strings[vpos.name] = std::to_string(value);
-        else if(varType == "std::long long int")
+        else if(varType == "std::llint")
             layers[vpos.layer].llints[vpos.name] = (long long int)value;
     }
     else if(varType == "bool")

@@ -38,11 +38,7 @@ std::string Path::comparableStr() const
 //outputs path quoted (coloured purple if to console)
 std::ostream& operator<<(std::ostream& os, const Path& path)
 {
-	//check speed of this
-	if(&os == &std::cout)
-		os << c_purple << quote(path.str()) << c_white;
-	else
-	    os << quote(path.str());
+	os << c_purple << quote(path.str()) << c_white;
 
     return os;
 }
@@ -148,21 +144,28 @@ bool operator<(const Path& path1, const Path& path2)
 		std::fflush(stdout);
 	}
 #else
-	void clear_console_line()
+    void clear_console_line()
 	{
-		std::cout << "\33[2K\r";
+        std::cout << "\33[2K\r";
 		//std::cout << std::flush;
 		std::fflush(stdout);
 	}
 #endif
 
+#if defined __APPLE__ || defined __linux__
+    const std::string consErrStr = "\a🔥";
+    const std::string consWarnStr = "\awarning";
+#else  //*nix
+    const std::string consErrStr = "\aerror";
+    const std::string consWarnStr = "\awarning";
+#endif
 
 std::ostream& start_err(std::ostream& eos)
 {
 	clear_console_line();
 
     if(&eos == &std::cout)
-        eos << c_red << "\aerror" << c_white << ": ";
+        eos << c_red << consErrStr << c_white << ": ";
     else
         eos << "error: ";
 
@@ -175,7 +178,7 @@ std::ostream& start_err(std::ostream& eos, const Path& readPath)
 
     if(&eos == &std::cout)
     {
-        eos << c_red << "\aerror" << c_white << ": ";
+        eos << c_red << consErrStr << c_white << ": ";
 		if(readPath.str() != "")
 			eos << readPath << ": ";
     }
@@ -191,7 +194,7 @@ std::ostream& start_err(std::ostream& eos, const Path& readPath, const int& line
 
     if(&eos == &std::cout)
     {
-        eos << c_red << "\aerror" << c_white << ": ";
+        eos << c_red << consErrStr << c_white << ": ";
 		if(readPath.str() != "")
 			eos << readPath;
 		eos << "[" << c_gold << lineNo << c_white << "]: ";
@@ -210,7 +213,7 @@ std::ostream& start_err_ml(std::ostream& eos, const Path& readPath, const int& s
     clear_console_line();
     if(&eos == &std::cout)
     {
-        eos << c_red << "\aerror" << c_white << ": ";
+        eos << c_red << consErrStr << c_white << ": ";
 		if(readPath.str() != "")
 			eos << readPath;
 		eos << "[" << c_gold << sLineNo << "-" << eLineNo << c_white << "]: ";
@@ -226,7 +229,7 @@ std::ostream& start_warn(std::ostream& eos)
 	clear_console_line();
 
     if(&eos == &std::cout)
-        eos << c_aqua << "warning" << c_white << ": ";
+        eos << c_aqua << consWarnStr << c_white << ": ";
     else
         eos << "warning: ";
 
@@ -239,7 +242,7 @@ std::ostream& start_warn(std::ostream& eos, const Path& readPath)
 
     if(&eos == &std::cout)
     {
-        eos << c_aqua << "warning" << c_white << ": ";
+        eos << c_aqua << consWarnStr << c_white << ": ";
 		if(readPath.str() != "")
 			eos << readPath << ": ";
     }
@@ -255,7 +258,7 @@ std::ostream& start_warn(std::ostream& eos, const Path& readPath, const int& lin
 
     if(&eos == &std::cout)
     {
-        eos << c_aqua << "warning: ";
+        eos << c_aqua << consWarnStr << c_white << ": ";
 		if(readPath.str() != "")
 			eos << readPath;
 		eos << "[" << c_gold << lineNo << c_white << "]: ";

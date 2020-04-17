@@ -2,6 +2,9 @@
 Nift TODO 
 ---------
 
+emojis: 🌈 🦄 ⚡ 💥 📂 🔥 📦 ⚠️ ⚙️ 🐰 🦡
+ ascii: ⧨ ❖ ▶
+
 TODO List (not in order of priority)
 * [TODO] lua modules to recommend
 	- https://luarocks.org/modules/openresty/lua-cjson https://luarocks.org/modules/xpol/rapidjson https://luarocks.org/modules/grafi/lunajson https://luarocks.org/modules/harningt/luajson https://luarocks.org/modules/x25/luajwt

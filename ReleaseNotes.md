@@ -2,6 +2,16 @@
 Nift Release Notes
 ------------------
 
+Version 2.3.2 of Nift
+* added in proper cpy/lst/mve/rmv functions
+* renamed touch fn to poke
+* added in more familiar syntax for const and private variable definitions
+* added in lolcat, lolcat.on and lolcat.off fns for rainbow output on FreeBSD/Linux/OSX
+* cleaned up output (added a few select emojis on Linux/OSX)
+* hopefully fixed bug with build status/progress output
+* fixed various bugs
+* made various improvements
+
 Version 2.3.1 of Nift
 * added in pagination, including fns:
 	- item

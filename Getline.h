@@ -26,9 +26,16 @@ void write_info(const std::string& info,
 
 #endif
 
+int nsm_getch();
+
+int rnbwcout(const std::string& str, const std::string& lolcatCmd);
+int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd);
+
 int getline(const std::string& lang,
             const bool& addPwd, 
             const char& promptCh, 
+	        const int& lolcat,
+	        const std::string& lolcatCmd,
             std::string& str, 
             bool trackLines, 
             const std::vector<std::string>& tabCompletionStrs);

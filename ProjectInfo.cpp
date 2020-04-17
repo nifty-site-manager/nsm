@@ -1,5 +1,11 @@
 #include "ProjectInfo.h"
 
+#if defined __APPLE__ || defined __linux__
+    const std::string promptStr = "⥤ ";
+#else
+    const std::string promptStr = "=> ";
+#endif
+
 int create_default_html_template(const Path& templatePath)
 {
     templatePath.ensureDirExists();
@@ -157,12 +163,14 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
         return 1;
     }
 
+    //if(!global)
+      //  std::cout << "  ";
     std::cout << "opening ";
     if(global)
         std::cout << "global ";
     else
         std::cout << "project ";
-    std::cout << "config file: " << configPath;
+    std::cout << "config file: " << configPath << std::endl;
     //std::cout << std::flush;
     std::fflush(stdout);
 
@@ -364,7 +372,7 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
         }
     }
 
-    clear_console_line();
+    //clear_console_line();
 
     if(configChanged)
         save_config(configPath.str(), global);
@@ -384,7 +392,7 @@ int ProjectInfo::open_local_config()
 
 int ProjectInfo::open_tracking()
 {
-    std::cout << "opening project tracking file..";
+    std::cout << "opening project tracking file: " << Path(".nsm/", "tracking.list") << std::endl;
     //std::cout << std::flush;
     std::fflush(stdout);
 
@@ -455,23 +463,18 @@ int ProjectInfo::open_tracking()
         {
             TrackedInfo cInfo = *(trackedAll.find(inInfo));
 
-            std::cout << std::endl;
             start_err(std::cout) << "failed to open .nsm/tracking.list" << std::endl;
             std::cout << c_purple << "reason: " << c_white << "duplicate entry for " << inInfo.name << std::endl;
-            std::cout << std::endl;
-            std::cout << "----- first entry -----" << std::endl;
+            std::cout << c_light_blue << promptStr << c_white << "first entry:" << std::endl;
             std::cout << "        title: " << cInfo.title << std::endl;
             std::cout << "  output path: " << cInfo.outputPath << std::endl;
             std::cout << " content path: " << cInfo.contentPath << std::endl;
             std::cout << "template path: " << cInfo.templatePath << std::endl;
-            std::cout << "--------------------------------" << std::endl;
-            std::cout << std::endl;
-            std::cout << "----- second entry -----" << std::endl;
+            std::cout << c_light_blue << promptStr << c_white << "second entry:" << std::endl;
             std::cout << "        title: " << inInfo.title << std::endl;
             std::cout << "  output path: " << inInfo.outputPath << std::endl;
             std::cout << " content path: " << inInfo.contentPath << std::endl;
             std::cout << "template path: " << inInfo.templatePath << std::endl;
-            std::cout << "--------------------------------" << std::endl;
 
             ifs.close();
             return 1;
@@ -482,7 +485,7 @@ int ProjectInfo::open_tracking()
 
     ifs.close();
 
-    clear_console_line();
+    //clear_console_line();
 
     return 0;
 }
@@ -694,8 +697,7 @@ TrackedInfo ProjectInfo::get_info(const Name& name)
 
 int ProjectInfo::info(const std::vector<Name>& names)
 {
-    std::cout << std::endl;
-    std::cout << "---- info on specified names ----" << std::endl;
+    std::cout << c_light_blue << promptStr << c_white << "info on specified names:" << std::endl;
     for(auto name=names.begin(); name!=names.end(); name++)
     {
         if(name != names.begin())
@@ -718,7 +720,6 @@ int ProjectInfo::info(const std::vector<Name>& names)
         else
             std::cout << "Nift is not tracking " << *name << std::endl;
     }
-    std::cout << "---------------------------------" << std::endl;
 
     return 0;
 }
@@ -734,8 +735,7 @@ int ProjectInfo::info_all()
             return 1;
         }
 
-        std::cout << std::endl;
-        std::cout << "---- all watched directories ----" << std::endl;
+        std::cout << c_light_blue << promptStr << c_white << "all watched directories:" << std::endl;
         for(auto wd=wl.dirs.begin(); wd!=wl.dirs.end(); wd++)
         {
             if(wd != wl.dirs.begin())
@@ -748,11 +748,9 @@ int ProjectInfo::info_all()
                 std::cout << " output extension: " << wd->outputExts.at(*ext) << std::endl;
             }
         }
-        std::cout << "---------------------------------" << std::endl;
     }
 
-    std::cout << std::endl;
-    std::cout << "---- all tracked names ----" << std::endl;
+    std::cout << c_light_blue << promptStr << c_white << "all tracked names:" << std::endl;
     for(auto trackedInfo=trackedAll.begin(); trackedInfo!=trackedAll.end(); trackedInfo++)
     {
         if(trackedInfo != trackedAll.begin())
@@ -766,25 +764,22 @@ int ProjectInfo::info_all()
         std::cout << "   script ext: " << quote(get_script_ext(*trackedInfo)) << std::endl;
         std::cout << "template path: " << trackedInfo->templatePath << std::endl;
     }
-    std::cout << "---------------------------" << std::endl;
 
     return 0;
 }
 
 int ProjectInfo::info_names()
 {
-    std::cout << std::endl;
-    std::cout << "---- all tracked names ----" << std::endl;
+    std::cout << c_light_blue << promptStr << c_white << "all tracked names:" << std::endl;
     for(auto trackedInfo=trackedAll.begin(); trackedInfo!=trackedAll.end(); trackedInfo++)
         std::cout << " " << c_green << trackedInfo->name << c_white << std::endl;
-    std::cout << "---------------------------" << std::endl;
 
     return 0;
 }
 
 int ProjectInfo::info_tracking()
 {
-    std::cout << "---- all tracked names ----" << std::endl;
+    std::cout << c_light_blue << promptStr << c_white << "all tracked info:" << std::endl;
     for(auto trackedInfo=trackedAll.begin(); trackedInfo!=trackedAll.end(); trackedInfo++)
     {
         if(trackedInfo != trackedAll.begin())
@@ -798,7 +793,6 @@ int ProjectInfo::info_tracking()
         std::cout << "   script ext: " << quote(get_script_ext(*trackedInfo)) << std::endl;
         std::cout << "template path: " << trackedInfo->templatePath << std::endl;
     }
-    std::cout << "---------------------------" << std::endl;
 
     return 0;
 }
@@ -814,8 +808,7 @@ int ProjectInfo::info_watching()
             return 1;
         }
 
-        std::cout << std::endl;
-        std::cout << "------ all watched directories ------" << std::endl;
+        std::cout << c_light_blue << promptStr << c_white << "all watched directories:" << std::endl;
         for(auto wd=wl.dirs.begin(); wd!=wl.dirs.end(); wd++)
         {
             if(wd != wl.dirs.begin())
@@ -828,7 +821,6 @@ int ProjectInfo::info_watching()
                 std::cout << " output extension: " << wd->outputExts.at(*ext) << std::endl;
             }
         }
-        std::cout << "-------------------------------------" << std::endl;
     }
     else
     {
@@ -930,12 +922,11 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
         TrackedInfo cInfo = *(trackedAll.find(newInfo));
 
         start_err(std::cout) << "Nift is already tracking " << newInfo.outputPath << std::endl;
-        std::cout << "---- current tracked details ----" << std::endl;
+        std::cout << c_light_blue << promptStr << c_white << "current tracked details:" << std::endl;
         std::cout << "        title: " << cInfo.title << std::endl;
         std::cout << "  output path: " << cInfo.outputPath << std::endl;
         std::cout << " content path: " << cInfo.contentPath << std::endl;
         std::cout << "template path: " << cInfo.templatePath << std::endl;
-        std::cout << "---------------------------------" << std::endl;
 
         return 1;
     }
@@ -1083,12 +1074,11 @@ int ProjectInfo::track_from_file(const std::string& filePath)
             TrackedInfo cInfo = *(trackedAll.find(newInfo));
 
             start_err(std::cout) << "Nift is already tracking " << newInfo.outputPath << std::endl;
-            std::cout << "---- current tracked details ----" << std::endl;
+            std::cout << c_light_blue << promptStr << c_white << "current tracked details:" << std::endl;
             std::cout << "        title: " << cInfo.title << std::endl;
             std::cout << "  output path: " << cInfo.outputPath << std::endl;
             std::cout << " content path: " << cInfo.contentPath << std::endl;
             std::cout << "template path: " << cInfo.templatePath << std::endl;
-            std::cout << "---------------------------------" << std::endl;
 
             return 1;
         }
@@ -1294,12 +1284,11 @@ int ProjectInfo::track(const Name& name,
         TrackedInfo cInfo = *(trackedAll.find(newInfo));
 
         start_err(std::cout) << "Nift is already tracking " << newInfo.outputPath << std::endl;
-        std::cout << "---- current tracked details ----" << std::endl;
+        std::cout << c_light_blue << promptStr << c_white << "current tracked details:" << std::endl;
         std::cout << "        title: " << cInfo.title << std::endl;
         std::cout << "  output path: " << cInfo.outputPath << std::endl;
         std::cout << " content path: " << cInfo.contentPath << std::endl;
         std::cout << "template path: " << cInfo.templatePath << std::endl;
-        std::cout << "---------------------------------" << std::endl;
 
         return 1;
     }
@@ -1433,12 +1422,11 @@ int ProjectInfo::track(const std::vector<InfoToTrack>& toTrack)
             TrackedInfo cInfo = *(trackedAll.find(newInfo));
 
             start_err(std::cout) << "Nift is already tracking " << newInfo.outputPath << std::endl;
-            std::cout << "---- current tracked details ----" << std::endl;
+            std::cout << c_light_blue << promptStr << c_white << "current tracked details:" << std::endl;
             std::cout << "        title: " << cInfo.title << std::endl;
             std::cout << "  output path: " << cInfo.outputPath << std::endl;
             std::cout << " content path: " << cInfo.contentPath << std::endl;
             std::cout << "template path: " << cInfo.templatePath << std::endl;
-            std::cout << "---------------------------------" << std::endl;
 
             return 1;
         }
@@ -2280,7 +2268,9 @@ int ProjectInfo::cp(const Name& trackedName, const Name& newName)
     }
 
     //copies content file
-    if(cpFile(trackedInfo.contentPath.str(), newInfo.contentPath.str()))
+    std::mutex os_mtx;
+    Path emptyPath("", "");
+    if(cpFile(trackedInfo.contentPath.str(), newInfo.contentPath.str(), -1, emptyPath, std::cout, 0, &os_mtx))
     {
         start_err(std::cout) << "cp: failed to copy " << trackedInfo.contentPath << " to " << newInfo.contentPath << std::endl;
         return 1;
@@ -2293,7 +2283,7 @@ int ProjectInfo::cp(const Name& trackedName, const Name& newName)
     {
         newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".contExt";
         newExtPath.ensureDirExists();
-        if(cpFile(oldExtPath.str(), newExtPath.str()))
+        if(cpFile(oldExtPath.str(), newExtPath.str(), -1, emptyPath, std::cout, 0, &os_mtx))
         {
             start_err(std::cout) << "cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
             return 1;
@@ -2305,7 +2295,7 @@ int ProjectInfo::cp(const Name& trackedName, const Name& newName)
     {
         newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".outputExt";
         newExtPath.ensureDirExists();
-        if(cpFile(oldExtPath.str(), newExtPath.str()))
+        if(cpFile(oldExtPath.str(), newExtPath.str(), -1, emptyPath, std::cout, 0, &os_mtx))
         {
             start_err(std::cout) << "cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
             return 1;
@@ -2317,7 +2307,7 @@ int ProjectInfo::cp(const Name& trackedName, const Name& newName)
     {
         newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_first_of('.')) + ".scriptExt";
         newExtPath.ensureDirExists();
-        if(cpFile(oldExtPath.str(), newExtPath.str()))
+        if(cpFile(oldExtPath.str(), newExtPath.str(), -1, emptyPath, std::cout, 0, &os_mtx))
         {
             start_err(std::cout) << "cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
             return 1;
@@ -3236,67 +3226,6 @@ int ProjectInfo::check_watch_dirs()
 
 std::mutex os_mtx;
 
-/*int ProjectInfo::build_names(const std::vector<Name>& namesToBuild)
-{
-    if(check_watch_dirs())
-        return 1;
-
-    Parser parser(&trackedAll, 
-                  &os_mtx, 
-                  contentDir, 
-                  outputDir, 
-                  contentExt, 
-                  outputExt, 
-                  scriptExt, 
-                  defaultTemplate, 
-                  backupScripts, 
-                  unixTextEditor, 
-                  winTextEditor);
-    std::set<Name> untrackedNames, failedNames;
-
-    //checks for pre-build scripts
-    if(parser.run_script(std::cout, Path("", "pre-build" + scriptExt), backupScripts, 1))
-        return 1;
-
-    for(auto name=namesToBuild.begin(); name != namesToBuild.end(); name++)
-    {
-        if(tracking(*name))
-        {
-            if(parser.build(get_info(*name), noPagesToBuild, std::cout))
-                failedNames.insert(*name);
-        }
-        else
-            untrackedNames.insert(*name);
-    }
-
-    if(failedNames.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "---- following failed to build ----" << std::endl;
-        for(auto fName=failedNames.begin(); fName != failedNames.end(); fName++)
-            std::cout << " " << *fName << std::endl;
-        std::cout << "-----------------------------------" << std::endl;
-    }
-    else if(untrackedNames.size() > 0)
-    {
-        std::cout << std::endl;
-        std::cout << "---- Nift not tracking the following ----" << std::endl;
-        for(auto uName=untrackedNames.begin(); uName != untrackedNames.end(); uName++)
-            std::cout << " " << *uName << std::endl;
-        std::cout << "-----------------------------------------" << std::endl;
-    }
-    else if(failedNames.size() == 0 && untrackedNames.size() == 0)
-    {
-        std::cout << namesToBuild.size() << " specified files built successfully" << std::endl;
-
-        //checks for post-build scripts
-        if(parser.run_script(std::cout, Path("", "post-build" + scriptExt), backupScripts, 1))
-            return 1;
-    }
-
-    return 0;
-}*/
-
 std::mutex fail_mtx, built_mtx, set_mtx;
 std::set<Name> failedNames, builtNames;
 std::set<TrackedInfo>::iterator nextInfo;
@@ -3310,24 +3239,35 @@ const int UPDATE_PHASE = 2;
 const int BUILD_PHASE = 3;
 const int END_PHASE = 4;
 
-void build_progress(const int& no_to_build, const bool& addBuildStatus)
+void build_progress(const int& no_to_build, const int& addBuildStatus)
 {
     if(!addBuildStatus)
         return;
 
     int phaseToCheck = cPhase;
 
-    int total_no_to_build = no_to_build + noPagesToBuild,
-        no_to_build_length = std::to_string(total_no_to_build).size(),
-        cFinished = noFinished + noPagesFinished;
+    int total_no_to_build, no_to_build_length, cFinished;
 
-    while(cPhase == phaseToCheck && cFinished < total_no_to_build)
+    while(1)
     {
         os_mtx.lock();
+
+        total_no_to_build = no_to_build + noPagesToBuild;
+        no_to_build_length = std::to_string(total_no_to_build).size();
+        cFinished = noFinished + noPagesFinished;
+
+        if(cPhase != phaseToCheck || cFinished >= total_no_to_build)
+        {
+            os_mtx.unlock();
+            break;
+        }
+
         clear_console_line();
+
         double cTime = timer.getTime();
         std::string remStr = int_to_timestr(cTime*(double)total_no_to_build/(double)(cFinished+1) - cTime);
         size_t cWidth = console_width();
+        //std::cout << "wtf " << cFinished << " " << total_no_to_build << " " << cPhase << std::endl;
         if(19 + 2*no_to_build_length + remStr.size() <= cWidth)
         {
             if(cFinished < total_no_to_build)
@@ -3349,18 +3289,23 @@ void build_progress(const int& no_to_build, const bool& addBuildStatus)
                 std::cout << c_light_blue << (100*cFinished)/total_no_to_build << "%" << c_white;
         }
         //std::cout << std::flush;
-        std::fflush(stdout);
+        if(addBuildStatus == 1)
+        {
+            std::fflush(stdout);
+            usleep(200000);
+        }
+        else
+        {
+            std::cout << std::endl;
+            usleep(990000);
+        }
         //usleep(2000000);
-        usleep(200000);
+        //usleep(200000);
         clear_console_line();
         os_mtx.unlock();
 
         //usleep(4000000);
         usleep(10000);
-
-        total_no_to_build = no_to_build + noPagesToBuild;
-        no_to_build_length = std::to_string(total_no_to_build).size();
-        cFinished = noFinished + noPagesFinished;
     }
 }
 
@@ -3529,12 +3474,12 @@ void build_thread(std::ostream& eos,
     }
 }
 
-/*int ProjectInfo::build_untracked(std::ostream& os, const bool& addBuildStatus, const std::set<TrackedInfo> infoToBuild)
+/*int ProjectInfo::build_untracked(std::ostream& os, const int& addBuildStatus, const std::set<TrackedInfo> infoToBuild)
 {
 
 }*/
 
-int ProjectInfo::build_names(std::ostream& os, const bool& addBuildStatus, const std::vector<Name>& namesToBuild)
+int ProjectInfo::build_names(std::ostream& os, const int& addBuildStatus, const std::vector<Name>& namesToBuild)
 {
     if(check_watch_dirs())
         return 1;
@@ -3624,61 +3569,47 @@ int ProjectInfo::build_names(std::ostream& os, const bool& addBuildStatus, const
     if(failedNames.size())
     {
         size_t noToDisplay = std::max(5, -5 + (int)console_height());
-        os << std::endl;
-        os << "---- failed to build ----" << std::endl;
+        os << c_light_blue << promptStr << c_white << "failed to build:" << std::endl;
         if(failedNames.size() < noToDisplay)
+        {
             for(auto fName=failedNames.begin(); fName != failedNames.end(); fName++)
-            {
-                if(&os == &std::cout)
-                    os << " " << c_red << *fName << c_white << std::endl;
-                else
-                    os << " " << *fName << std::endl;
-            }
+                os << " " << c_red << *fName << c_white << std::endl;
+        }
         else
         {
             size_t x=0;
             for(auto fName=failedNames.begin(); x < noToDisplay; fName++, x++)
-            {
-                if(&os == &std::cout)
-                    os << " " << c_red << *fName << c_white << std::endl;
-                else
-                    os << " " << *fName << std::endl;
-            }
+                os << " " << c_red << *fName << c_white << std::endl;
             os << " and " << failedNames.size() - noToDisplay << " more" << std::endl;
         }
-        os << "-------------------------" << std::endl;
     }
     if(untrackedNames.size())
     {
         size_t noToDisplay = std::max(5, -5 + (int)console_height());
-        os << std::endl;
-        os << "---- not tracking ----" << std::endl;
+        os << c_light_blue << promptStr << c_white << "not tracking:" << std::endl;
         if(untrackedNames.size() < noToDisplay)
+        {
             for(auto uName=untrackedNames.begin(); uName != untrackedNames.end(); uName++)
-            {
-                if(&os == &std::cout)
-                    os << " " << c_red << *uName << c_white << std::endl;
-                else
-                    os << " " << *uName << std::endl;
-            }
+                os << " " << c_red << *uName << c_white << std::endl;
+        }
         else
         {
             size_t x=0;
             for(auto uName=untrackedNames.begin(); x < noToDisplay; uName++, x++)
-            {
-                if(&os == &std::cout)
-                    os << " " << c_red << *uName << c_white << std::endl;
-                else
-                    os << " " << *uName << std::endl;
-            }
+                os << " " << c_red << *uName << c_white << std::endl;
             os << " and " << untrackedNames.size() - noToDisplay << " more" << std::endl;
         }
-        os << "----------------------" << std::endl;
     }
 
     if(failedNames.size() == 0 && untrackedNames.size() == 0)
     {
-        std::cout << "all " << namesToBuild.size() << " specified files built successfully" << std::endl;
+        #if defined __APPLE__ || defined __linux__
+            const std::string pkgStr = "📦 ";
+        #else  //*nix
+            const std::string pkgStr = ":: ";
+        #endif
+
+        std::cout << c_light_blue << pkgStr << c_white << "all " << namesToBuild.size() << " specified files built successfully" << std::endl;
 
         //checks for post-build scripts
         if(parser.run_script(os, Path("", "post-build" + scriptExt), backupScripts, 1))
@@ -3688,7 +3619,7 @@ int ProjectInfo::build_names(std::ostream& os, const bool& addBuildStatus, const
     return 0;
 }
 
-int ProjectInfo::build_all(std::ostream& os, const bool& addBuildStatus)
+int ProjectInfo::build_all(std::ostream& os, const int& addBuildStatus)
 {
     if(check_watch_dirs())
         return 1;
@@ -3765,38 +3696,34 @@ int ProjectInfo::build_all(std::ostream& os, const bool& addBuildStatus)
     if(failedNames.size() > 0)
     {
         if(builtNames.size() == 1)
-            os << builtNames.size() << " output file built successfully" << std::endl;
+            os << builtNames.size() << " file built successfully" << std::endl;
         else
-            os << builtNames.size() << " output files built successfully" << std::endl;
+            os << builtNames.size() << " files built successfully" << std::endl;
 
         size_t noToDisplay = std::max(5, -5 + (int)console_height());
-        os << std::endl;
-        os << "---- failed to build ----" << std::endl;
+        os << c_light_blue << promptStr << c_white << "failed to build:" << std::endl;
         if(failedNames.size() < noToDisplay)
+        {
             for(auto fName=failedNames.begin(); fName != failedNames.end(); fName++)
-            {
-                if(&os == &std::cout)
-                    os << " " << c_red << *fName << c_white << std::endl;
-                else
-                    os << " " << *fName << std::endl;
-            }
+                os << " " << c_red << *fName << c_white << std::endl;
+        }
         else
         {
             size_t x=0;
             for(auto fName=failedNames.begin(); x < noToDisplay; fName++, x++)
-            {
-                if(&os == &std::cout)
-                    os << " " << c_red << *fName << c_white << std::endl;
-                else
-                    os << " " << *fName << std::endl;
-            }
+                os << " " << c_red << *fName << c_white << std::endl;
             os << " and " << failedNames.size() - noToDisplay << " more" << std::endl;
         }
-        os << "-------------------------" << std::endl;
     }
     else
     {
-        os << "all " << builtNames.size() << " output files built successfully" << std::endl;
+        #if defined __APPLE__ || defined __linux__
+            const std::string pkgStr = "📦 ";
+        #else  //*nix
+            const std::string pkgStr = ":: ";
+        #endif
+
+        os << c_light_blue << pkgStr << c_white << "all " << builtNames.size() << " tracked files built successfully" << std::endl;
 
         //checks for post-build scripts
         if(parser.run_script(os, Path("", "post-build" + scriptExt), backupScripts, 1))
@@ -4026,7 +3953,7 @@ void dep_thread(std::ostream& os,
     }
 }
 
-int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, const bool& addExpl, const bool& basicOpt)
+int ProjectInfo::build_updated(std::ostream& os, const int& addBuildStatus, const bool& addExpl, const bool& basicOpt)
 {
     if(check_watch_dirs())
         return 1;
@@ -4093,11 +4020,12 @@ int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, con
     {
         if(removedFiles.size() > 0)
         {
-            os << std::endl;
-            os << "---- removed dependency files ----" << std::endl;
+            os << c_light_blue << promptStr << c_white << "removed dependency files:" << std::endl;
             if(removedFiles.size() < noToDisplay)
+            {
                 for(auto rFile=removedFiles.begin(); rFile != removedFiles.end(); rFile++)
                     os << " " << *rFile << std::endl;
+            }
             else
             {
                 size_t x=0;
@@ -4105,16 +4033,16 @@ int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, con
                     os << " " << *rFile << std::endl;
                 os << " and " << removedFiles.size() - noToDisplay << " more" << std::endl;
             }
-            os << "----------------------------------" << std::endl;
         }
 
         if(modifiedFiles.size() > 0)
         {
-            os << std::endl;
-            os << "---- modified dependency files ----" << std::endl;
+            os << c_light_blue << promptStr << c_white << "modified dependency files:" << std::endl;
             if(modifiedFiles.size() < noToDisplay)
+            {
                 for(auto uFile=modifiedFiles.begin(); uFile != modifiedFiles.end(); uFile++)
                     os << " " << *uFile << std::endl;
+            }
             else
             {
                 size_t x=0;
@@ -4122,34 +4050,23 @@ int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, con
                     os << " " << *uFile << std::endl;
                 os << " and " << modifiedFiles.size() - noToDisplay << " more" << std::endl;
             }
-            os << "-----------------------------------" << std::endl;
         }
 
         if(problemNames.size() > 0)
         {
-            os << std::endl;
-            os << "---- missing content/template file ----" << std::endl;
+            os << c_light_blue << promptStr << c_white << "missing content/template file:" << std::endl;
             if(problemNames.size() < noToDisplay)
+            {
                 for(auto pName=problemNames.begin(); pName != problemNames.end(); pName++)
-                {
-                    if(&os == &std::cout)
-                        os << " " << c_red << *pName << c_white << std::endl;
-                    else
-                        os << " " << *pName << std::endl;
-                }
+                    os << " " << c_red << *pName << c_white << std::endl;
+            }
             else
             {
                 size_t x=0;
                 for(auto pName=problemNames.begin(); x < noToDisplay; pName++, x++)
-                {
-                    if(&os == &std::cout)
-                        os << " " << c_red << *pName << c_white << std::endl;
-                    else
-                        os << " " << *pName << std::endl;
-                }
+                    os << " " << c_red << *pName << c_white << std::endl;
                 os << " and " << problemNames.size() - noToDisplay << " more" << std::endl;
             }
-            os << "---------------------------------------" << std::endl;
         }
     }
 
@@ -4157,11 +4074,12 @@ int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, con
     {
         if(!basicOpt)
         {
-            os << std::endl;
-            os << "---- need building ----" << std::endl;
+            os << c_light_blue << promptStr << c_white << "need building:" << std::endl;
             if(updatedInfo.size() < noToDisplay)
+            {
                 for(auto uInfo=updatedInfo.begin(); uInfo != updatedInfo.end(); uInfo++)
                     os << " " << uInfo->outputPath << std::endl;
+            }
             else
             {
                 size_t x=0;
@@ -4169,7 +4087,6 @@ int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, con
                     os << " " << uInfo->outputPath << std::endl;
                 os << " and " << updatedInfo.size() - noToDisplay << " more" << std::endl;
             }
-            os << "-----------------------" << std::endl;
         }
 
         Parser parser(&trackedAll, 
@@ -4231,63 +4148,60 @@ int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, con
         if(failedNames.size() > 0)
         {
             if(builtNames.size() == 1)
-                os << builtNames.size() << " output file built successfully" << std::endl;
+                os << builtNames.size() << " file built successfully" << std::endl;
             else
-                os << builtNames.size() << " output files built successfully" << std::endl;
+                os << builtNames.size() << " files built successfully" << std::endl;
 
-            os << std::endl;
-            os << "---- failed to build ----" << std::endl;
+            os << c_light_blue << promptStr << c_white << "failed to build:" << std::endl;
             if(failedNames.size() < noToDisplay)
+            {
                 for(auto fName=failedNames.begin(); fName != failedNames.end(); fName++)
-                {
-                    if(&os == &std::cout)
-                        os << " " << c_red << *fName << c_white << std::endl;
-                    else
-                        os << " " << *fName << std::endl;
-                }
+                    os << " " << c_red << *fName << c_white << std::endl;
+            }
             else
             {
                 size_t x=0;
                 for(auto fName=failedNames.begin(); x < noToDisplay; fName++, x++)
-                {
-                    if(&os == &std::cout)
-                        os << " " << c_red << *fName << c_white << std::endl;
-                    else
-                        os << " " << *fName << std::endl;
-                }
+                    os << " " << c_red << *fName << c_white << std::endl;
                 os << " and " << failedNames.size() - noToDisplay << " more" << std::endl;
             }
-            os << "-------------------------" << std::endl;
         }
         else
         {
             if(basicOpt)
-                os << builtNames.size() << " output files built successfully" << std::endl;
+            {
+                #if defined __APPLE__ || defined __linux__
+                    const std::string pkgStr = "📦 ";
+                #else  //*nix
+                    const std::string pkgStr = ":: ";
+                #endif
+
+                if(builtNames.size() == 1)
+                    std::cout << c_light_blue << pkgStr << c_white << builtNames.size() << " updated file built successfully" << std::endl;
+                else
+                    std::cout << c_light_blue << pkgStr << c_white << builtNames.size() << " updated files built successfully" << std::endl;
+            }
             else if(builtNames.size() > 0)
             {
-                os << std::endl;
-                os << "---- successfully built ----" << std::endl;
+                #if defined __APPLE__ || defined __linux__
+                    const std::string pkgStr = "📦 ";
+                #else  // FreeBSD/Windows
+                    const std::string pkgStr = ":: ";
+                #endif
+
+                os << c_light_blue << pkgStr << c_white << "successfully built:" << std::endl;
                 if(builtNames.size() < noToDisplay)
+                {
                     for(auto bName=builtNames.begin(); bName != builtNames.end(); bName++)
-                    {
-                        if(&os == &std::cout)
-                            os << " " << c_green << *bName << c_white << std::endl;
-                        else
-                            os << " " << *bName << std::endl;
-                    }
+                        os << " " << c_green << *bName << c_white << std::endl;
+                }
                 else
                 {
                     size_t x=0;
                     for(auto bName=builtNames.begin(); x < noToDisplay; bName++, x++)
-                    {
-                        if(&os == &std::cout)
-                            os << " " << c_green << *bName << c_white << std::endl;
-                        else
-                            os << " " << *bName << std::endl;
-                    }
+                        os << " " << c_green << *bName << c_white << std::endl;
                     os << " and " << builtNames.size() - noToDisplay << " more" << std::endl;
                 }
-                os << "----------------------------" << std::endl;
             }
 
             //checks for post-build scripts
@@ -4297,7 +4211,7 @@ int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, con
     }
 
     if(updatedInfo.size() == 0 && problemNames.size() == 0 && failedNames.size() == 0)
-        os << "all " << trackedAll.size() << " output files are already up to date" << std::endl;
+        os << "all " << trackedAll.size() << " tracked files are already up to date" << std::endl;
 
     builtNames.clear();
 	failedNames.clear();
@@ -4305,7 +4219,7 @@ int ProjectInfo::build_updated(std::ostream& os, const bool& addBuildStatus, con
     return 0;
 }
 
-int ProjectInfo::status(std::ostream& os, const bool& addBuildStatus, const bool& addExpl, const bool& basicOpt)
+int ProjectInfo::status(std::ostream& os, const int& addBuildStatus, const bool& addExpl, const bool& basicOpt)
 {
     if(check_watch_dirs())
         return 1;
@@ -4367,11 +4281,12 @@ int ProjectInfo::status(std::ostream& os, const bool& addBuildStatus, const bool
     {
         if(removedFiles.size() > 0)
         {
-            os << std::endl;
-            os << "---- removed dependency files ----" << std::endl;
+            os << c_light_blue << promptStr << c_white << "removed dependency files:" << std::endl;
             if(removedFiles.size() < noToDisplay)
+            {
                 for(auto rFile=removedFiles.begin(); rFile != removedFiles.end(); rFile++)
                     os << " " << *rFile << std::endl;
+            }
             else
             {
                 size_t x=0;
@@ -4379,16 +4294,16 @@ int ProjectInfo::status(std::ostream& os, const bool& addBuildStatus, const bool
                     os << " " << *rFile << std::endl;
                 os << " and " << removedFiles.size() - noToDisplay << " more" << std::endl;
             }
-            os << "----------------------------------" << std::endl;
         }
 
         if(modifiedFiles.size() > 0)
         {
-            os << std::endl;
-            os << "---- modified dependency files ----" << std::endl;
+            os << c_light_blue << promptStr << c_white << "modified dependency files:" << std::endl;
             if(modifiedFiles.size() < noToDisplay)
+            {
                 for(auto uFile=modifiedFiles.begin(); uFile != modifiedFiles.end(); uFile++)
                     os << " " << *uFile << std::endl;
+            }
             else
             {
                 size_t x=0;
@@ -4396,34 +4311,23 @@ int ProjectInfo::status(std::ostream& os, const bool& addBuildStatus, const bool
                     os << " " << *uFile << std::endl;
                 os << " and " << modifiedFiles.size() - noToDisplay << " more" << std::endl;
             }
-            os << "-----------------------------------" << std::endl;
         }
 
         if(problemNames.size() > 0)
         {
-            os << std::endl;
-            os << "---- missing content/template file ----" << std::endl;
+            os << c_light_blue << promptStr << c_white << "missing content/template file:" << std::endl;
             if(problemNames.size() < noToDisplay)
+            {
                 for(auto pName=problemNames.begin(); pName != problemNames.end(); pName++)
-                {
-                    if(&os == &std::cout)
-                        os << " " << c_red << *pName << c_white << std::endl;
-                    else
-                        os << " " << *pName << std::endl;
-                }
+                    os << " " << c_red << *pName << c_white << std::endl;
+            }
             else
             {
                 size_t x=0;
                 for(auto pName=problemNames.begin(); x < noToDisplay; pName++, x++)
-                {
-                    if(&os == &std::cout)
-                        os << " " << c_red << *pName << c_white << std::endl;
-                    else
-                        os << " " << *pName << std::endl;
-                }
+                    os << " " << c_red << *pName << c_white << std::endl;
                 os << " and " << problemNames.size() - noToDisplay << " more" << std::endl;
             }
-            os << "---------------------------------------" << std::endl;
         }
     }
 
@@ -4431,11 +4335,12 @@ int ProjectInfo::status(std::ostream& os, const bool& addBuildStatus, const bool
     {
         if(!basicOpt)
         {
-            os << std::endl;
-            os << "---- need building ----" << std::endl;
+            os << c_light_blue << promptStr << c_white << "need building:" << std::endl;
             if(updatedInfo.size() < noToDisplay)
+            {
                 for(auto uInfo=updatedInfo.begin(); uInfo != updatedInfo.end(); uInfo++)
                     os << " " << uInfo->outputPath << std::endl;
+            }
             else
             {
                 size_t x=0;
@@ -4443,12 +4348,11 @@ int ProjectInfo::status(std::ostream& os, const bool& addBuildStatus, const bool
                     os << " " << uInfo->outputPath << std::endl;
                 os << " and " << updatedInfo.size() - noToDisplay << " more" << std::endl;
             }
-            os << "-----------------------" << std::endl;
         }
     }
 
     if(updatedInfo.size() == 0 && problemNames.size() == 0 && failedNames.size() == 0)
-        os << "all " << trackedAll.size() << " output files are already up to date" << std::endl;
+        os << "all " << trackedAll.size() << " tracked files are already up to date" << std::endl;
 
     failedNames.clear();
 

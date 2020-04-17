@@ -126,21 +126,20 @@ struct ProjectInfo
     int check_watch_dirs();
 
 
-    int build_names(const std::vector<Name>& namesToBuild);
     int build_untracked(std::ostream& os, 
-                        const bool& addBuildStatus, 
+                        const int& addBuildStatus, 
                         const std::set<TrackedInfo> infoToBuild);
     int build_names(std::ostream& os, 
-                    const bool& addBuildStatus, 
+                    const int& addBuildStatus, 
                     const std::vector<Name>& namesToBuild);
-    int build_all(std::ostream& os, const bool& addBuildStatus);
+    int build_all(std::ostream& os, const int& addBuildStatus);
     int build_updated(std::ostream& os, 
-                      const bool& addBuildStatus, 
+                      const int& addBuildStatus, 
                       const bool& addExpl, 
                       const bool& basicOpt);
 
     int status(std::ostream& os, 
-               const bool& addBuildStatus, 
+               const int& addBuildStatus, 
                const bool& addExpl, 
                const bool& basicOpt);
 };

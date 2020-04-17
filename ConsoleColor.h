@@ -13,7 +13,6 @@
 		HANDLE  hConsole;
 		int col;
 
-		WinConsoleColor();
 		WinConsoleColor(const int& Col);
 		WinConsoleColor(const int& foreground, const int& background);
 	};
@@ -31,8 +30,28 @@
 	const WinConsoleColor c_white(15, 0);
 	const WinConsoleColor c_yellow(14, 0);
 #else  //*nix
+	struct NixConsoleColor
+	{
+		std::string col;
+
+		NixConsoleColor(const std::string& Col);
+	};
+
+	std::ostream& operator<<(std::ostream& os, const NixConsoleColor& cc);
+
 	//check also http://www.lihaoyi.com/post/BuildyourownCommandLinewithANSIescapecodes.html
-	const char c_aqua[]       = { 0x1b, '[', '1', ';', '3', '6', 'm', 0 };
+	const NixConsoleColor c_aqua({ 0x1b, '[', '1', ';', '3', '6', 'm', 0 });
+	const NixConsoleColor c_light_blue({ 0x1b, '[', '1', ';', '3', '4', 'm', 0 });
+	const NixConsoleColor c_blue({ 0x1b, '[', '0', ';', '3', '4', 'm', 0 });
+	const NixConsoleColor c_gold({ 0x1b, '[', '0', ';', '3', '3', 'm', 0 });
+	const NixConsoleColor c_green({ 0x1b, '[', '1', ';', '3', '2', 'm', 0 });
+	const NixConsoleColor c_purple({ 0x1b, '[', '1', ';', '3', '5', 'm', 0 });
+	const NixConsoleColor c_red({ 0x1b, '[', '1', ';', '3', '1', 'm', 0 });
+	const NixConsoleColor c_dark_red({ 0x1b, '[', '0', ';', '3', '9', 'm', 0 });
+	const NixConsoleColor c_white({ 0x1b, '[', '0', ';', '3', '9', 'm', 0 });
+	const NixConsoleColor c_yellow({ 0x1b, '[', '1', ';', '3', '3', 'm', 0 });
+
+	/*const char c_aqua[]       = { 0x1b, '[', '1', ';', '3', '6', 'm', 0 };
 	const char c_light_blue[] = { 0x1b, '[', '1', ';', '3', '4', 'm', 0 };
 	const char c_blue[]       = { 0x1b, '[', '0', ';', '3', '4', 'm', 0 };
 	const char c_gold[]       = { 0x1b, '[', '0', ';', '3', '3', 'm', 0 };
@@ -41,9 +60,8 @@
 	const char c_red[]        = { 0x1b, '[', '1', ';', '3', '1', 'm', 0 };
 	const char c_dark_red[]   = { 0x1b, '[', '0', ';', '3', '1', 'm', 0 };
 	const char c_white[]      = { 0x1b, '[', '0', ';', '3', '9', 'm', 0 };
-	const char c_yellow[]     = { 0x1b, '[', '1', ';', '3', '3', 'm', 0 };
+	const char c_yellow[]     = { 0x1b, '[', '1', ';', '3', '3', 'm', 0 };*/
 #endif
-
 
 
 #endif //CONSOLECOLOR_H_

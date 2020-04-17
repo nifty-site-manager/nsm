@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <iostream>
 
-const std::string NSM_VERSION = "2.3.1";
+const std::string NSM_VERSION = "2.3.2";
 
 const int LANG_EXPRTK  = -2025;
 const int LANG_FPP     = -2026;
