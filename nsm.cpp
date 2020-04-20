@@ -217,7 +217,7 @@ int main(int argc, char* argv[])
     //Nift commands that can run from anywhere
     if(cmd == "version")
     {
-        std::cout << badgerStr << "Nift (aka nsm) (c)2015-" << DateTimeInfo().currentYYYY() << " " << c_gold << "v" << NSM_VERSION << c_white << std::endl;
+        std::cout << badgerStr << "Nift (aka nsm) (c)" << DateTimeInfo().currentYYYY() << " " << c_gold << "v" << NSM_VERSION << c_white << std::endl;
 
         return 0;
     }
@@ -226,7 +226,10 @@ int main(int argc, char* argv[])
         if(console_width() > 22 && console_height() > 12)
             asciiNift();
 
-        std::cout << badgerStr << "Nift (aka nifty-site-manager or nsm) (c)2015-" << DateTimeInfo().currentYYYY();
+		#if defined __APPLE__ || defined __linux__
+		    std::cout << "⚡";
+		#endif
+        std::cout << badgerStr << "Nift (aka nifty-site-manager or nsm) (c)" << DateTimeInfo().currentYYYY();
         std::cout << " is a cross-platform open source website and project generator" << std::endl;
         std::cout << "Official Website: " << c_blue << "https://nift.cc/" << c_white << std::endl;
         std::cout << "Source: " << c_blue << "https://github.com/nifty-site-manager/nsm" << c_white << std::endl;
@@ -289,7 +292,7 @@ int main(int argc, char* argv[])
     else if(cmd == "interp" || cmd == "sh")
     {
         std::cout << badgerStr << "Nift (aka nsm) " << c_gold << "v" << NSM_VERSION << c_white;
-        std::cout << " (c)2015-" << DateTimeInfo().currentYYYY();
+        std::cout << " (c)" << DateTimeInfo().currentYYYY();
         std::cout << " (" << c_blue << "https://nift.cc" << c_white << ")" << std::endl;
     }
 
@@ -889,13 +892,11 @@ int main(int argc, char* argv[])
            cmd != "untrack" &&
            cmd != "untrack-from-file" &&
            cmd != "untrack-dir" &&
-           cmd != "rm-from-file" && cmd != "del-from-file" &&
-           cmd != "rm-dir"       && cmd != "del-dir" &&
-           cmd != "rm"           && cmd != "del" &&
-           cmd != "mv" &&
-           cmd != "move" &&
-           cmd != "cp" &&
-           cmd != "copy" &&
+           cmd != "rm-from-file" && cmd != "del-from-file" && cmd != "rmv-from-file" &&
+           cmd != "rm-dir"       && cmd != "del-dir"       && cmd != "rmv-dir" &&
+           cmd != "rm"           && cmd != "del"           && cmd != "rmv" &&
+           cmd != "mv" && cmd != "move" && cmd != "mve" &&
+           cmd != "cp" && cmd != "copy" && cmd != "cpy" &&
            cmd != "new-title" &&
            cmd != "new-template" &&
            cmd != "new-output-dir" &&
@@ -1682,7 +1683,7 @@ int main(int argc, char* argv[])
 
             return result;
         }
-        else if(cmd == "rm-from-file" || cmd == "del-from-file")
+        else if(cmd == "rm-from-file" || cmd == "del-from-file" || cmd == "rmv-from-file")
         {
             //ensures correct number of parameters given
             if(noParams != 2)
@@ -1695,7 +1696,7 @@ int main(int argc, char* argv[])
 
             return result;
         }
-        else if(cmd == "rm-dir" || cmd == "del-dir")
+        else if(cmd == "rm-dir" || cmd == "del-dir" || cmd == "rmv-dir")
         {
             //ensures correct number of parameters given
             if(noParams < 2 || noParams > 3)
@@ -1716,7 +1717,7 @@ int main(int argc, char* argv[])
 
             return result;
         }
-        else if(cmd == "rm" || cmd == "del")
+        else if(cmd == "rm" || cmd == "del" || cmd == "rmv")
         {
             //ensures correct number of parameters given
             if(noParams != 2)
@@ -1726,7 +1727,7 @@ int main(int argc, char* argv[])
 
             return project.rm(nameToRemove);
         }
-        else if(cmd == "mv" || cmd == "move")
+        else if(cmd == "mv" || cmd == "move" || cmd == "mve")
         {
             //ensures correct number of parameters given
             if(noParams != 3)
@@ -1737,7 +1738,7 @@ int main(int argc, char* argv[])
 
             return project.mv(oldName, newName);
         }
-        else if(cmd == "cp" || cmd == "copy")
+        else if(cmd == "cp" || cmd == "copy" || cmd == "cpy")
         {
             //ensures correct number of parameters given
             if(noParams != 3)

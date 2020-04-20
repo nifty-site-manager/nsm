@@ -434,7 +434,7 @@ int cpDir(const std::string& sourceDir,
         sourcePath.dir = "./";
     if(targetDir.size())
     {
-        if(targetDir[sourceDir.size()-1] == '/' || targetDir[targetDir.size()-1] == '\\')
+        if(targetDir[targetDir.size()-1] == '/' || targetDir[targetDir.size()-1] == '\\')
             targetPath.dir = targetDir;
         else
             targetPath.dir = targetDir + "/";
@@ -496,8 +496,6 @@ int cpDir(const std::string& sourceDir,
         targetStr = targetPath.str();
         sourcePath.file = files[f];
         files[f] = sourcePath.str();
-
-        //std::cout << "wtf " << quote(files[f]) << " " << quote(targetStr) << std::endl;
 
         if(stat(files[f].c_str(),&s) == 0 && s.st_mode & S_IFDIR)
         {

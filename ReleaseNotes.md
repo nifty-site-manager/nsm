@@ -2,6 +2,14 @@
 Nift Release Notes
 ------------------
 
+Version 2.3.4 of Nift
+* fixed major bug with new copy directory function
+* added in more familiar syntax for incrementing and decrementing variables
+* modified ExprTk to remove the old variable when registering a duplicate
+* added exprtk option to forget fn to remove variables from both Nift variables and ExprTk symbol table
+* added skipping whitespace to functions that needed it 
+* added cpy/mve/rmv commands
+
 Version 2.3.3 of Nift
 * fixed major bug where project content directory was deleted when removing a single tracked file
 

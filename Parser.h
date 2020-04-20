@@ -203,6 +203,16 @@ struct Parser
                       const std::string& callType,
                       const int& callLineNo,
                       std::ostream& eos);
+    int parse_replace(const bool& addOutput,
+                      const char& lang,
+                      std::string& str,
+                      const std::string& strType,
+                      const Path& readPath,
+                      std::set<Path>& antiDepsOfReadPath,
+                      const int& lineNo,
+                      const std::string& callType,
+                      const int& callLineNo,
+                      std::ostream& eos);
     int parse_replace(const char& lang,
                       std::vector<std::string>& strs,
                       const std::string& strType,
