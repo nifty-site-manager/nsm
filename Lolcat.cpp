@@ -124,7 +124,7 @@ int zigzagcat(std::istream& is)
 
 		if(addLineNo)
 			inLine = std::to_string(lineNo) + ": " + inLine;
-		if(int(std::floor(lineNo/noColors))%2)
+		if(int(floor(lineNo/noColors))%2)
 			color = sColor = (sColor+1)%noColors;
 		else
 			color = sColor = mod(sColor-1, noColors);
@@ -166,9 +166,9 @@ int lolcat(std::istream& is)
 
 		size_t i=0;
 		if(posGrad)
-			sWidth = (1-((lineNo+r)*gradient - std::floor((lineNo+r)*gradient))/1.0)*width;
+			sWidth = (1-((lineNo+r)*gradient - floor((lineNo+r)*gradient))/1.0)*width;
 		else
-			sWidth = (((lineNo+r)*gradient - std::floor((lineNo+r)*gradient))/1.0)*width;
+			sWidth = (((lineNo+r)*gradient - floor((lineNo+r)*gradient))/1.0)*width;
 		std::cout << colors[color] << inLine.substr(i, sWidth);
 		color=(color+1)%noColors;
 		i += sWidth;
