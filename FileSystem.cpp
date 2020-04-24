@@ -54,15 +54,29 @@ bool exec_exists(const std::string& path)
         return 0;
 }
 
-bool can_exec(const char *file)
+bool can_exec(const std::string& path)
 {
     struct stat  st;
 
-    if (stat(file, &st) < 0)
-        return false;
+    if (stat(path.c_str(), &st) < 0)
+        return 0;
     if ((st.st_mode & S_IEXEC) != 0)
-        return true;
-    return false;
+        return 1;
+    return 0;
+}
+
+bool can_write(const std::string& path)
+{
+    if(!path_exists(path))
+        return 1;
+
+    struct stat  st;
+
+    if (stat(path.c_str(), &st) < 0)
+        return 0;
+    if ((st.st_mode & S_IWUSR) != 0)
+        return 1;
+    return 0;
 }
 
 bool remove_file(const Path& path)

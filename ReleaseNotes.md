@@ -2,6 +2,18 @@
 Nift Release Notes
 ------------------
 
+Version 2.3.5 of Nift
+* added REPL shortcut support for more terminals
+* added support for powershell (add `terminal ps` to global/project config files)
+* made some cosmetic improvements to general output
+* now prevent output colour until global/project config is loaded
+* renamed type fn to typeof
+* made some improvements to cpy/mve/rmv fns with regards to working with permissions
+* now switch cat/type cp/copy ls/dir mv/move rm/del fn names on Windows vs (Free)BSD/Linux/OSX
+* added in-built version of lolcat-cc
+* fixed various bugs
+* made various improvements
+
 Version 2.3.4 of Nift
 * fixed major bug with new copy directory function
 * added in more familiar syntax for incrementing and decrementing variables

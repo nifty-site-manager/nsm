@@ -144,12 +144,34 @@ int Parser::lolcat_init()
         suppressor = " > /dev/null 2>&1";
     #endif
 
-    if(!system((lsCmd + "lolcat" + suppressor).c_str()))
-        lolcatCmd = "lolcat";
+    if(!system((lsCmd + "lolcat-cc" + suppressor).c_str()))
+    {
+        #if defined _WIN32 || defined _WIN64
+            if(using_powershell_colours())
+                lolcatCmd = "lolcat-cc -ps -t";
+            else
+                lolcatCmd = "lolcat-cc -t";
+        #else
+            lolcatCmd = "lolcat-cc -t";
+        #endif
+    }
     else if(!system((lsCmd + "lolcat-c" + suppressor).c_str()))
         lolcatCmd = "lolcat-c";
     else if(!system((lsCmd + "lolcat-rs" + suppressor).c_str()))
         lolcatCmd = "lolcat-rs";
+    else if(!system((lsCmd + "lolcat" + suppressor).c_str()))
+        lolcatCmd = "lolcat";
+    else if(!system((lsCmd + "nift lolcat" + suppressor).c_str()))
+    {
+        #if defined _WIN32 || defined _WIN64
+            if(using_powershell_colours())
+                lolcatCmd = "nift lolcat -ps";
+            else
+                lolcatCmd = "nift lolcat";
+        #else
+            lolcatCmd = "nift lolcat";
+        #endif
+    }
     else
         return 0;
 
@@ -471,7 +493,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
             addPath = 0;
 
         int netBrackets = 0;
-        result = getline(lang, addPath, '$', lolcat, lolcatCmd, inLine, 1, tabCompletionStrs);
+        result = getline(lang, addPath, '$', lolcat, inLine, 1, tabCompletionStrs);
         for(size_t i=0; i<inLine.size(); ++i)
         {
             if(inLine[i] == '(' || inLine[i] == '{' || inLine[i] == '[')
@@ -497,7 +519,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
                 toProcess += inLine + "\n";
 
             inLine = "";
-            result = getline(lang, addPath, '>', lolcat, lolcatCmd, inLine, 1, tabCompletionStrs);
+            result = getline(lang, addPath, '>', lolcat, inLine, 1, tabCompletionStrs);
             for(size_t i=0; i<inLine.size(); ++i)
             {
                 if(inLine[i] == '(' || inLine[i] == '{' || inLine[i] == '[' || inLine[i] == '<')
@@ -576,7 +598,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
         else if(parsedText != "")
         {
             if(lolcat)
-                rnbwcout(parsedText, lolcatCmd);
+                rnbwcout(parsedText);
             else
                 std::cout << parsedText << std::endl;
         }
@@ -2043,18 +2065,30 @@ int Parser::read_and_process_fn(const bool& indent,
             std::string str = funcName.substr(0, 2);
             if(str == "++" || str == "--")
             {
-                hasIncrement = 1;
                 params.push_back(funcName.substr(2, funcNameSize-2));
-                funcName = str;
+                VPos vpos;
+                if(vars.find(params[0], vpos))
+                {
+                    hasIncrement = 1;
+                    funcName = str;
+                }
+                else
+                    params.clear();
             }
             else
             {
                 str = funcName.substr(funcNameSize-2, 2);
                 if(str == "++" || str == "--")
                 {
-                    hasIncrement = 1;
                     params.push_back(funcName.substr(0, funcNameSize-2));
-                    funcName = str + str[0];
+                    VPos vpos;
+                    if(vars.find(params[0], vpos))
+                    {
+                        hasIncrement = 1;
+                        funcName = str + str[0];
+                    }
+                    else
+                        params.clear();
                 }
             }
         }
@@ -3731,6 +3765,10 @@ int Parser::read_and_process_fn(const bool& indent,
 
             return 0;
         }
+        #if defined _WIN32 || defined _WIN64
+            else if(funcName == "ls")
+                funcName = "dir";
+        #endif
         else if(funcName == "lst")
         {
             if(params.size() < 1)
@@ -4048,7 +4086,7 @@ int Parser::read_and_process_fn(const bool& indent,
             if(!consoleLocked)
                 os_mtx->lock();
             if(lolcatInit)
-                rnbwcout(txt, lolcatCmd);
+                rnbwcout(txt);
             else
                 eos << txt << std::endl;
             if(!consoleLocked)
@@ -4073,7 +4111,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 {
                     if(!consoleLocked)
                         os_mtx->lock();
-                    rnbwcout("lolcat already activated\a", lolcatCmd);
+                    rnbwcout("lolcat already activated\a");
                     if(!consoleLocked)
                         os_mtx->unlock();
                 }
@@ -4084,7 +4122,13 @@ int Parser::read_and_process_fn(const bool& indent,
             if(!lolcatInit)
             {
                 if(lolcat_init())
+                {
+                    #if defined _WIN32 || defined _WIN64
+                        if(using_powershell_colours())
+                            lolcat_powershell();
+                    #endif
                     lolcat = 1;
+                }
                 else
                 {
                     if(!consoleLocked)
@@ -4095,19 +4139,19 @@ int Parser::read_and_process_fn(const bool& indent,
                 }
             }
             else
+            {
+                #if defined _WIN32 || defined _WIN64
+                    if(using_powershell_colours())
+                        lolcat_powershell();
+                #endif
                 lolcat = 1;
+            }
 
             if(lolcat && (mode == MODE_INTERP || mode == MODE_SHELL))
             {
-                #if defined __APPLE__ || defined __linux__
-                    const std::string rnbwStr = "🌈 ";
-                #else  // *nix
-                    const std::string rnbwStr = "";
-                #endif
-
                 if(!consoleLocked)
                     os_mtx->lock();
-                rnbwcout(rnbwStr + "lolcat activated", lolcatCmd);
+                rnbwcout("lolcat activated");
                 if(!consoleLocked)
                     os_mtx->unlock();
             }
@@ -4798,7 +4842,16 @@ int Parser::read_and_process_fn(const bool& indent,
                 if(createFiles)
                     path.ensureFileExists();
                 else
+                {
+                    if(path.file.size())
+                    {
+                        if(path.dir.size())
+                            path.dir += "/" + path.file + "/";
+                        else
+                            path.dir = "./" + path.file + "/";
+                    }
                     path.ensureDirExists();
+                }
             }
 
             if(linePos < inStr.size() && inStr[linePos] == '!')
@@ -5002,8 +5055,13 @@ int Parser::read_and_process_fn(const bool& indent,
                 {
                     if(!ifNew || source.modified_after(target))
                     {
-                        if(changePermissions && file_exists(targetStr))
-                            chmod(targetStr.c_str(), 0666);
+                        if(changePermissions)
+                        {
+                            if(file_exists(targetStr))
+                                chmod(targetStr.c_str(), 0666);
+                            else if(dir_exists(targetStr))
+                                chmod(targetStr.c_str(), S_IRWXU);
+                        }
 
                         if((prompt && promptInput != 'a') || verbose)
                         {
@@ -5068,6 +5126,21 @@ int Parser::read_and_process_fn(const bool& indent,
                 if(endChar != '/' && endChar != '\\')
                     targetStr += "/";
                 target.set_file_path_from(targetStr);
+
+                struct stat  oldDirPerms;
+                if(changePermissions)
+                {
+                    stat(targetStr.c_str(), &oldDirPerms);
+                    chmod(target.dir.c_str(), S_IRWXU);
+                }
+                else if(!can_write(targetStr))
+                {
+                    if(!consoleLocked)
+                        os_mtx->lock();
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": cannot write to " << quote(target.dir) << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
 
                 std::vector<Path> sources;
                 for(size_t p=0; p<params.size(); ++p)
@@ -5196,6 +5269,9 @@ int Parser::read_and_process_fn(const bool& indent,
                         }
                     }
                 }
+
+                if(changePermissions)
+                    chmod(target.dir.c_str(), oldDirPerms.st_mode);
             }
             
             if(linePos < inStr.size() && inStr[linePos] == '!')
@@ -5411,7 +5487,7 @@ int Parser::read_and_process_fn(const bool& indent,
             if(!consoleLocked)
                 os_mtx->lock();
             if(lolcat)
-                rnbwcout(txt, lolcatCmd);
+                rnbwcout(txt);
             else
                 eos << txt << std::endl;
             if(!consoleLocked)
@@ -5554,6 +5630,15 @@ int Parser::read_and_process_fn(const bool& indent,
 
             return 0;
         }
+        #if defined _WIN32 || defined _WIN64
+            else if(funcName == "cat")
+                funcName = "type";
+            else if(funcName == "cp")
+                funcName = "copy";
+        #else
+            else if(funcName == "copy")
+                funcName = "cp";
+        #endif
         else if(funcName == "cssinclude")
         {
             if(params.size() != 1)
@@ -8824,7 +8909,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 if(!consoleLocked)
                     os_mtx->lock();
                 if(lolcat)
-                    rnbwcout(txt, lolcatCmd);
+                    rnbwcout(txt);
                 else
                     eos << txt;
                 if(!consoleLocked)
@@ -9299,8 +9384,13 @@ int Parser::read_and_process_fn(const bool& indent,
                 }
                 else
                 {
+                    struct stat  oldDirPerms;
                     if(changePermissions)
+                    {
                         chmod(rmPathStr.c_str(), 0666);
+                        stat(rmPath.dir.c_str(), &oldDirPerms);
+                        chmod(rmPath.dir.c_str(), S_IRWXU);
+                    }
 
                     if((prompt && promptInput != 'a') || verbose)
                     {
@@ -9323,7 +9413,7 @@ int Parser::read_and_process_fn(const bool& indent,
                     {
                         if(dir_exists(rmPathStr))
                         {
-                            if(delDir(rmPathStr, sLineNo, readPath, eos, consoleLocked, os_mtx))
+                            if(!can_write(rmPath.str()) || delDir(rmPathStr, sLineNo, readPath, eos, consoleLocked, os_mtx))
                             {
                                 if(!consoleLocked)
                                     os_mtx->lock();
@@ -9333,7 +9423,7 @@ int Parser::read_and_process_fn(const bool& indent,
                                 return 1;
                             }
                         }
-                        else if(remove_file(rmPath))
+                        else if(!can_write(rmPath.str()) || remove_file(rmPath))
                         {
                             if(!consoleLocked)
                                 os_mtx->lock();
@@ -9343,6 +9433,9 @@ int Parser::read_and_process_fn(const bool& indent,
                             return 1;
                         }
                     }
+
+                    if(changePermissions)
+                        chmod(rmPath.dir.c_str(), oldDirPerms.st_mode);
                 }
             }
 
@@ -9424,6 +9517,10 @@ int Parser::read_and_process_fn(const bool& indent,
 
             return 0;
         }
+        #if defined _WIN32 || defined _WIN64
+            else if(funcName == "rm")
+                funcName = "del";
+        #endif
         else if(funcName == "refresh_completions")
         {
             if(params.size() != 0)
@@ -10060,13 +10157,13 @@ int Parser::read_and_process_fn(const bool& indent,
     }
     else if(funcName[0] == 't')
     {
-        if(funcName == "type")
+        if(funcName == "typeof")
         {
             if(params.size() != 1)
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "type: expected 1 parameter, got " << params.size() << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "typeof: expected 1 parameter, got " << params.size() << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
@@ -10083,13 +10180,18 @@ int Parser::read_and_process_fn(const bool& indent,
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "type: " << params[0] << " is not defined" << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "typeof: " << params[0] << " is not defined" << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
 
             return 0;
         }
+        #if defined _WIN32 || defined _WIN64
+        #else
+            else if(funcName == "type")
+                funcName = "cat";
+        #endif
     }
     else if(funcName[0] == 'e')
     {
@@ -10783,6 +10885,13 @@ int Parser::read_and_process_fn(const bool& indent,
 
             return 0;
         }
+        #if defined _WIN32 || defined _WIN64
+        #else
+            else if(funcName == "dir")
+                funcName = "ls";
+            else if(funcName == "del")
+                funcName = "rm";
+        #endif
     }
     else if(funcName[0] == 's')
     {
@@ -11806,8 +11915,13 @@ int Parser::read_and_process_fn(const bool& indent,
                 {
                     if(!ifNew || source.modified_after(target))
                     {
-                        if(changePermissions && file_exists(targetStr))
-                            chmod(targetStr.c_str(), 0666);
+                        if(changePermissions)
+                        {
+                            if(file_exists(targetStr))
+                                chmod(targetStr.c_str(), 0666);
+                            else if(dir_exists(targetStr))
+                                chmod(targetStr.c_str(), S_IRWXU);
+                        }
 
                         if((prompt && promptInput != 'a') || verbose)
                         {
@@ -11831,7 +11945,7 @@ int Parser::read_and_process_fn(const bool& indent,
                             if(backupFiles && path_exists(targetStr))
                                 rename(targetStr.c_str(), (targetStr + "~").c_str());
 
-                            if(rename(sourceStr.c_str(), targetStr.c_str()))
+                            if(!can_write(targetStr) || rename(sourceStr.c_str(), targetStr.c_str()))
                             {
                                 if(!consoleLocked)
                                     os_mtx->lock();
@@ -11860,6 +11974,21 @@ int Parser::read_and_process_fn(const bool& indent,
                 if(endChar != '/' && endChar != '\\')
                     targetStr += "/";
                 target.set_file_path_from(targetStr);
+
+                struct stat  oldDirPerms;
+                if(changePermissions)
+                {
+                    stat(targetStr.c_str(), &oldDirPerms);
+                    chmod(target.dir.c_str(), S_IRWXU);
+                }
+                else if(!can_write(targetStr))
+                {
+                    if(!consoleLocked)
+                        os_mtx->lock();
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": cannot write to " << quote(target.dir) << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
 
                 std::vector<Path> sources;
                 for(size_t p=0; p<params.size(); ++p)
@@ -11949,7 +12078,7 @@ int Parser::read_and_process_fn(const bool& indent,
                                     rename(targetStr.c_str(), (targetStr + "~").c_str());
 
 
-                                if(rename(sourceStr.c_str(), targetStr.c_str()))
+                                if(!can_write(targetStr) || rename(sourceStr.c_str(), targetStr.c_str()))
                                 {
                                     if(targetParam.size())
                                     {
@@ -11969,6 +12098,9 @@ int Parser::read_and_process_fn(const bool& indent,
                         }
                     }
                 }
+
+                if(changePermissions)
+                    chmod(target.dir.c_str(), oldDirPerms.st_mode);
             }
 
             if(linePos < inStr.size() && inStr[linePos] == '!')
@@ -11994,6 +12126,13 @@ int Parser::read_and_process_fn(const bool& indent,
 
             return 0;
         }
+        #if defined _WIN32 || defined _WIN64
+            else if(funcName == "mv")
+                funcName = "move";
+        #else
+            else if(funcName == "move")
+                funcName = "mv";
+        #endif
     }
     else if(funcName[0] == 'n')
     {
@@ -12669,8 +12808,8 @@ int Parser::read_and_process_fn(const bool& indent,
                         start_err_ml(eos, readPath, sLineNo, lineNo) << c_light_blue << funcName << c_white << ": function does not exist in this scope";
                         eos << " and failed as a system call" << std::endl;
                         os_mtx->unlock();
-                        return 1;
                     }
+                    return 1;
                 }
 
                 return 0;

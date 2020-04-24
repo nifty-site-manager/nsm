@@ -88,49 +88,27 @@ int nsm_getch()
 	return c;
 }
 
-int rnbwcout(const std::string& str, const std::string& lolcatCmd)
+int rnbwcout(const std::string& str)
 {
-    std::ofstream ofs(".lolcat.output");
-    ofs << str << std::endl;
-    ofs.close();
+    std::stringstream ss(".lolcat.output");
+    ss << str << std::endl;
 
-    int ret_val;
-
-    #if defined _WIN32 || defined _WIN64
-        ret_val = system(("cat .lolcat.output | " + lolcatCmd).c_str());
-    #else
-        ret_val = system(("cat .lolcat.output | " + lolcatCmd).c_str());
-    #endif
-
-    remove(".lolcat.output");
-
-    return ret_val;
+    return lolfilter(ss);
 }
 
-int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd)
+int rnbwcout(const std::set<std::string>& strs)
 {
-    std::ofstream ofs(".lolcat.output");
+    std::stringstream ss(".lolcat.output");
     if(strs.size())
     {
 	    auto str=strs.begin();
-	    ofs << *str++;
+	    ss << *str++;
 	    for(; str!=strs.end(); ++str)
-		    ofs << " " << *str;
-		ofs << std::endl;
+		    ss << " " << *str;
+		ss << std::endl;
 	}
-    ofs.close();
 
-    int ret_val;
-
-    #if defined _WIN32 || defined _WIN64
-        ret_val = system(("cat .lolcat.output | " + lolcatCmd).c_str());
-    #else
-        ret_val = system(("cat .lolcat.output | " + lolcatCmd).c_str());
-    #endif
-
-    remove(".lolcat.output");
-
-    return ret_val;
+    return lolfilter(ss);
 }
 
 #if defined _WIN32 || defined _WIN64
@@ -138,7 +116,6 @@ int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd)
 	            const bool& addPwd, 
 	            const char& promptCh, 
 	            const int& lolcat,
-	            const std::string& lolcatCmd,
 	            std::string& str, 
 	            bool trackLines, 
 	            const std::vector<std::string>& tabCompletionStrs)
@@ -284,7 +261,7 @@ int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd)
 						{
 							std::cout << "\n";
 							if(lolcat)
-								rnbwcout(paths, lolcatCmd);
+								rnbwcout(paths);
 							else
 							{
 								coutPaths(tabPath.dir, paths, " ", 1, 20);
@@ -342,7 +319,7 @@ int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd)
 						{
 							std::cout << "\n";
 							if(lolcat)
-								rnbwcout(programs, lolcatCmd);
+								rnbwcout(programs);
 							else
 							{
 								coutPaths("", programs, " ", 0, 20);
@@ -376,24 +353,6 @@ int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd)
 				
 				if(!foundCompletions)
 				{
-					for(int i=0; i<2; i++)
-					{
-						str = str.substr(0, linePos) + " " + str.substr(linePos, str.size()-linePos);
-						++linePos;
-
-						if(sPos + usableLength + 1 == linePos)
-							++sPos;
-					}
-				}
-			}
-			else if(c == 0)
-			{
-				c = _getch();
-
-				if(c == -108) //ctrl+tab
-				{
-					//std::cout << "\a" << std::flush;
-
 					for(int i=0; i<2; i++)
 					{
 						str = str.substr(0, linePos) + " " + str.substr(linePos, str.size()-linePos);
@@ -459,7 +418,7 @@ int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd)
 						--sPos;
 				}
 			}
-			else if(c == 127) //ctrl backspace
+			else if(c == 27 || c == 127) //ctrl [ or ctrl backspace
 			{
 				bool foundNonWhitespace = 0;
 				do
@@ -479,6 +438,30 @@ int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd)
 						break;
 				}while(!foundNonWhitespace || (linePos > 0 && std::isalnum(str[linePos-1])));
 			}
+			else if(c == 29) //ctrl ]
+			{
+				bool foundNonWhitespace = 0;
+				char c = 'a';
+
+				while(!foundNonWhitespace || std::isalnum(c))
+				{
+					if(bLinePos > 0)
+					{
+						c = str[linePos];
+
+						if(c != ' ' && c != '\t')
+							foundNonWhitespace = 1;
+
+						str = str.substr(0, linePos) + str.substr(linePos + 1, str.size()-linePos+1);
+						--bLinePos;
+
+						if(sPos + usableLength == linePos)
+							++sPos;
+					}
+					else
+						break;
+				}
+			}
 			else if(c == 18) //ctrl+r (same as opt/alt+enter)
 			{
 				write_prompt(lang, pwd, promptCh);
@@ -490,9 +473,23 @@ int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd)
 
 				return NSM_SENTER;
 			}
-			else if(c == -32) //check for arrow keys
+			else if(c == 0 || c == -32) //check for arrow keys
 			{
 				c = _getch();
+
+				if(c == -108) //ctrl+tab
+				{
+					//std::cout << "\a" << std::flush;
+
+					for(int i=0; i<2; i++)
+					{
+						str = str.substr(0, linePos) + " " + str.substr(linePos, str.size()-linePos);
+						++linePos;
+
+						if(sPos + usableLength + 1 == linePos)
+							++sPos;
+					}
+				}
 
 				if(c == -115) //ctrl up arrow
 				{
@@ -596,7 +593,6 @@ int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd)
 	            const bool& addPwd, 
 	            const char& promptCh, 
 	            const int& lolcat,
-	            const std::string& lolcatCmd,
 	            std::string& str, 
 	            bool trackLines, 
 	            const std::vector<std::string>& tabCompletionStrs)
@@ -748,7 +744,7 @@ int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd)
 						{
 							std::cout << "\n";
 							if(lolcat)
-								rnbwcout(paths, lolcatCmd);
+								rnbwcout(paths);
 							else
 							{
 								coutPaths(tabPath.dir, paths, " ", 1, 20);
@@ -806,7 +802,7 @@ int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd)
 						{
 							std::cout << "\n";
 							if(lolcat)
-								rnbwcout(programs, lolcatCmd);
+								rnbwcout(programs);
 							else
 							{
 								coutPaths("", programs, " ", 0, 20);
@@ -888,9 +884,9 @@ int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd)
 				}
 			}
 			#if defined __FreeBSD__
-		        else if(c == 127 || c == 31) //ctrl backspace or ctrl (shift) -
+		        else if(c == 127 || c == 31) //ctrl backspace or cmd [ or ctrl (shift) -
 		    #else  //unix
-		        else if(c == 8 || c == 31) //ctrl backspace or ctrl (shift) -
+		        else if(c == 8 || c == 31) //ctrl backspace or cmd [ or ctrl (shift) -
 		    #endif
 			{
 				bool foundNonWhitespace = 0;
@@ -910,6 +906,30 @@ int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd)
 					else
 						break;
 				}while(!foundNonWhitespace || (linePos > 0 && std::isalnum(str[linePos-1])));
+			}
+			else if(c == 29) //ctrl ]
+			{
+				bool foundNonWhitespace = 0;
+				char c = 'a';
+
+				while(!foundNonWhitespace || std::isalnum(c))
+				{
+					if(bLinePos > 0)
+					{
+						c = str[linePos];
+
+						if(c != ' ' && c != '\t')
+							foundNonWhitespace = 1;
+
+						str = str.substr(0, linePos) + str.substr(linePos + 1, str.size()-linePos+1);
+						--bLinePos;
+
+						if(sPos + usableLength == linePos)
+							++sPos;
+					}
+					else
+						break;
+				}
 			}
 			#if defined __FreeBSD__
 		        else if(c == 8) //backspace

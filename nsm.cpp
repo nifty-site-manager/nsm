@@ -16,14 +16,6 @@
 std::atomic<bool> serving;
 std::mutex serve_mtx;
 
-#if __APPLE__ 
-    const std::string badgerStr = "🦡 ";
-#elif __linux__
-    const std::string badgerStr = "🦡  ";
-#else  //*nix
-    const std::string badgerStr = "";
-#endif
-
 int read_serve_commands()
 {
     char cmd;
@@ -99,7 +91,7 @@ void unrecognisedCommand(const std::string& cmd)
     start_err(std::cout) << "Nift does not recognise the command " << quote(cmd) << std::endl;
 }
 
-bool parError(int noParams, char* argv[], const std::string& expectedNo)
+bool parError(int noParams, const char* argv[], const std::string& expectedNo)
 {
     start_err(std::cout) << noParams;
     if(noParams == 1)
@@ -186,10 +178,23 @@ void asciiNift()
     std::cout << c_white << std::endl;
 }
 
-int main(int argc, char* argv[])
+int main(int argc, const char* argv[])
 {
     Timer timer;
     timer.start();
+
+    /*char c;
+
+    enable_raw_mode();
+
+    while(c != 'q')
+    {
+        c = getchar();
+
+        std::cout << (int) c << std::endl;
+    }
+
+    disable_raw_mode();*/
 
     Path globalConfigPath(app_dir() + "/.nift/", "nift.config");
     if(!file_exists(globalConfigPath.str()))
@@ -208,6 +213,9 @@ int main(int argc, char* argv[])
     while(cmd.size() && cmd[0] == '-')
         cmd = cmd.substr(1, cmd.size()-1);
 
+    if(cmd == "lolcat")
+        return lolmain(argc, argv);
+
     if(get_pwd() == "/")
     {
         start_err(std::cout) << "do not run Nift from the root directory!" << std::endl;
@@ -217,19 +225,26 @@ int main(int argc, char* argv[])
     //Nift commands that can run from anywhere
     if(cmd == "version")
     {
-        std::cout << badgerStr << "Nift (aka nsm) (c)" << DateTimeInfo().currentYYYY() << " " << c_gold << "v" << NSM_VERSION << c_white << std::endl;
+        #if defined _WIN32 || defined _WIN64
+            if(ProjectInfo().open_global_config())
+                return 1;
+        #endif
+
+        std::cout << "Nift (aka nsm) (c)" << DateTimeInfo().currentYYYY() << " " << c_gold << "v" << NSM_VERSION << c_white << std::endl;
 
         return 0;
     }
     else if(cmd == "about" || cmd == "help")
     {
+        #if defined _WIN32 || defined _WIN64
+            if(ProjectInfo().open_global_config())
+                return 1;
+        #endif
+
         if(console_width() > 22 && console_height() > 12)
             asciiNift();
 
-		#if defined __APPLE__ || defined __linux__
-		    std::cout << "⚡";
-		#endif
-        std::cout << badgerStr << "Nift (aka nifty-site-manager or nsm) (c)" << DateTimeInfo().currentYYYY();
+        std::cout << "Nift (aka nifty-site-manager or nsm) (c)" << DateTimeInfo().currentYYYY();
         std::cout << " is a cross-platform open source website and project generator" << std::endl;
         std::cout << "Official Website: " << c_blue << "https://nift.cc/" << c_white << std::endl;
         std::cout << "Source: " << c_blue << "https://github.com/nifty-site-manager/nsm" << c_white << std::endl;
@@ -291,14 +306,14 @@ int main(int argc, char* argv[])
     }
     else if(cmd == "interp" || cmd == "sh")
     {
-        std::cout << badgerStr << "Nift (aka nsm) " << c_gold << "v" << NSM_VERSION << c_white;
+        std::cout << "Nift (aka nsm) " << c_gold << "v" << NSM_VERSION << c_white;
         std::cout << " (c)" << DateTimeInfo().currentYYYY();
         std::cout << " (" << c_blue << "https://nift.cc" << c_white << ")" << std::endl;
     }
 
-    if(cmd == "luarocks")
+    if(cmd == "git" || cmd == "luarocks")
     {
-        std::string sysStr = "luarocks";
+        std::string sysStr = cmd;
 
         for(int p=2; p<=noParams; ++p)
             sysStr += " " + std::string(argv[p]);
@@ -722,10 +737,10 @@ int main(int argc, char* argv[])
     else if(cmd == "interp" || cmd == "sh")
     {
         //ensures correct number of parameters given
-        if(noParams != 1 && noParams != 2)
-            return parError(noParams, argv, "1-2");
+        if(noParams != 1 && noParams != 2 && noParams != 3)
+            return parError(noParams, argv, "1-3");
 
-        std::string langOpt;
+        std::string param;
         Path path;
 
         std::string lang = "?";
@@ -733,21 +748,30 @@ int main(int argc, char* argv[])
             lang = "f++";
         else
         {
-            langOpt = argv[2];
-
-            if(langOpt.find_first_of('f') != std::string::npos)
-                lang = "f++";
-            else if(langOpt.find_first_of('n') != std::string::npos)
-                lang = "n++";
-            if(langOpt.find_first_of('l') != std::string::npos)
-                lang = "lua";
-            else if(langOpt.find_first_of('x') != std::string::npos)
-                lang = "exprtk";
-            else
+            for(int p=2; p<=noParams; ++p)
             {
-                start_err(std::cout) << cmd << ": cannot determine chosen language from " << quote(langOpt) << ", ";
-                std::cout << "valid options include '-n++', '-f++'" << std::endl;
-                return 1;
+                param = argv[2];
+
+                if(param == "-ps")
+                {
+                    #if defined _WIN32 || defined _WIN64
+                        use_powershell_colours();
+                    #endif
+                }
+                else if(param.find_first_of('f') != std::string::npos)
+                    lang = "f++";
+                else if(param.find_first_of('n') != std::string::npos)
+                    lang = "n++";
+                if(param.find_first_of('l') != std::string::npos)
+                    lang = "lua";
+                else if(param.find_first_of('x') != std::string::npos)
+                    lang = "exprtk";
+                else
+                {
+                    start_err(std::cout) << cmd << ": cannot determine chosen language from " << quote(param) << ", ";
+                    std::cout << "valid options include '-n++', '-f++', '-lua', '-exprtk'" << std::endl;
+                    return 1;
+                }
             }
         }
 
@@ -913,6 +937,11 @@ int main(int argc, char* argv[])
            cmd != "build-all" &&
            cmd != "serve")
         {
+            #if defined _WIN32 || defined _WIN64
+                if(ProjectInfo().open_global_config())
+                    return 1;
+            #endif
+
             unrecognisedCommand(cmd);
             return 1;
         }

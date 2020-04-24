@@ -45,6 +45,7 @@ struct ProjectInfo
     std::string contentExt,
                 outputExt,
                 scriptExt,
+                terminal,
                 unixTextEditor,
                 winTextEditor,
                 rootBranch,

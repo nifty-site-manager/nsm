@@ -1,6 +1,6 @@
 #basic makefile for nsm
-objects=nsm.o ConsoleColor.o DateTimeInfo.o Directory.o Expr.o ExprtkFns.o Filename.o FileSystem.o Getline.o GitInfo.o LuaFns.o LuaJIT.o NumFns.o Pagination.o Parser.o Path.o ProjectInfo.o Quoted.o StrFns.o SystemInfo.o Title.o TrackedInfo.o Variables.o WatchList.o
-cppfiles=nsm.cpp ConsoleColor.cpp DateTimeInfo.cpp Directory.cpp Expr.cpp ExprtkFns.cpp Filename.cpp FileSystem.cpp Getline.cpp GitInfo.cpp LuaFns.cpp LuaJIT.cpp NumFns.cpp Pagination.cpp Parser.cpp Path.cpp ProjectInfo.cpp Quoted.cpp StrFns.cpp SystemInfo.cpp Title.cpp TrackedInfo.cpp Variables.cpp WatchList.cpp
+objects=nsm.o ConsoleColor.o DateTimeInfo.o Directory.o Expr.o ExprtkFns.o Filename.o FileSystem.o Getline.o GitInfo.o Lolcat.o LuaFns.o LuaJIT.o NumFns.o Pagination.o Parser.o Path.o ProjectInfo.o Quoted.o StrFns.o SystemInfo.o Title.o TrackedInfo.o Variables.o WatchList.o
+cppfiles=nsm.cpp ConsoleColor.cpp DateTimeInfo.cpp Directory.cpp Expr.cpp ExprtkFns.cpp Filename.cpp FileSystem.cpp Getline.cpp GitInfo.cpp Lolcat.cpp LuaFns.cpp LuaJIT.cpp NumFns.cpp Pagination.cpp Parser.cpp Path.cpp ProjectInfo.cpp Quoted.cpp StrFns.cpp SystemInfo.cpp Title.cpp TrackedInfo.cpp Variables.cpp WatchList.cpp
 
 DESTDIR?=
 PREFIX?=/usr/local
@@ -117,7 +117,10 @@ Parser.o: Parser.cpp Parser.h DateTimeInfo.o Expr.o ExprtkFns.o Getline.o LuaFns
 WatchList.o: WatchList.cpp WatchList.h FileSystem.o
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
-Getline.o: Getline.cpp Getline.h ConsoleColor.o FileSystem.o StrFns.o Consts.h
+Getline.o: Getline.cpp Getline.h ConsoleColor.o FileSystem.o Lolcat.o StrFns.o Consts.h
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+Lolcat.o: Lolcat.cpp Lolcat.h FileSystem.o
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 LuaFns.o: LuaFns.cpp LuaFns.h LuaJIT.o ConsoleColor.o ExprtkFns.o FileSystem.o Path.o Quoted.o Variables.o Consts.h

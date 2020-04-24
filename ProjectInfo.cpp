@@ -159,13 +159,16 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
         if(global)
             create_config_file(configPath, ".html", 1);
         else
-            start_err(std::cout) << "open_config(): could not open Nift project config file as '" << get_pwd() <<  "/.nsm/nift.config' does not exist" << std::endl;
-        return 1;
+        {
+            start_err(std::cout) << "open_config(): could not load Nift project config file as '" << get_pwd() <<  "/.nsm/nift.config' does not exist" << std::endl;
+
+            return 1;
+        }
     }
 
     //if(!global)
       //  std::cout << "  ";
-    std::cout << "opening ";
+    std::cout << "loading ";
     if(global)
         std::cout << "global ";
     else
@@ -230,6 +233,15 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
                 iss >> backupScripts;
             else if(inType == "buildThreads")
                 iss >> buildThreads;
+            else if(inType == "terminal")
+            {
+                iss >> terminal;
+
+                #if defined _WIN32 || defined _WIN64
+                    if(terminal == "ps" || terminal == "powershell")
+                        use_powershell_colours();
+                #endif
+            }
             else if(inType == "unixTextEditor")
                 read_quoted(iss, unixTextEditor);
             else if(inType == "winTextEditor")
@@ -267,6 +279,8 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
         }
     }
     ifs.close();
+
+    add_colour();
 
     if(!global)
     {
@@ -392,7 +406,7 @@ int ProjectInfo::open_local_config()
 
 int ProjectInfo::open_tracking()
 {
-    std::cout << "opening project tracking file: " << Path(".nsm/", "tracking.list") << std::endl;
+    std::cout << "loading project tracking file: " << Path(".nsm/", "tracking.list") << std::endl;
     //std::cout << std::flush;
     std::fflush(stdout);
 
@@ -401,7 +415,7 @@ int ProjectInfo::open_tracking()
     if(!file_exists(".nsm/tracking.list"))
     {
         std::cout << std::endl;
-        start_err(std::cout) << "open_tracking(): could not open tracking information as '" << get_pwd() << "/.nsm/tracking.list' does not exist" << std::endl;
+        start_err(std::cout) << "open_tracking(): could not load tracking information as '" << get_pwd() << "/.nsm/tracking.list' does not exist" << std::endl;
         return 1;
     }
 
@@ -463,7 +477,7 @@ int ProjectInfo::open_tracking()
         {
             TrackedInfo cInfo = *(trackedAll.find(inInfo));
 
-            start_err(std::cout) << "failed to open .nsm/tracking.list" << std::endl;
+            start_err(std::cout) << "failed to load " << Path(".nsm/", "tracking.list") << std::endl;
             std::cout << c_purple << "reason: " << c_white << "duplicate entry for " << inInfo.name << std::endl;
             std::cout << c_light_blue << promptStr << c_white << "first entry:" << std::endl;
             std::cout << "        title: " << cInfo.title << std::endl;
@@ -504,6 +518,7 @@ int ProjectInfo::save_config(const std::string& configPathStr, bool global)
     ofs << "defaultTemplate " << defaultTemplate << "\n\n";
     ofs << "backupScripts " << backupScripts << "\n\n";
     ofs << "buildThreads " << buildThreads << "\n\n";
+    ofs << "terminal " << quote(terminal) << "\n\n";
     ofs << "unixTextEditor " << quote(unixTextEditor) << "\n";
     ofs << "winTextEditor " << quote(winTextEditor) << "\n\n";
     if(!global)

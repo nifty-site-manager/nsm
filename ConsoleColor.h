@@ -5,13 +5,19 @@
 #include <iostream>
 #include <fstream>
 
+void add_colour();
+
 #if defined _WIN32 || defined _WIN64
 	#include <Windows.h>
 
+	void use_powershell_colours();
+	int using_powershell_colours();
+
+	const HANDLE  hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+
 	struct WinConsoleColor
 	{
-		HANDLE  hConsole;
-		int col;
+		int col, ps_col;
 
 		WinConsoleColor(const int& Col);
 		WinConsoleColor(const int& foreground, const int& background);
@@ -19,16 +25,16 @@
 
 	std::ostream& operator<<(std::ostream& os, const WinConsoleColor& cc);
 
-	const WinConsoleColor c_aqua(11, 0);
-	const WinConsoleColor c_light_blue(3, 0);
-	const WinConsoleColor c_blue(9, 0);
-	const WinConsoleColor c_gold(6, 0);
-	const WinConsoleColor c_green(10, 0);
-	const WinConsoleColor c_purple(13, 0);
-	const WinConsoleColor c_red(12, 0);
-	const WinConsoleColor c_dark_red(4, 0);
-	const WinConsoleColor c_white(15, 0);
-	const WinConsoleColor c_yellow(14, 0);
+	const WinConsoleColor c_aqua(11);
+	const WinConsoleColor c_light_blue(3);
+	const WinConsoleColor c_blue(9);
+	const WinConsoleColor c_gold(6);
+	const WinConsoleColor c_green(10);
+	const WinConsoleColor c_purple(13);
+	const WinConsoleColor c_red(12);
+	const WinConsoleColor c_dark_red(4);
+	const WinConsoleColor c_white(15);
+	const WinConsoleColor c_yellow(14);
 #else  //*nix
 	struct NixConsoleColor
 	{

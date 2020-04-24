@@ -17,6 +17,10 @@ bool path_exists(const std::string& path);
 bool dir_exists(const std::string& path);
 bool file_exists(const std::string& path);
 bool exec_exists(const std::string& path);
+
+bool can_exec(const std::string& path);
+bool can_write(const std::string& path);
+
 bool remove_file(const Path& path);
 bool remove_path(const Path& path);
 bool remove_path(const Path& path,
