@@ -15,6 +15,7 @@
 #include "Expr.h"
 #include "ExprtkFns.h"
 #include "Getline.h"
+#include "hashtk/HashTk.h"
 #include "LuaFns.h"
 #include "LuaJIT.h"
 #include "Pagination.h"
@@ -25,6 +26,8 @@
 #include "Timer.h"
 
 int find_last_of_special(const std::string& s);
+
+void setIncrMode(const int& IncrMode);
 
 struct Parser
 {

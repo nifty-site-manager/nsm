@@ -46,18 +46,32 @@ void add_colour();
 	std::ostream& operator<<(std::ostream& os, const NixConsoleColor& cc);
 
 	//check also http://www.lihaoyi.com/post/BuildyourownCommandLinewithANSIescapecodes.html
-	const NixConsoleColor c_aqua({ 0x1b, '[', '1', ';', '3', '6', 'm', 0 });
+	const NixConsoleColor       c_aqua({ 0x1b, '[', '1', ';', '3', '6', 'm', 0 });
 	const NixConsoleColor c_light_blue({ 0x1b, '[', '1', ';', '3', '4', 'm', 0 });
-	const NixConsoleColor c_blue({ 0x1b, '[', '0', ';', '3', '4', 'm', 0 });
-	const NixConsoleColor c_gold({ 0x1b, '[', '0', ';', '3', '3', 'm', 0 });
-	const NixConsoleColor c_green({ 0x1b, '[', '1', ';', '3', '2', 'm', 0 });
-	const NixConsoleColor c_purple({ 0x1b, '[', '1', ';', '3', '5', 'm', 0 });
-	const NixConsoleColor c_red({ 0x1b, '[', '1', ';', '3', '1', 'm', 0 });
-	const NixConsoleColor c_dark_red({ 0x1b, '[', '0', ';', '3', '9', 'm', 0 });
-	const NixConsoleColor c_white({ 0x1b, '[', '0', ';', '3', '9', 'm', 0 });
-	const NixConsoleColor c_yellow({ 0x1b, '[', '1', ';', '3', '3', 'm', 0 });
+	const NixConsoleColor       c_blue({ 0x1b, '[', '0', ';', '3', '4', 'm', 0 });
+	const NixConsoleColor       c_gold({ 0x1b, '[', '0', ';', '3', '3', 'm', 0 });
+	const NixConsoleColor      c_green({ 0x1b, '[', '1', ';', '3', '2', 'm', 0 });
+	const NixConsoleColor     c_purple({ 0x1b, '[', '1', ';', '3', '5', 'm', 0 });
+	const NixConsoleColor        c_red({ 0x1b, '[', '1', ';', '3', '1', 'm', 0 });
+	const NixConsoleColor   c_dark_red({ 0x1b, '[', '0', ';', '3', '1', 'm', 0 });
+	const NixConsoleColor      c_white({ 0x1b, '[', '0', ';', '3', '9', 'm', 0 });
+	const NixConsoleColor     c_yellow({ 0x1b, '[', '1', ';', '3', '3', 'm', 0 });
 
-	/*const char c_aqua[]       = { 0x1b, '[', '1', ';', '3', '6', 'm', 0 };
+	/*
+	const NixConsoleColor       c_aqua("\033[1;38;5;14m");
+	const NixConsoleColor c_light_blue("\033[1;38;5;12m");
+	const NixConsoleColor       c_blue("\033[0;38;5;4m");
+	const NixConsoleColor       c_gold("\033[0;38;5;3m");
+	const NixConsoleColor      c_green("\033[1;38;5;10m");
+	const NixConsoleColor     c_purple("\033[1;38;5;13m");
+	const NixConsoleColor        c_red("\033[1;38;5;9m");
+	const NixConsoleColor   c_dark_red("\033[0;38;5;1m");
+	const NixConsoleColor      c_white("\033[0;38;5;15m");
+	const NixConsoleColor     c_yellow("\033[1;38;5;11m");
+	*/
+
+	/*
+	const char c_aqua[]       = { 0x1b, '[', '1', ';', '3', '6', 'm', 0 };
 	const char c_light_blue[] = { 0x1b, '[', '1', ';', '3', '4', 'm', 0 };
 	const char c_blue[]       = { 0x1b, '[', '0', ';', '3', '4', 'm', 0 };
 	const char c_gold[]       = { 0x1b, '[', '0', ';', '3', '3', 'm', 0 };
@@ -66,7 +80,8 @@ void add_colour();
 	const char c_red[]        = { 0x1b, '[', '1', ';', '3', '1', 'm', 0 };
 	const char c_dark_red[]   = { 0x1b, '[', '0', ';', '3', '1', 'm', 0 };
 	const char c_white[]      = { 0x1b, '[', '0', ';', '3', '9', 'm', 0 };
-	const char c_yellow[]     = { 0x1b, '[', '1', ';', '3', '3', 'm', 0 };*/
+	const char c_yellow[]     = { 0x1b, '[', '1', ';', '3', '3', 'm', 0 };
+	*/
 #endif
 
 

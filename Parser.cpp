@@ -130,6 +130,83 @@ int Parser::lua_addnsmfns()
 
 int Parser::lolcat_init()
 {
+    //first tries finding executables in path variables (does **not** work with snaps for example)
+    std::string path = getenv("PATH");
+    std::string pathDir;
+    std::vector<std::string> pathDirs;
+    size_t sLinePos;
+
+    for(size_t linePos = 0; linePos < path.size(); ++linePos)
+    {
+        sLinePos = linePos;
+        linePos = path.find_first_of(":;", sLinePos);
+        if(linePos == std::string::npos)
+            break;
+        pathDir = path.substr(sLinePos, linePos-sLinePos);
+
+        if(dir_exists(pathDir))
+            pathDirs.push_back(pathDir);
+    }
+
+    std::vector<std::string> lolcatCmds = {"lolcat-cc", "lolcat-c", "lolcat-rs", "lolcat", "nift", "nsm"};
+
+    for(size_t i=0; i<lolcatCmds.size(); ++i)
+    {
+        for(size_t p=0; p<pathDirs.size(); ++p)
+        {
+            #if defined _WIN32 || defined _WIN64
+                if(exec_exists(pathDirs[p] + "/" + lolcatCmds[i] + ".exe"))
+            #else
+                if(exec_exists(pathDirs[p] + "/" + lolcatCmds[i]))
+            #endif
+            {
+                if(i == 0)
+                {
+                    #if defined _WIN32 || defined _WIN64
+                        if(using_powershell_colours())
+                            lolcatCmd = "lolcat-cc -ps -f";
+                        else
+                            lolcatCmd = "lolcat-cc -f";
+                    #else
+                        lolcatCmd = "lolcat-cc -f";
+                    #endif
+                }
+                else if(i == 1)
+                    lolcatCmd = "lolcat-c";
+                else if(i == 2)
+                    lolcatCmd = "lolcat-rs";
+                else if(i == 3)
+                    lolcatCmd = "lolcat";
+                else if(i == 4)
+                {
+                    #if defined _WIN32 || defined _WIN64
+                        if(using_powershell_colours())
+                            lolcatCmd = "nift lolcat-cc -ps -f";
+                        else
+                            lolcatCmd = "nift lolcat-cc -f";
+                    #else
+                        lolcatCmd = "nift lolcat-cc -f";
+                    #endif
+                }
+                else if(i == 5)
+                {
+                    #if defined _WIN32 || defined _WIN64
+                        if(using_powershell_colours())
+                            lolcatCmd = "nsm lolcat-cc -ps -f";
+                        else
+                            lolcatCmd = "nsm lolcat-cc -f";
+                    #else
+                        lolcatCmd = "nsm lolcat-cc -f";
+                    #endif
+                }
+
+                lolcatInit = 1;
+                return 1;
+            }
+        }
+    }
+
+    //tries actually running lolcat programs (eg. works with snaps)
     std::string lsCmd;
     #if defined _WIN32 || defined _WIN64
         lsCmd = "dir | ";
@@ -148,11 +225,11 @@ int Parser::lolcat_init()
     {
         #if defined _WIN32 || defined _WIN64
             if(using_powershell_colours())
-                lolcatCmd = "lolcat-cc -ps -t";
+                lolcatCmd = "lolcat-cc -ps -f";
             else
-                lolcatCmd = "lolcat-cc -t";
+                lolcatCmd = "lolcat-cc -f";
         #else
-            lolcatCmd = "lolcat-cc -t";
+            lolcatCmd = "lolcat-cc -f";
         #endif
     }
     else if(!system((lsCmd + "lolcat-c" + suppressor).c_str()))
@@ -165,11 +242,22 @@ int Parser::lolcat_init()
     {
         #if defined _WIN32 || defined _WIN64
             if(using_powershell_colours())
-                lolcatCmd = "nift lolcat -ps";
+                lolcatCmd = "nift lolcat-cc -ps -f";
             else
-                lolcatCmd = "nift lolcat";
+                lolcatCmd = "nift lolcat-cc -f";
         #else
-            lolcatCmd = "nift lolcat";
+            lolcatCmd = "nift lolcat-cc -f";
+        #endif
+    }
+    else if(!system((lsCmd + "nsm lolcat" + suppressor).c_str()))
+    {
+        #if defined _WIN32 || defined _WIN64
+            if(using_powershell_colours())
+                lolcatCmd = "nsm lolcat-cc -ps -f";
+            else
+                lolcatCmd = "nsm lolcat-cc -f";
+        #else
+            lolcatCmd = "nsm lolcat-cc -f";
         #endif
     }
     else
@@ -388,7 +476,7 @@ std::string get_env(const char* name)
 
 int Parser::refresh_completions()
 {
-    std::string path = get_env("PATH");
+    std::string path = getenv("PATH");
     std::string pathDir;
     std::vector<std::string> pathDirFiles;
     size_t sLinePos;
@@ -623,6 +711,15 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
     return result;
 }
 
+std::mutex checked_hash_mtx;
+std::set<Path> checkedHashFile;
+int incrMode;
+
+void setIncrMode(const int& IncrMode)
+{
+    incrMode = IncrMode;
+}
+
 int Parser::run(const Path& path, char lang, std::ostream& eos)
 {
     mode = MODE_RUN;
@@ -675,7 +772,29 @@ int Parser::run(const Path& path, char lang, std::ostream& eos)
     parsedText = "";
     contentAdded = 0;
 
-    //adds content and template paths to dependencies
+    //adds script path to dependencies
+    if(incrMode != INCR_MOD)
+    {
+        checked_hash_mtx.lock();
+        if(!checkedHashFile.count(path))
+        {
+            checkedHashFile.insert(path);
+            checked_hash_mtx.unlock();
+            Path hashPath = path.getHashPath();
+            std::string hashPathStr = hashPath.str();
+            unsigned int hash = FNVHash(string_from_file(path.str()));
+            if(!file_exists(hashPathStr) || 
+               (unsigned) std::atoi(string_from_file(hashPathStr).c_str()) != hash)
+            {
+                hashPath.ensureDirExists();
+                std::ofstream ofs(hashPathStr);
+                ofs << hash << "\n";
+                ofs.close();
+            }
+        }
+        else
+            checked_hash_mtx.unlock();
+    }
     depFiles.insert(path);
 
     //opens up path file to start parsing from
@@ -813,11 +932,60 @@ int Parser::build(const TrackedInfo& ToBuild,
 
     //checks for pre-build scripts
     if(file_exists("pre-build" + scriptExt))
-        depFiles.insert(Path("", "pre-build" + scriptExt));
+    {
+        Path dep("", "pre-build" + scriptExt);
+        if(incrMode != INCR_MOD)
+        {
+            checked_hash_mtx.lock();
+            if(!checkedHashFile.count(dep))
+            {
+                checkedHashFile.insert(dep);
+                checked_hash_mtx.unlock();
+                Path hashPath = dep.getHashPath();
+                std::string hashPathStr = hashPath.str();
+                unsigned int hash = FNVHash(string_from_file(dep.str()));
+                if(!file_exists(hashPathStr) || 
+                   (unsigned) std::atoi(string_from_file(hashPathStr).c_str()) != hash)
+                {
+                    hashPath.ensureDirExists();
+                    std::ofstream ofs(hashPathStr);
+                    ofs << hash << "\n";
+                    ofs.close();
+                }
+            }
+            else
+                checked_hash_mtx.unlock();
+        }
+        depFiles.insert(dep);
+    }
     Path prebuildScript = toBuild.contentPath;
     prebuildScript.file = prebuildScript.file.substr(0, prebuildScript.file.find_first_of('.')) + "-pre-build" + cScriptExt;
     if(file_exists(prebuildScript.str()))
+    {
+        if(incrMode != INCR_MOD)
+        {
+            checked_hash_mtx.lock();
+            if(!checkedHashFile.count(prebuildScript))
+            {
+                checkedHashFile.insert(prebuildScript);
+                checked_hash_mtx.unlock();
+                Path hashPath = prebuildScript.getHashPath();
+                std::string hashPathStr = hashPath.str();
+                unsigned int hash = FNVHash(string_from_file(prebuildScript.str()));
+                if(!file_exists(hashPathStr) || 
+                   (unsigned) std::atoi(string_from_file(hashPathStr).c_str()) != hash)
+                {
+                    hashPath.ensureDirExists();
+                    std::ofstream ofs(hashPathStr);
+                    ofs << hash << "\n";
+                    ofs.close();
+                }
+            }
+            else
+                checked_hash_mtx.unlock();
+        }
         depFiles.insert(prebuildScript);
+    }
     if(run_script(eos, prebuildScript, backupScripts, 0))
         return 1;
 
@@ -847,10 +1015,33 @@ int Parser::build(const TrackedInfo& ToBuild,
         ifs.close();
     }
 
-    //adds content and template paths to dependencies
-    depFiles.insert(toBuild.contentPath);
+    //adds template path to dependencies
     if(!blankTemplate)
+    {
+        if(incrMode != INCR_MOD)
+        {
+            checked_hash_mtx.lock();
+            if(!checkedHashFile.count(toBuild.templatePath))
+            {
+                checkedHashFile.insert(toBuild.templatePath);
+                checked_hash_mtx.unlock();
+                Path hashPath = toBuild.templatePath.getHashPath();
+                std::string hashPathStr = hashPath.str();
+                unsigned int hash = FNVHash(string_from_file(toBuild.templatePath.str()));
+                if(!file_exists(hashPathStr) || 
+                   (unsigned) std::atoi(string_from_file(hashPathStr).c_str()) != hash)
+                {
+                    hashPath.ensureDirExists();
+                    std::ofstream ofs(hashPathStr);
+                    ofs << hash << "\n";
+                    ofs.close();
+                }
+            }
+            else
+                checked_hash_mtx.unlock();
+        }
         depFiles.insert(toBuild.templatePath);
+    }
 
     //opens up template file to start parsing from
     std::string fileStr;
@@ -1026,11 +1217,60 @@ int Parser::build(const TrackedInfo& ToBuild,
 
         //checks for post-build scripts
         if(file_exists("post-build" + scriptExt))
-            depFiles.insert(Path("", "post-build" + scriptExt));
+        {
+            Path dep("", "post-build" + scriptExt);
+            if(incrMode != INCR_MOD)
+            {
+                checked_hash_mtx.lock();
+                if(!checkedHashFile.count(dep))
+                {
+                    checkedHashFile.insert(dep);
+                    checked_hash_mtx.unlock();
+                    Path hashPath = dep.getHashPath();
+                    std::string hashPathStr = hashPath.str();
+                    unsigned int hash = FNVHash(string_from_file(dep.str()));
+                    if(!file_exists(hashPathStr) || 
+                       (unsigned) std::atoi(string_from_file(hashPathStr).c_str()) != hash)
+                    {
+                        hashPath.ensureDirExists();
+                        std::ofstream ofs(hashPathStr);
+                        ofs << hash << "\n";
+                        ofs.close();
+                    }
+                }
+                else
+                    checked_hash_mtx.unlock();
+            }
+            depFiles.insert(dep);
+        }
         Path postbuildScript = toBuild.contentPath;
         postbuildScript.file = postbuildScript.file.substr(0, postbuildScript.file.find_first_of('.')) + "-post-build" + cScriptExt;
         if(file_exists(postbuildScript.str()))
+        {
+            if(incrMode != INCR_MOD)
+            {
+                checked_hash_mtx.lock();
+                if(!checkedHashFile.count(postbuildScript))
+                {
+                    checkedHashFile.insert(postbuildScript);
+                    checked_hash_mtx.unlock();
+                    Path hashPath = postbuildScript.getHashPath();
+                    std::string hashPathStr = hashPath.str();
+                    unsigned int hash = FNVHash(string_from_file(postbuildScript.str()));
+                    if(!file_exists(hashPathStr) || 
+                       (unsigned) std::atoi(string_from_file(hashPathStr).c_str()) != hash)
+                    {
+                        hashPath.ensureDirExists();
+                        std::ofstream ofs(hashPathStr);
+                        ofs << hash << "\n";
+                        ofs.close();
+                    }
+                }
+                else
+                    checked_hash_mtx.unlock();
+            }
             depFiles.insert(postbuildScript);
+        }
         if(run_script(eos, postbuildScript, backupScripts, 0))
             return 1; //should an output file be listed as failing to build if the post-build script fails?
 
@@ -2632,6 +2872,29 @@ int Parser::read_and_process_fn(const bool& indent,
 
             Path inputPath;
             inputPath.set_file_path_from(inputPathStr);
+
+            if(incrMode != INCR_MOD)
+            {
+                checked_hash_mtx.lock();
+                if(!checkedHashFile.count(inputPath))
+                {
+                    checkedHashFile.insert(inputPath);
+                    checked_hash_mtx.unlock();
+                    Path hashPath = inputPath.getHashPath();
+                    std::string hashPathStr = hashPath.str();
+                    unsigned int hash = FNVHash(string_from_file(inputPathStr));
+                    if(!file_exists(hashPathStr) || 
+                       (unsigned) std::atoi(string_from_file(hashPathStr).c_str()) != hash)
+                    {
+                        hashPath.ensureDirExists();
+                        std::ofstream ofs(hashPathStr);
+                        ofs << hash << "\n";
+                        ofs.close();
+                    }
+                }
+                else
+                    checked_hash_mtx.unlock();
+            }
             depFiles.insert(inputPath);
 
             if(inputPath == toBuild.contentPath)
@@ -2862,6 +3125,30 @@ int Parser::read_and_process_fn(const bool& indent,
                         os_mtx->unlock();
                         return 1;
                     }
+
+                    if(incrMode != INCR_MOD)
+                    {
+                        checked_hash_mtx.lock();
+                        if(!checkedHashFile.count(inputPath))
+                        {
+                            checkedHashFile.insert(inputPath);
+                            checked_hash_mtx.unlock();
+                            Path hashPath = inputPath.getHashPath();
+                            std::string hashPathStr = hashPath.str();
+                            unsigned int hash = FNVHash(string_from_file(inputPath.str()));
+                            if(!file_exists(hashPathStr) || 
+                               (unsigned) std::atoi(string_from_file(hashPathStr).c_str()) != hash)
+                            {
+                                hashPath.ensureDirExists();
+                                std::ofstream ofs(hashPathStr);
+                                ofs << hash << "\n";
+                                ofs.close();
+                            }
+                        }
+                        else
+                            checked_hash_mtx.unlock();
+                    }
+                    depFiles.insert(inputPath);
 
                     std::string fileStr = string_from_file(inputPath.str());
 
@@ -4151,7 +4438,7 @@ int Parser::read_and_process_fn(const bool& indent,
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                rnbwcout("lolcat activated");
+                rnbwcout("lolcat activated using command " + quote(lolcatCmd));
                 if(!consoleLocked)
                     os_mtx->unlock();
             }
@@ -4451,7 +4738,6 @@ int Parser::read_and_process_fn(const bool& indent,
                     os_mtx->lock();
                 start_err_ml(eos, readPath, sLineNo, lineNo) << "pathtofile: file " << targetFilePath << " does not exist" << std::endl;
                 os_mtx->unlock();
-                std::cout << "WTF" << std::endl;
                 return 1;
             }
 
@@ -8642,6 +8928,71 @@ int Parser::read_and_process_fn(const bool& indent,
             return 0;
         }
     }
+    else if(funcName[0] == 'h')
+    {
+        if(funcName == "hash")
+        {
+            if(params.size() != 1 && params.size() != 2)
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "hash: expected 1-2 parameter, got " << params.size() << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+
+            if(options.size())
+            {
+                for(size_t o=0; o<options.size(); ++o)
+                {
+                    if(options[o] == "f")
+                    {
+                        if(!file_exists(params[0]))
+                        {
+                            if(!consoleLocked)
+                                os_mtx->lock();
+                            start_err_ml(eos, readPath, sLineNo, lineNo) << "hash: path " << Path(params[0], "") << " does not exist" << std::endl;
+                            os_mtx->unlock();
+                            return 1;
+                        }
+                        params[0] = string_from_file(params[0]);
+                    }
+                }
+            }
+
+            if(params.size() == 1)
+                params.push_back("RS");
+
+            if(params[1] == "RS")
+                params[0] = std::to_string(RSHash(params[0]));
+            else if(params[1]  == "JS")
+                params[0] = std::to_string(JSHash(params[0]));
+            else if(params[1] == "PJW")
+                params[0] = std::to_string(PJWHash(params[0]));
+            else if(params[1] == "ELF")
+                params[0] = std::to_string(ELFHash(params[0]));
+            else if(params[1] == "BKDR")
+                params[0] = std::to_string(BKDRHash(params[0]));
+            else if(params[1] == "SDBM")
+                params[0] = std::to_string(SDBMHash(params[0]));
+            else if(params[1] == "DJB")
+                params[0] = std::to_string(DJBHash(params[0]));
+            else if(params[1] == "DEK")
+                params[0] = std::to_string(DEKHash(params[0]));
+            else if(params[1] == "FNV")
+                params[0] = std::to_string(FNVHash(params[0]));
+            else if(params[1] == "BP")
+                params[0] = std::to_string(BPHash(params[0]));
+            else if(params[1] == "AP")
+                params[0] = std::to_string(APHash(params[0]));
+
+            outStr += params[0];
+            if(indent)
+                indentAmount += into_whitespace(params[0]);
+
+            return 0;
+        }
+    }
     else if(funcName[0] == 'g')
     {
         if(funcName == "getline")
@@ -10666,6 +11017,29 @@ int Parser::read_and_process_fn(const bool& indent,
             {
                 depPathStr = params[p];
                 depPath.set_file_path_from(depPathStr);
+
+                if(incrMode != INCR_MOD)
+                {
+                    checked_hash_mtx.lock();
+                    if(!checkedHashFile.count(depPath))
+                    {
+                        checkedHashFile.insert(depPath);
+                        checked_hash_mtx.unlock();
+                        Path hashPath = depPath.getHashPath();
+                        std::string hashPathStr = hashPath.str();
+                        unsigned int hash = FNVHash(string_from_file(depPathStr));
+                        if(!file_exists(hashPathStr) || 
+                           (unsigned) std::atoi(string_from_file(hashPathStr).c_str()) != hash)
+                        {
+                            hashPath.ensureDirExists();
+                            std::ofstream ofs(hashPathStr);
+                            ofs << hash << "\n";
+                            ofs.close();
+                        }
+                    }
+                    else
+                        checked_hash_mtx.unlock();
+                }
                 depFiles.insert(depPath);
 
                 if(depPath == toBuild.contentPath)
@@ -11224,6 +11598,29 @@ int Parser::read_and_process_fn(const bool& indent,
             scriptPath.set_file_path_from(params[0]);
             if(scriptPath == toBuild.contentPath)
                 contentAdded = 1;
+
+            if(incrMode != INCR_MOD)
+            {
+                checked_hash_mtx.lock();
+                if(!checkedHashFile.count(scriptPath))
+                {
+                    checkedHashFile.insert(scriptPath);
+                    checked_hash_mtx.unlock();
+                    Path hashPath = scriptPath.getHashPath();
+                    std::string hashPathStr = hashPath.str();
+                    unsigned int hash = FNVHash(string_from_file(scriptPath.str()));
+                    if(!file_exists(hashPathStr) || 
+                       (unsigned) std::atoi(string_from_file(hashPathStr).c_str()) != hash)
+                    {
+                        hashPath.ensureDirExists();
+                        std::ofstream ofs(hashPathStr);
+                        ofs << hash << "\n";
+                        ofs.close();
+                    }
+                }
+                else
+                    checked_hash_mtx.unlock();
+            }
             depFiles.insert(scriptPath);
 
             if(file_exists(params[0]))

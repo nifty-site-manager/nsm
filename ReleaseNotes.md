@@ -2,6 +2,15 @@
 Nift Release Notes
 ------------------
 
+Version 2.3.6 of Nift
+* improved how Nift searches for installed version of lolcat
+* fixed bug with lolcat output
+* embedded HashTk
+* added hash fn
+* added hash and hybrid modes for incremental builds
+* fixed various bugs
+* made various improvements
+
 Version 2.3.5 of Nift
 * added REPL shortcut support for more terminals
 * added support for powershell (add `terminal ps` to global/project config files)

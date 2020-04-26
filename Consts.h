@@ -4,7 +4,23 @@
 #include <cstdio>
 #include <iostream>
 
-const std::string NSM_VERSION = "2.3.5";
+const std::string NSM_VERSION = "2.3.6";
+
+const int HASH_RS      = -2011;
+const int HASH_JS      = -2012;
+const int HASH_PJW     = -2013;
+const int HASH_ELF     = -2014;
+const int HASH_BKDR    = -2015;
+const int HASH_SDBM    = -2016;
+const int HASH_DJB     = -2017;
+const int HASH_DEK     = -2018;
+const int HASH_FNV     = -2019;
+const int HASH_BP      = -2020;
+const int HASH_AP      = -2021;
+
+const int INCR_MOD     = -2022;
+const int INCR_HASH    = -2023;
+const int INCR_HYB     = -2024;
 
 const int LANG_EXPRTK  = -2025;
 const int LANG_FPP     = -2026;

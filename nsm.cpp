@@ -183,19 +183,6 @@ int main(int argc, const char* argv[])
     Timer timer;
     timer.start();
 
-    /*char c;
-
-    enable_raw_mode();
-
-    while(c != 'q')
-    {
-        c = getchar();
-
-        std::cout << (int) c << std::endl;
-    }
-
-    disable_raw_mode();*/
-
     Path globalConfigPath(app_dir() + "/.nift/", "nift.config");
     if(!file_exists(globalConfigPath.str()))
         create_config_file(globalConfigPath, ".html", 1);
@@ -213,7 +200,7 @@ int main(int argc, const char* argv[])
     while(cmd.size() && cmd[0] == '-')
         cmd = cmd.substr(1, cmd.size()-1);
 
-    if(cmd == "lolcat")
+    if(cmd == "lolcat-cc")
         return lolmain(argc, argv);
 
     if(get_pwd() == "/")
@@ -298,6 +285,7 @@ int main(int argc, const char* argv[])
         std::cout << "| new-script-ext    | par: (name) script-ext                   |" << std::endl;
         std::cout << "| no-build-thrds    | par: (no-threads) [-n == n*cores]        |" << std::endl;
         std::cout << "| backup-scripts    | par: (option)                            |" << std::endl;
+        std::cout << "| incr-mode         | par: (mode)                              |" << std::endl;
         std::cout << "| watch             | par: dir (cont-ext) (template) (out-ext) |" << std::endl;
         std::cout << "| unwatch           | par: dir (cont-ext)                      |" << std::endl;
         std::cout << "+--------------------------------------------------------------+" << std::endl;
@@ -748,30 +736,21 @@ int main(int argc, const char* argv[])
             lang = "f++";
         else
         {
-            for(int p=2; p<=noParams; ++p)
-            {
-                param = argv[2];
+            param = argv[2];
 
-                if(param == "-ps")
-                {
-                    #if defined _WIN32 || defined _WIN64
-                        use_powershell_colours();
-                    #endif
-                }
-                else if(param.find_first_of('f') != std::string::npos)
-                    lang = "f++";
-                else if(param.find_first_of('n') != std::string::npos)
-                    lang = "n++";
-                if(param.find_first_of('l') != std::string::npos)
-                    lang = "lua";
-                else if(param.find_first_of('x') != std::string::npos)
-                    lang = "exprtk";
-                else
-                {
-                    start_err(std::cout) << cmd << ": cannot determine chosen language from " << quote(param) << ", ";
-                    std::cout << "valid options include '-n++', '-f++', '-lua', '-exprtk'" << std::endl;
-                    return 1;
-                }
+            if(param.find_first_of('f') != std::string::npos)
+                lang = "f++";
+            else if(param.find_first_of('n') != std::string::npos)
+                lang = "n++";
+            else if(param.find_first_of('l') != std::string::npos)
+                lang = "lua";
+            else if(param.find_first_of('x') != std::string::npos)
+                lang = "exprtk";
+            else
+            {
+                start_err(std::cout) << cmd << ": cannot determine chosen language from " << quote(param) << ", ";
+                std::cout << "valid options include '-n++', '-f++', '-lua', '-exprtk'" << std::endl;
+                return 1;
             }
         }
 
@@ -910,6 +889,7 @@ int main(int argc, const char* argv[])
            cmd != "info-names" &&
            cmd != "info-tracking" &&
            cmd != "info-watching" &&
+           cmd != "incr-mode" &&
            cmd != "track" &&
            cmd != "track-from-file" &&
            cmd != "track-dir" &&
@@ -1058,6 +1038,7 @@ int main(int argc, const char* argv[])
             std::cout << " defaultTemplate: " << project.defaultTemplate << std::endl << std::endl;
             std::cout << " buildThreads: " << project.buildThreads << std::endl << std::endl;
             std::cout << " backupScripts: " << project.backupScripts << std::endl << std::endl;
+            std::cout << " incrementalMode: " << project.incrMode << std::endl << std::endl;
             std::cout << " unixTextEditor: " << quote(project.unixTextEditor) << std::endl;
             std::cout << " winTextEditor: " << quote(project.winTextEditor) << std::endl << std::endl;
             std::cout << " rootBranch: " << quote(project.rootBranch) << std::endl;
@@ -1179,7 +1160,7 @@ int main(int argc, const char* argv[])
 
             return 0;
         }
-        if(cmd == "no-build-thrds")
+        else if(cmd == "no-build-thrds")
         {
             //ensures correct number of parameters given
             if(noParams != 1 && noParams != 2)
@@ -1204,7 +1185,7 @@ int main(int argc, const char* argv[])
 
             return 0;
         }
-        if(cmd == "backup-scripts")
+        else if(cmd == "backup-scripts")
         {
             //ensures correct number of parameters given
             if(noParams != 1 && noParams != 2)
@@ -1251,6 +1232,30 @@ int main(int argc, const char* argv[])
             }
 
             return 0;
+        }
+        else if(cmd == "incr-mode")
+        {
+            if(noParams > 2)
+                return parError(noParams, argv, "1-2");
+
+            if(noParams == 1)
+            {
+                if(project.incrMode == INCR_MOD)
+                    std::cout << "mod" << std::endl;
+                else if(project.incrMode == INCR_HASH)
+                    std::cout << "hash" << std::endl;
+                else if(project.incrMode == INCR_HYB)
+                    std::cout << "hybrid" << std::endl;
+                else
+                {
+                    start_err(std::cout) << "incr-mode: do not recognise incremental mode " << project.incrMode << std::endl;
+                    return 1;
+                }
+
+                return 0;
+            }
+            else
+                return project.set_incr_mode(argv[2]);
         }
         else if(cmd == "watch")
         {

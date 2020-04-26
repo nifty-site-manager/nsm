@@ -90,7 +90,7 @@ int nsm_getch()
 
 int rnbwcout(const std::string& str)
 {
-    std::stringstream ss(".lolcat.output");
+    std::stringstream ss;
     ss << str << std::endl;
 
     return lolfilter(ss);
@@ -98,7 +98,7 @@ int rnbwcout(const std::string& str)
 
 int rnbwcout(const std::set<std::string>& strs)
 {
-    std::stringstream ss(".lolcat.output");
+    std::stringstream ss;
     if(strs.size())
     {
 	    auto str=strs.begin();

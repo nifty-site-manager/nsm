@@ -80,6 +80,11 @@ Path Path::getInfoPath() const
     return Path(".nsm/" + dir,  strippedExtension(file) + ".info");
 }
 
+Path Path::getHashPath() const
+{
+    return Path(".nsm/" + dir,  strippedExtension(file) + ".hash");
+}
+
 Path Path::getPaginationPath() const
 {
     return Path(".nsm/" + dir,  strippedExtension(file) + ".pagination");

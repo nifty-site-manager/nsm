@@ -79,19 +79,29 @@
 	                              "\033[38;5;33m"};
 #endif
 
-bool replaceTabs = 0;
+bool format = 0;
 int tabWidth = 4;
-std::string replace_tabs(const std::string& str)
+std::string formatStr(const std::string& str)
 {
-	std::string replacedStr;
+	std::string formatted;
+	size_t j;
 	for(size_t i=0; i<str.size(); ++i)
 	{
 		if(str[i] == '\t')
-			replacedStr += std::string(tabWidth, ' ');
+			formatted += std::string(tabWidth, ' ');
+		else if((str[i] == '\033' || str[i] == 0x1b) && 
+		        str.substr(i+1, 1) == "[" && str.substr(i+1, 4) != "[2K\r")
+		{
+			j = str.find_first_of('m', i);
+			if(j != std::string::npos)
+				i = j;
+			else
+				formatted += str[i];
+		}
 		else
-			replacedStr += str[i];
+			formatted += str[i];
 	}
-	return replacedStr;
+	return formatted;
 }
 
 int mod(const int& x, const int& m)
@@ -119,18 +129,39 @@ int zigzagcat(std::istream& is)
 		if(!getline(is, inLine))
 			break;
 
-		if(replaceTabs)
-			inLine = replace_tabs(inLine);
+		if(format)
+			inLine = formatStr(inLine);
 
 		if(addLineNo)
 			inLine = std::to_string(lineNo) + ": " + inLine;
-		if(int(floor(lineNo/noColors))%2)
+		if(int(std::floor(lineNo/noColors))%2)
 			color = sColor = (sColor+1)%noColors;
 		else
 			color = sColor = mod(sColor-1, noColors);
 
-		for(size_t i=0; i<inLine.size(); color=(color+1)%noColors, i+=width)
-			std::cout << colors[color] << inLine.substr(i, width);
+		for(size_t i=0; i<inLine.size(); color=(color+1)%noColors)
+		{
+			if(i+width-1 < inLine.size() && inLine[i+width-1] == '\xF0')
+			{
+				std::cout << colors[color] << inLine.substr(i, width+3);
+				i += width+3;
+			}
+			else if(i+width-2 < inLine.size() && inLine[i+width-2] == '\xF0')
+			{
+				std::cout << colors[color] << inLine.substr(i, width+2);
+				i += width+2;
+			}
+			else if(i+width-3 < inLine.size() && inLine[i+width-3] == '\xF0')
+			{
+				std::cout << colors[color] << inLine.substr(i, width+1);
+				i += width+1;
+			}
+			else
+			{
+				std::cout << colors[color] << inLine.substr(i, width);
+				i += width;
+			}
+		}
 		std::cout << std::endl;
 
 		++lineNo;
@@ -146,15 +177,15 @@ int lolcat(std::istream& is)
 	std::string inLine;
 	int color,
 	    lineNo = 0,
-	    r = rand()%noColors,
-		sWidth;
+	    r = rand()%noColors;
+	size_t sWidth;
 	while(!is.eof())
 	{
 		if(!getline(is, inLine))
 			break;
 
-		if(replaceTabs)
-			inLine = replace_tabs(inLine);
+		if(format)
+			inLine = formatStr(inLine);
 
 		if(addLineNo)
 			inLine = std::to_string(lineNo) + ": " + inLine;
@@ -166,14 +197,54 @@ int lolcat(std::istream& is)
 
 		size_t i=0;
 		if(posGrad)
-			sWidth = (1-((lineNo+r)*gradient - floor((lineNo+r)*gradient))/1.0)*width;
+			sWidth = (1-((lineNo+r)*gradient - std::floor((lineNo+r)*gradient))/1.0)*width;
 		else
-			sWidth = (((lineNo+r)*gradient - floor((lineNo+r)*gradient))/1.0)*width;
-		std::cout << colors[color] << inLine.substr(i, sWidth);
+			sWidth = (((lineNo+r)*gradient - std::floor((lineNo+r)*gradient))/1.0)*width;
+
+		if(sWidth-1 < inLine.size() && inLine[sWidth-1] == '\xF0')
+		{
+			std::cout << colors[color] << inLine.substr(i, sWidth+3);
+			i += sWidth+3;
+		}
+		else if(sWidth-2 < inLine.size() && inLine[sWidth-2] == '\xF0')
+		{
+			std::cout << colors[color] << inLine.substr(i, sWidth+2);
+			i += sWidth+2;
+		}
+		else if(sWidth-3 < inLine.size() && inLine[sWidth-3] == '\xF0')
+		{
+			std::cout << colors[color] << inLine.substr(i, sWidth+1);
+			i += sWidth+1;
+		}
+		else
+		{
+			std::cout << colors[color] << inLine.substr(i, sWidth);
+			i += sWidth;
+		}
 		color=(color+1)%noColors;
-		i += sWidth;
-		for(; i<inLine.size(); color=(color+1)%noColors, i+=width)
-			std::cout << colors[color] << inLine.substr(i, width);
+		for(; i<inLine.size(); color=(color+1)%noColors)
+		{
+			if(i+width-1 < inLine.size() && inLine[i+width-1] == '\xF0')
+			{
+				std::cout << colors[color] << inLine.substr(i, width+3);
+				i += width+3;
+			}
+			else if(i+width-2 < inLine.size() && inLine[i+width-2] == '\xF0')
+			{
+				std::cout << colors[color] << inLine.substr(i, width+2);
+				i += width+2;
+			}
+			else if(i+width-3 < inLine.size() && inLine[i+width-3] == '\xF0')
+			{
+				std::cout << colors[color] << inLine.substr(i, width+1);
+				i += width+1;
+			}
+			else
+			{
+				std::cout << colors[color] << inLine.substr(i, width);
+				i += width;
+			}
+		}
 		std::cout << std::endl;
 
 		++lineNo;
@@ -224,7 +295,9 @@ int lolmain(const int& argc, const char* argv[])
 	for(int i=2; i<argc; i++)
 	{
 		param = argv[i];
-		if(param.substr(0, 3) == "-g=")
+		if(param == "-f")
+			format = 1;
+		else if(param.substr(0, 3) == "-g=")
 		{
 			gradient = std::strtod(param.substr(3, param.size()-3).c_str(), NULL);
 			if(gradient < 0)
@@ -241,8 +314,6 @@ int lolmain(const int& argc, const char* argv[])
 				use_powershell_colours();
 			#endif
 		}
-		else if(param == "-t")
-			replaceTabs = 1;
 		else if(param.substr(0, 4) == "-tw=")
 			tabWidth = std::atoi(param.substr(4, param.size()-4).c_str());
 		else if(param.substr(0, 3) == "-w=")
@@ -260,7 +331,7 @@ int lolmain(const int& argc, const char* argv[])
 		{
 			std::stringstream ss;
 
-			ss << argv[0] << " is a cross-platform c++ implementation of the original lolcat,";
+			ss << argv[0] << " lolcat-cc is a cross-platform c++ implementation of the original lolcat,";
 			ss << " which writes output to the terminal with rainbow colours" << std::endl;
 
 			ss  << "=>" << " usage:" << std::endl;
@@ -268,14 +339,14 @@ int lolmain(const int& argc, const char* argv[])
 			ss << " " << argv[0] << " (options) file" << std::endl;
 
 			ss << "=>" << " options:" << std::endl;
-			ss << " -g=[d]" << ": set gradient" << std::endl;
-			ss << "    -ln" << ": add line numbers" << std::endl;
-			ss << "    -ps" << ": powershell colors" << std::endl;
-			ss << "      -t" << ": replace tabs" << std::endl;
+			ss << "      -f" << ": format" << std::endl;
+			ss << "  -g=[d]" << ": set gradient" << std::endl;
+			ss << "     -ln" << ": add line numbers" << std::endl;
+			ss << "     -ps" << ": powershell colors" << std::endl;
 			ss << " -tw=[i]" << ": set tab width" << std::endl;
-			ss << "     -v" << ": print version" << std::endl;
-			ss << " -w=[i]" << ": set width" << std::endl;
-			ss << "    -zz" << ": +/- gradient" << std::endl;
+			ss << "      -v" << ": print version" << std::endl;
+			ss << "  -w=[i]" << ": set width" << std::endl;
+			ss << "     -zz" << ": +/- gradient" << std::endl;
 
 			return lolfilter(ss);
 		}
@@ -288,7 +359,7 @@ int lolmain(const int& argc, const char* argv[])
 		}
 		else
 		{
-			std::cout << "error: " << argv[0] << " lolcat: ";
+			std::cout << "error: " << argv[0] << " lolcat-cc: ";
 
 			std::stringstream ss;
 			ss << "do not recognise '" << param << "'" << std::endl;

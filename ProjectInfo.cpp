@@ -68,6 +68,10 @@ int create_config_file(const Path& configPath, const std::string& outputExt, boo
 
     project.buildThreads = -1;
 
+    project.incrMode = INCR_MOD;
+
+    project.terminal = "normal";
+
     project.unixTextEditor = "nano";
     project.winTextEditor = "notepad";
 
@@ -137,7 +141,7 @@ bool upgradeProject()
     }
 
     std::cout << "Successfully upgraded project configuration for newer version of Nift" << std::endl;
-    std::cout << c_purple << "note" << c_white << ": the syntax to input page and project/site information has also changed, please check the content files page of the docs" << std::endl;
+    std::cout << c_light_blue << "note" << c_white << ": the syntax to input page and project/site information has also changed, please check the content files page of the docs" << std::endl;
 
     return 0;
 }
@@ -180,6 +184,7 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
     contentDir = outputDir = "";
     backupScripts = 1;
     buildThreads = 0;
+    incrMode = INCR_MOD;
     contentExt = outputExt = scriptExt = unixTextEditor = winTextEditor = rootBranch = outputBranch = "";
     defaultTemplate = Path("", "");
 
@@ -233,6 +238,8 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
                 iss >> backupScripts;
             else if(inType == "buildThreads")
                 iss >> buildThreads;
+            else if(inType == "incrementalMode")
+                iss >> incrMode;
             else if(inType == "terminal")
             {
                 iss >> terminal;
@@ -466,7 +473,7 @@ int ProjectInfo::open_tracking()
         {
             std::cout << std::endl;
             start_err(std::cout) << "failed to open .nsm/tracking.list" << std::endl;
-            std::cout << c_purple << "reason: " << c_white << quote(inInfo.name) << " has same content and template path " << inInfo.templatePath << std::endl;
+            std::cout << c_light_blue << "reason: " << c_white << quote(inInfo.name) << " has same content and template path " << inInfo.templatePath << std::endl;
 
             ifs.close();
             return 1;
@@ -478,7 +485,7 @@ int ProjectInfo::open_tracking()
             TrackedInfo cInfo = *(trackedAll.find(inInfo));
 
             start_err(std::cout) << "failed to load " << Path(".nsm/", "tracking.list") << std::endl;
-            std::cout << c_purple << "reason: " << c_white << "duplicate entry for " << inInfo.name << std::endl;
+            std::cout << c_light_blue << "reason: " << c_white << "duplicate entry for " << inInfo.name << std::endl;
             std::cout << c_light_blue << promptStr << c_white << "first entry:" << std::endl;
             std::cout << "        title: " << cInfo.title << std::endl;
             std::cout << "  output path: " << cInfo.outputPath << std::endl;
@@ -518,6 +525,7 @@ int ProjectInfo::save_config(const std::string& configPathStr, bool global)
     ofs << "defaultTemplate " << defaultTemplate << "\n\n";
     ofs << "backupScripts " << backupScripts << "\n\n";
     ofs << "buildThreads " << buildThreads << "\n\n";
+    ofs << "incrementalMode " << incrMode << "\n\n";
     ofs << "terminal " << quote(terminal) << "\n\n";
     ofs << "unixTextEditor " << quote(unixTextEditor) << "\n";
     ofs << "winTextEditor " << quote(winTextEditor) << "\n\n";
@@ -845,6 +853,94 @@ int ProjectInfo::info_watching()
     return 0;
 }
 
+int ProjectInfo::set_incr_mode(const std::string& modeStr)
+{
+    if(modeStr == "mod")
+    {
+        if(incrMode == INCR_MOD)
+        {
+            start_err(std::cout) << "set_incr_mode: incremental mode is already " << quote(modeStr) << std::endl;
+            return 1;
+        }
+        incrMode = INCR_MOD;
+        int ret_val = remove_hash_files();
+        if(ret_val)
+            return ret_val;
+    }
+    else if(modeStr == "hash")
+    {
+        if(incrMode == INCR_HASH)
+        {
+            start_err(std::cout) << "set_incr_mode: incremental mode is already " << quote(modeStr) << std::endl;
+            return 1;
+        }
+        incrMode = INCR_HASH;
+    }
+    else if(modeStr == "hybrid")
+    {
+        if(incrMode == INCR_HYB)
+        {
+            start_err(std::cout) << "set_incr_mode: incremental mode is already " << quote(modeStr) << std::endl;
+            return 1;
+        }
+        incrMode = INCR_HYB;
+    }
+    else
+    {
+        start_err(std::cout) << "set_incr_mode: do not recognise incremental mode " << quote(modeStr) << std::endl;
+        return 1;
+    }
+
+    save_local_config();
+
+    std::cout << "successfully changed incremental mode to " << quote(modeStr) << std::endl;
+
+    return 0;
+}
+
+int ProjectInfo::remove_hash_files()
+{
+    open_tracking();
+
+    std::cout << "removing hashes.." << std::endl;
+
+    Path dep, infoPath;
+    std::string str;
+    for(auto cInfo=trackedAll.begin(); cInfo!=trackedAll.end(); ++cInfo)
+    {
+        //gets path of info file from last time output file was built
+        infoPath = cInfo->outputPath.getInfoPath();
+
+        //checks whether info path exists
+        if(file_exists(infoPath.str()))
+        {
+            std::ifstream infoStream(infoPath.str());
+            std::string timeDateLine;
+            Name prevName;
+            Title prevTitle;
+            Path prevTemplatePath;
+
+            // reads date/time, name, title and template path
+            getline(infoStream, str);
+            getline(infoStream, str);
+            getline(infoStream, str);
+            getline(infoStream, str);
+
+            while(dep.read_file_path_from(infoStream))
+            {
+                if(file_exists(dep.str()))
+                {
+                    int ret_val = remove_path(dep.getHashPath());
+                    if(ret_val)
+                        return ret_val;
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
 std::string ProjectInfo::get_ext(const TrackedInfo& trackedInfo, const std::string& extType)
 {
     std::string ext;
@@ -901,7 +997,7 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
     if(name.find('.') != std::string::npos)
     {
         start_err(std::cout) << "names cannot contain '.'" << std::endl;
-        std::cout << c_purple << "note: " << c_white << "you can add post-build scripts to move built/output files to paths containing . other than for extensions if you want" << std::endl;
+        std::cout << c_light_blue << "note: " << c_white << "you can add post-build scripts to move built/output files to paths containing . other than for extensions if you want" << std::endl;
         return 1;
     }
     else if(name == "" || title.str == "")
@@ -1036,7 +1132,7 @@ int ProjectInfo::track_from_file(const std::string& filePath)
         if(name.find('.') != std::string::npos)
         {
             start_err(std::cout) << "name " << quote(name) << " cannot contain '.'" << std::endl;
-            std::cout << c_purple << "note: " << c_white << "you can add post-build scripts to move built built/output files to paths containing . other than for extensions if you want" << std::endl;
+            std::cout << c_light_blue << "note: " << c_white << "you can add post-build scripts to move built built/output files to paths containing . other than for extensions if you want" << std::endl;
             return 1;
         }
         else if(name == "" || title.str == "" || cExt == "" || oExt == "")
@@ -1246,7 +1342,7 @@ int ProjectInfo::track(const Name& name,
     if(name.find('.') != std::string::npos)
     {
         start_err(std::cout) << "names cannot contain '.'" << std::endl;
-        std::cout << c_purple << "note: " << c_white << "you can add post-build scripts to move built/output files to paths containing . other than for extensions if you want" << std::endl;
+        std::cout << c_light_blue << "note: " << c_white << "you can add post-build scripts to move built/output files to paths containing . other than for extensions if you want" << std::endl;
         return 1;
     }
     else if(name == "" || title.str == "" || cExt == "" || oExt == "")
@@ -1384,7 +1480,7 @@ int ProjectInfo::track(const std::vector<InfoToTrack>& toTrack)
         if(name.find('.') != std::string::npos)
         {
             start_err(std::cout) << "name " << quote(name) << " cannot contain '.'" << std::endl;
-            std::cout << c_purple << "note: " << c_white << "you can add post-build scripts to move built/output files to paths containing . other than for extensions if you want" << std::endl;
+            std::cout << c_light_blue << "note: " << c_white << "you can add post-build scripts to move built/output files to paths containing . other than for extensions if you want" << std::endl;
             return 1;
         }
         else if(name == "" || title.str == "" || cExt == "" || oExt == "")
@@ -3544,6 +3640,8 @@ int ProjectInfo::build_names(std::ostream& os, const int& addBuildStatus, const 
     else
         no_threads = buildThreads;
 
+    setIncrMode(incrMode);
+
     std::vector<std::thread> threads;
     for(int i=0; i<no_threads; i++)
         threads.push_back(std::thread(build_thread,  
@@ -3679,6 +3777,8 @@ int ProjectInfo::build_all(std::ostream& os, const int& addBuildStatus)
     else
         no_threads = buildThreads;
 
+    setIncrMode(incrMode);
+
     std::vector<std::thread> threads;
     for(int i=0; i<no_threads; i++)
         threads.push_back(std::thread(build_thread, 
@@ -3748,14 +3848,19 @@ int ProjectInfo::build_all(std::ostream& os, const int& addBuildStatus)
     return 0;
 }
 
-std::mutex problem_mtx, updated_mtx, modified_mtx, removed_mtx;
+std::mutex problem_mtx, 
+           updated_mtx, 
+           mod_hash_mtx, 
+           modified_mtx, 
+           removed_mtx;
 std::set<Name> problemNames;
 std::set<TrackedInfo> updatedInfo;
 std::set<Path> modifiedFiles,
-    removedFiles;
+               removedFiles;
 
 void dep_thread(std::ostream& os,
                 const bool& addExpl,
+                const int& incrMode,
                 const int& no_to_check,
                 const Directory& contentDir,
                 const Directory& outputDir,
@@ -3782,7 +3887,7 @@ void dep_thread(std::ostream& os,
             if(addExpl)
             {
                 os_mtx.lock();
-                os << c_purple << cInfo->name << ": " << c_white << "content file " << cInfo->contentPath << " does not exist" << std::endl;
+                os << cInfo->name << ": content file " << cInfo->contentPath << " does not exist" << std::endl;
                 os_mtx.unlock();
             }
             problem_mtx.lock();
@@ -3795,7 +3900,7 @@ void dep_thread(std::ostream& os,
             if(addExpl)
             {
                 os_mtx.lock();
-                os << c_purple << cInfo->name << ": " << c_white << "template file " << cInfo->templatePath << " does not exist" << std::endl;
+                os << cInfo->name << ": template file " << cInfo->templatePath << " does not exist" << std::endl;
                 os_mtx.unlock();
             }
             problem_mtx.lock();
@@ -3813,7 +3918,7 @@ void dep_thread(std::ostream& os,
             if(addExpl)
             {
                 os_mtx.lock();
-                os << c_purple << cInfo->outputPath << ": " << c_white << "yet to be built" << std::endl;
+                os << cInfo->outputPath << ": yet to be built" << std::endl;
                 os_mtx.unlock();
             }
             updated_mtx.lock();
@@ -3843,7 +3948,7 @@ void dep_thread(std::ostream& os,
                 if(addExpl)
                 {
                     os_mtx.lock();
-                    os << c_purple << cInfo->outputPath << ": " << c_white << "name changed to " << cInfo->name << " from " << prevInfo.name << std::endl;
+                    os << cInfo->outputPath << ": name changed to " << cInfo->name << " from " << prevInfo.name << std::endl;
                     os_mtx.unlock();
                 }
                 updated_mtx.lock();
@@ -3857,7 +3962,7 @@ void dep_thread(std::ostream& os,
                 if(addExpl)
                 {
                     os_mtx.lock();
-                    os << c_purple << cInfo->outputPath << ": " << c_white << "title changed to " << cInfo->title << " from " << prevInfo.title << std::endl;
+                    os << cInfo->outputPath << ": title changed to " << cInfo->title << " from " << prevInfo.title << std::endl;
                     os_mtx.unlock();
                 }
                 updated_mtx.lock();
@@ -3871,7 +3976,7 @@ void dep_thread(std::ostream& os,
                 if(addExpl)
                 {
                     os_mtx.lock();
-                    os << c_purple << cInfo->outputPath << ": " << c_white << "template path changed to " << cInfo->templatePath << " from " << prevInfo.templatePath << std::endl;
+                    os << cInfo->outputPath << ": template path changed to " << cInfo->templatePath << " from " << prevInfo.templatePath << std::endl;
                     os_mtx.unlock();
                 }
                 updated_mtx.lock();
@@ -3883,12 +3988,12 @@ void dep_thread(std::ostream& os,
             Path dep;
             while(dep.read_file_path_from(infoStream))
             {
-                if(!path_exists(dep.str()))
+                if(!file_exists(dep.str()))
                 {
                     if(addExpl)
                     {
                         os_mtx.lock();
-                        os << c_purple << cInfo->outputPath << ": " << c_white << "dep path " << dep << " removed since last build" << std::endl;
+                        os << cInfo->outputPath << ": dep path " << dep << " removed since last build" << std::endl;
                         os_mtx.unlock();
                     }
                     removed_mtx.lock();
@@ -3899,12 +4004,12 @@ void dep_thread(std::ostream& os,
                     updated_mtx.unlock();
                     break;
                 }
-                else if(dep.modified_after(infoPath))
+                else if(incrMode != INCR_HASH && dep.modified_after(infoPath))
                 {
                     if(addExpl)
                     {
                         os_mtx.lock();
-                        os << c_purple << cInfo->outputPath << ": " << c_white << "dep path " << dep << " modified since last build" << std::endl;
+                        os << cInfo->outputPath << ": dep path " << dep << " modified since last build" << std::endl;
                         os_mtx.unlock();
                     }
                     modified_mtx.lock();
@@ -3914,6 +4019,42 @@ void dep_thread(std::ostream& os,
                     updatedInfo.insert(*cInfo);
                     updated_mtx.unlock();
                     break;
+                }
+                else if(incrMode != INCR_MOD)
+                {
+                    //gets path of info file from last time output file was built
+                    Path hashPath = dep.getHashPath();
+                    std::string hashPathStr = hashPath.str();
+
+                    if(!file_exists(hashPathStr))
+                    {
+                        if(addExpl)
+                        {
+                            os_mtx.lock();
+                            os << cInfo->outputPath << ": " << "hash file " << hashPath << " does not exist" << std::endl;
+                            os_mtx.unlock();
+                        }
+                        updated_mtx.lock();
+                        updatedInfo.insert(*cInfo);
+                        updated_mtx.unlock();
+                        break;
+                    }
+                    else if((unsigned) std::atoi(string_from_file(hashPathStr).c_str()) != FNVHash(string_from_file(dep.str())))
+                    {
+                        if(addExpl)
+                        {
+                            os_mtx.lock();
+                            os << cInfo->outputPath << ": dep path " << dep << " modified since last build" << std::endl;
+                            os_mtx.unlock();
+                        }
+                        modified_mtx.lock();
+                        modifiedFiles.insert(dep);
+                        modified_mtx.unlock();
+                        updated_mtx.lock();
+                        updatedInfo.insert(*cInfo);
+                        updated_mtx.unlock();
+                        break;
+                    }
                 }
             }
 
@@ -3933,7 +4074,7 @@ void dep_thread(std::ostream& os,
                         if(addExpl)
                         {
                             os_mtx.lock();
-                            os << c_purple << cInfo->outputPath << ": " << c_white << "user defined dep path " << dep << " does not exist" << std::endl;
+                            os << cInfo->outputPath << ": user defined dep path " << dep << " does not exist" << std::endl;
                             os_mtx.unlock();
                         }
                         removed_mtx.lock();
@@ -3949,7 +4090,7 @@ void dep_thread(std::ostream& os,
                         if(addExpl)
                         {
                             os_mtx.lock();
-                            os << c_purple << cInfo->outputPath << ": " << c_white << "user defined dep path " << dep << " modified since last build" << std::endl;
+                            os << cInfo->outputPath << ": user defined dep path " << dep << " modified since last build" << std::endl;
                             os_mtx.unlock();
                         }
                         modified_mtx.lock();
@@ -3988,6 +4129,12 @@ int ProjectInfo::build_updated(std::ostream& os, const int& addBuildStatus, cons
     modifiedFiles.clear();
     removedFiles.clear();
 
+    int no_threads;
+    if(buildThreads < 0)
+        no_threads = -buildThreads*std::thread::hardware_concurrency();
+    else
+        no_threads = buildThreads;
+
     nextInfo = trackedAll.begin();
     counter = noFinished = noPagesFinished = 0;
 
@@ -3996,22 +4143,16 @@ int ProjectInfo::build_updated(std::ostream& os, const int& addBuildStatus, cons
         os_mtx.lock();
         os << "checking for updates.." << std::endl;
         os_mtx.unlock();
-    }
 
-    if(addBuildStatus)
         timer.start();
-
-    int no_threads;
-    if(buildThreads < 0)
-        no_threads = -buildThreads*std::thread::hardware_concurrency();
-    else
-        no_threads = buildThreads;
+    }
 
     std::vector<std::thread> threads;
 	for(int i=0; i<no_threads; i++)
 		threads.push_back(std::thread(dep_thread, 
                                       std::ref(os), 
                                       addExpl, 
+                                      incrMode,
                                       trackedAll.size(), 
                                       contentDir, 
                                       outputDir, 
@@ -4119,6 +4260,8 @@ int ProjectInfo::build_updated(std::ostream& os, const int& addBuildStatus, cons
         //checks for pre-build scripts
         if(parser.run_script(os, Path("", "pre-build" + scriptExt), backupScripts, 1))
             return 1;
+
+        setIncrMode(incrMode);
 
         nextInfo = updatedInfo.begin();
         counter = noFinished = 0;
@@ -4273,6 +4416,7 @@ int ProjectInfo::status(std::ostream& os, const int& addBuildStatus, const bool&
 		threads.push_back(std::thread(dep_thread, 
                                       std::ref(os), 
                                       addExpl, 
+                                      incrMode,
                                       trackedAll.size(), 
                                       contentDir, 
                                       outputDir, 

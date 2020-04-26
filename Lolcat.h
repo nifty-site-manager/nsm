@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <iostream>
 #include <fstream>
+#include <cmath>
 #include <math.h>
 #include <sstream>
 #include <time.h>

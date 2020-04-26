@@ -41,7 +41,7 @@ struct ProjectInfo
     Directory contentDir,
               outputDir;
     bool backupScripts;
-    int buildThreads;
+    int buildThreads, incrMode;
     std::string contentExt,
                 outputExt,
                 scriptExt,
@@ -76,6 +76,9 @@ struct ProjectInfo
     int info_watching();
     int info_tracking();
     int info_names();
+
+    int set_incr_mode(const std::string& modeStr);
+    int remove_hash_files();
 
     std::string get_ext(const TrackedInfo& trackedInfo, 
                         const std::string& extType);
