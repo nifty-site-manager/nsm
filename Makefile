@@ -38,18 +38,18 @@ else                                # *nix
 endif
 
 ifeq ($(VERCEL),1)
-	CXXFLAGS+= -D__NO_CLEAR_LINES -D__NO_COLOUR -D__NO_PROGRESS
+	CXXFLAGS+= -D__NO_CLEAR_LINES__ -D__NO_COLOUR__ -D__NO_PROGRESS__
 else
 	ifeq ($(NO_CLEAR_LINES),1)
-		CXXFLAGS+= -D__NO_CLEAR_LINES
+		CXXFLAGS+= -D__NO_CLEAR_LINES__
 	endif
 
 	ifeq ($(NO_COLOR),1)
-		CXXFLAGS+= -D__NO_COLOUR
+		CXXFLAGS+= -D__NO_COLOUR__
 	endif
 
 	ifeq ($(NO_PROGRESS),1)
-		CXXFLAGS+= -D__NO_PROGRESS
+		CXXFLAGS+= -D__NO_PROGRESS__
 	endif
 endif
 
