@@ -17,7 +17,7 @@
 #include "Getline.h"
 #include "hashtk/HashTk.h"
 #include "LuaFns.h"
-#include "LuaJIT.h"
+#include "Lua.h"
 #include "Pagination.h"
 #include "SystemInfo.h"
 #include "TrackedInfo.h"

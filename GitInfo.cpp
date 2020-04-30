@@ -81,45 +81,33 @@ bool is_git_remote_set()
 }
 
 //get present git branch
-std::string get_pb()
+int get_pb(std::string& branch)
 {
-    std::string branch = "##not-found##";
-
-    int ret_val = system("git status > .nsm-present-branch.txt");
+    int ret_val = system("git symbolic-ref HEAD --short > .nsm-present-branch.txt");
     if(ret_val)
     {
-        start_err(std::cout) << "get_pb(): system('git status > .nsm-present-branch.txt') failed in " << quote(get_pwd()) << std::endl;
+        start_err(std::cout) << "get_pb(): system('git symbolic-ref HEAD --short > .nsm-present-branch.txt') failed in " << quote(get_pwd()) << std::endl;
         remove_file(Path("./", ".nsm-present-branch.txt"));
-        return "##error##";
+        return ret_val;
     }
 
     std::ifstream ifs(".nsm-present-branch.txt");
-
-    while(ifs >> branch)
-        if(branch == "branch")
-            break;
-    if(branch == "branch")
-        ifs >> branch;
-
+    ifs >> branch;
     ifs.close();
     remove_file(Path("./", ".nsm-present-branch.txt"));
 
-	//developer can choose whether to output error message if no branches found
-
-    return branch;
+    return 0;
 }
 
 //get present git remote
-std::string get_remote()
+int get_remote(std::string& remote)
 {
-    std::string remote = "##not-found##";
-
     int ret_val = system("git remote > .nsm-git-remote.txt");
     if(ret_val)
     {
         start_err(std::cout) << "get_remote(): system('git remote > .nsm-git-remote.txt') failed in " << quote(get_pwd()) << std::endl;
         remove_file(Path("./", ".nsm-git-remote.txt"));
-        return "##error##";
+        return ret_val;
     }
 
     std::ifstream ifs(".nsm-git-remote.txt");
@@ -129,20 +117,21 @@ std::string get_remote()
     ifs.close();
     remove_file(Path("./", ".nsm-git-remote.txt"));
 
-	//developer can choose whether to output error message if no branches found
-
-    return remote;
+    return 0;
 }
 
 //get set of git branches
-std::set<std::string> get_git_branches()
+int get_git_branches(std::set<std::string>& branches)
 {
-    std::set<std::string> branches;
-    std::string branch = "";
+    branches.clear();
+    std::string branch;
 
     int ret_val = system("git show-ref > .nsm-git-branches.txt");
-    ret_val = ret_val + 1; //gets rid of annoying warning
-    //can't handle error here because returns error when there's no branches
+    if(ret_val)
+    {
+        start_err(std::cout) << "system(\"git show-ref > .nsm-git-branches.txt\") failed" << std::endl;
+        return 1;
+    }
 
     std::ifstream ifs(".nsm-git-branches.txt");
 
@@ -159,5 +148,5 @@ std::set<std::string> get_git_branches()
 
     remove_file(Path("./", ".nsm-git-branches.txt"));
 
-    return branches;
+    return 0;
 }

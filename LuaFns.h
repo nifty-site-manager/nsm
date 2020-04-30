@@ -8,7 +8,7 @@
 #include "ConsoleColor.h"
 #include "ExprtkFns.h"
 #include "FileSystem.h"
-#include "LuaJIT.h"
+#include "Lua.h"
 #include "Path.h"
 #include "Quoted.h"
 #include "Variables.h"

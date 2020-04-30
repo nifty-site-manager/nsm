@@ -78,7 +78,14 @@ int create_config_file(const Path& configPath, const std::string& outputExt, boo
     if(!global)
     {
         if(dir_exists(".git/")) //should really be checking if outputDir exists and has .git directory
-            project.rootBranch = project.outputBranch = get_pb();
+        {
+            if(get_pb(project.outputBranch))
+            {
+                start_err(std::cout) << "failed to get present branch" << std::endl;
+                return 1;
+            }
+            project.rootBranch = project.outputBranch;
+        }
         else
             project.rootBranch = project.outputBranch = "##unset##";
     }
@@ -276,7 +283,6 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
             iss >> str;
             if(str != "" && str[0] != '#')
             {
-                std::cout << std::endl;
                 start_err(std::cout, configPath, lineNo) << "was not expecting anything on this line from " << c_light_blue << quote(str) << c_white << " onwards" << std::endl;
                 std::cout << c_aqua << "note: " << c_white << "you can comment out the remainder of a line with #" << std::endl;
 
@@ -293,39 +299,33 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
     {
         if(contentDir == "")
         {
-            std::cout << std::endl;
             start_err(std::cout, configPath) << "content directory not specified" << std::endl;
             return 1;
         }
         if(contentExt == "" || contentExt[0] != '.')
         {
-            std::cout << std::endl;
             start_err(std::cout, configPath) << "content extension must start with a fullstop" << std::endl;
             return 1;
         }
 
         if(outputDir == "")
         {
-            std::cout << std::endl;
             start_err(std::cout, configPath) << "output directory not specified" << std::endl;
             return 1;
         }
         if(outputExt == "" || outputExt[0] != '.')
         {
-            std::cout << std::endl;
             start_err(std::cout, configPath) << "output extension must start with a fullstop" << std::endl;
             return 1;
         }
 
         if(scriptExt != "" && scriptExt [0] != '.')
         {
-            std::cout << std::endl;
             start_err(std::cout, configPath) << "script extension must start with a fullstop" << std::endl;
             return 1;
         }
         else if(scriptExt == "")
         {
-            std::cout << std::endl;
             start_warn(std::cout, configPath) << "script extension not detected, set to default of '.f'" << std::endl;
 
             scriptExt = ".f";
@@ -336,7 +336,6 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
 
     if(buildThreads == 0)
     {
-        std::cout << std::endl;
         start_warn(std::cout, configPath) << "number of build threads not detected or invalid, set to default of -1 (number of cores)" << std::endl;
 
         buildThreads = -1;
@@ -347,7 +346,6 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
     //code to set unixTextEditor if not present
     if(unixTextEditor == "")
     {
-        std::cout << std::endl;
         start_warn(std::cout, configPath) << "unix text editor not detected, set to default of 'nano'" << std::endl;
 
         unixTextEditor = "nano";
@@ -358,7 +356,6 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
     //code to set winTextEditor if not present
     if(winTextEditor == "")
     {
-        std::cout << std::endl;
         start_warn(std::cout, configPath) << "windows text editor not detected, set to default of 'notepad'" << std::endl;
 
         winTextEditor = "notepad";
@@ -371,12 +368,17 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
         //code to figure out rootBranch and outputBranch if not present
         if(rootBranch == "" || outputBranch == "")
         {
-            std::cout << std::endl;
             start_warn(std::cout, configPath) << "root or output branch not detected, have attempted to determine them, ensure values in config file are correct" << std::endl;
 
             if(dir_exists(".git"))
             {
-                std::set<std::string> branches = get_git_branches();
+                std::set<std::string> branches;
+
+                if(get_git_branches(branches))
+                {
+                    start_err(std::cout, configPath) << "open_config: failed to retrieve git branches" << std::endl;
+                    return 1;
+                }
 
                 if(branches.count("stage"))
                 {
@@ -421,7 +423,6 @@ int ProjectInfo::open_tracking()
 
     if(!file_exists(".nsm/tracking.list"))
     {
-        std::cout << std::endl;
         start_err(std::cout) << "open_tracking(): could not load tracking information as '" << get_pwd() << "/.nsm/tracking.list' does not exist" << std::endl;
         return 1;
     }
@@ -471,7 +472,6 @@ int ProjectInfo::open_tracking()
         //checks that content and template files aren't the same
         if(inInfo.contentPath == inInfo.templatePath)
         {
-            std::cout << std::endl;
             start_err(std::cout) << "failed to open .nsm/tracking.list" << std::endl;
             std::cout << c_light_blue << "reason: " << c_white << quote(inInfo.name) << " has same content and template path " << inInfo.templatePath << std::endl;
 
@@ -3354,6 +3354,10 @@ void build_progress(const int& no_to_build, const int& addBuildStatus)
 {
     if(!addBuildStatus)
         return;
+
+    #if defined __NO_PROGRESS__
+        return;
+    #endif
 
     int phaseToCheck = cPhase;
 

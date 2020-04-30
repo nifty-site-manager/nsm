@@ -11,6 +11,11 @@ void add_colour()
     addColour = 1;
 }
 
+void no_colour()
+{
+    addColour = 0;
+}
+
 #if defined _WIN32 || defined _WIN64
 	bool use_ps_colours = 0;
 
@@ -40,14 +45,18 @@ void add_colour()
 
 	std::ostream& operator<<(std::ostream& os, const WinConsoleColor& cc)
 	{
-		if(addColour && &os == &std::cout)
-		{
-			FlushConsoleInputBuffer(hConsole);
-			if(use_ps_colours)
-				SetConsoleTextAttribute(hConsole, cc.ps_col);
-			else
-				SetConsoleTextAttribute(hConsole, cc.col);
-		}
+		#if defined __NO_COLOUR__
+			if(cc.col){} //gets rid of warning
+	    #else
+	    	if(addColour && &os == &std::cout)
+			{
+				FlushConsoleInputBuffer(hConsole);
+				if(use_ps_colours)
+					SetConsoleTextAttribute(hConsole, cc.ps_col);
+				else
+					SetConsoleTextAttribute(hConsole, cc.col);
+			}
+	    #endif
 
 		return os;
 	}
@@ -59,8 +68,12 @@ void add_colour()
 
 	std::ostream& operator<<(std::ostream& os, const NixConsoleColor& cc)
 	{
-		if(addColour && &os == &std::cout)
-			os << cc.col.c_str();
+		#if defined __NO_COLOUR__
+			if(cc.col.size()){} //gets rid of warning
+	    #else
+	    	if(addColour && &os == &std::cout)
+				os << cc.col.c_str();
+	    #endif
 
 		return os;
 	}

@@ -2,6 +2,16 @@
 Nift Release Notes
 ------------------
 
+Version 2.3.7 of Nift
+* fixed bug with retreiving present git branch when git is in another language
+* cleaned up GitInfo.cpp
+* changed new-cont-dir/new-output-dir to mve-cont-dir/mve-output-dir
+* removed cp/copy mv/move rm/del from commands (use nift specific)
+* added option to embed Lua 5.3 instead of LuaJIT at compile time
+* fixed up options for compiling with system installed LuaJIT/5.3 instead of bundled version
+* added options to compile version without clear lines, colours and/or progress
+* added option to compile binary for Vercel's servers
+
 Version 2.3.6 of Nift
 * improved how Nift searches for installed version of lolcat
 * fixed bug with lolcat output

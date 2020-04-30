@@ -6,6 +6,7 @@
 #include <fstream>
 
 void add_colour();
+void no_colour();
 
 #if defined _WIN32 || defined _WIN64
 	#include <Windows.h>

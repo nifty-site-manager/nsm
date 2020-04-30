@@ -264,11 +264,11 @@ int main(int argc, const char* argv[])
         std::cout << "| untrack           | par: name                                |" << std::endl;
         std::cout << "| untrack-from-file | par: file-path                           |" << std::endl;
         std::cout << "| untrack-dir       | par: dir-path (content-ext)              |" << std::endl;
-        std::cout << "| rm or del         | par: name                                |" << std::endl;
-        std::cout << "| rm-from-file      | par: file-path                           |" << std::endl;
-        std::cout << "| rm-dir            | par: dir-path (content-ext)              |" << std::endl;
-        std::cout << "| mv or move        | par: old-name new-name                   |" << std::endl;
-        std::cout << "| cp or copy        | par: tracked-name new-name               |" << std::endl;
+        std::cout << "| rmv               | par: name                                |" << std::endl;
+        std::cout << "| rmv-from-file     | par: file-path                           |" << std::endl;
+        std::cout << "| rmv-dir           | par: dir-path (content-ext)              |" << std::endl;
+        std::cout << "| mve               | par: old-name new-name                   |" << std::endl;
+        std::cout << "| cpy               | par: tracked-name new-name               |" << std::endl;
         std::cout << "| run               | par: (lang-opt) script-path              |" << std::endl;
         std::cout << "| interp            | par: (lang-opt)                          |" << std::endl;
         std::cout << "| sh                | par: (lang-opt)                          |" << std::endl;
@@ -276,10 +276,10 @@ int main(int argc, const char* argv[])
         std::cout << "| build-updated     | build updated output files               |" << std::endl;
         std::cout << "| build-all         | build all tracked output files           |" << std::endl;
         std::cout << "| serve             | serve project locally par: (sleep-sec)   |" << std::endl;
+        std::cout << "| mve-output-dir    | par: dir-path                            |" << std::endl;
+        std::cout << "| mve-cont-dir      | par: dir-path                            |" << std::endl;
         std::cout << "| new-title         | par: name new-title                      |" << std::endl;
         std::cout << "| new-template      | par: (name) template                     |" << std::endl;
-        std::cout << "| new-output-dir    | par: dir-path                            |" << std::endl;
-        std::cout << "| new-cont-dir      | par: dir-path                            |" << std::endl;
         std::cout << "| new-cont-ext      | par: (name) content-ext                  |" << std::endl;
         std::cout << "| new-output-ext    | par: (name) output-ext                   |" << std::endl;
         std::cout << "| new-script-ext    | par: (name) script-ext                   |" << std::endl;
@@ -557,24 +557,28 @@ int main(int argc, const char* argv[])
             return ret_val;
         }
 
-        std::string obranch = get_pb();
-        std::set<std::string> branches = get_git_branches();
+        std::string obranch;
+        std::set<std::string> branches;
 
-        if(obranch == "##error##")
+        if(get_pb(obranch))
         {
             start_err(std::cout) << "clone: get_pb() failed in repository root directory " << quote(get_pwd()) << std::endl;
             return 1;
         }
 
-        if(obranch == "##not-found##")
+        if(obranch == "")
         {
             start_err(std::cout) << "clone: no branch found in repository root directory " << quote(get_pwd()) << std::endl;
             return 1;
         }
 
-        if(branches.size() == 0) //don't we already have an error just above?
+        if(get_git_branches(branches)) 
         {
-            //start_err(std::cout) << "clone: get_git_branches() failed in " << quote(get_pwd()) << std::endl;
+            start_err(std::cout) << "clone: get_git_branches() failed in " << quote(get_pwd()) << std::endl;
+            return 1;
+        }
+        else if(!branches.size()) 
+        {
             std::cout << "no branches found, cloning finished" << std::endl;
             return 0;
         }
@@ -869,7 +873,7 @@ int main(int argc, const char* argv[])
                       project.unixTextEditor,
                       project.winTextEditor);
 
-        int ret_val = parser.run(path, lang, std::cout);
+        ret_val = parser.run(path, lang, std::cout);
 
         std::cout.precision(4);
         std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
@@ -1062,28 +1066,28 @@ int main(int argc, const char* argv[])
 
             std::string pullCmnd,
                         projectDirRemote,
-                        projectRootDirRemote = get_remote(),
+                        projectRootDirRemote,
                         projectDirBranch,
-                        projectRootDirBranch = get_pb();
+                        projectRootDirBranch;
 
-            if(projectRootDirRemote == "##error##")
+            if(get_remote(projectRootDirRemote))
             {
                 start_err(std::cout) << "pull: get_remote() failed in project root directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
-            if(projectRootDirRemote == "##not-found##")
+            if(projectRootDirRemote == "")
             {
                 start_err(std::cout) << "pull: get_remote() did not find any git remote in project root directory " << quote(get_pwd()) << std::endl;
             }
 
-            if(projectRootDirBranch == "##error##")
+            if(get_pb(projectRootDirBranch))
             {
                 start_err(std::cout) << "pull: get_pb() failed in project root directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
-            if(projectRootDirBranch == "##not-found##")
+            if(projectRootDirBranch == "")
             {
                 start_err(std::cout) << "pull: no branch found in project root directory " << quote(get_pwd()) << std::endl;
                 return 1;
@@ -1102,23 +1106,19 @@ int main(int argc, const char* argv[])
                 return ret_val;
             }
 
-            projectDirRemote = get_remote();
-
-            if(projectDirRemote == "##error##")
+            if(get_remote(projectDirRemote))
             {
                 start_err(std::cout) << "pull: get_remote() failed in project directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
-            projectDirBranch = get_pb();
-
-            if(projectDirBranch == "##error##")
+            if(get_pb(projectDirBranch))
             {
                 start_err(std::cout) << "pull: get_pb() failed in project directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
-            if(projectDirBranch == "##not-found##")
+            if(projectDirBranch == "")
             {
                 start_err(std::cout) << "pull: no branch found in project directory " << quote(get_pwd()) << std::endl;
                 return 1;
@@ -1468,15 +1468,15 @@ int main(int argc, const char* argv[])
             std::string commitCmnd = "git commit -m \"" + std::string(argv[2]) + "\"",
                         pushCmnd,
                         outputDirBranch,
-                        projectRootDirBranch = get_pb();
+                        projectRootDirBranch;
 
-            if(projectRootDirBranch == "##error##")
+            if(get_pb(projectRootDirBranch))
             {
                 start_err(std::cout) << "bcp: get_pb() failed in " << quote(get_pwd()) << std::endl;
                 return 0;
             }
 
-            if(projectRootDirBranch == "##not-found##")
+            if(projectRootDirBranch == "")
             {
                 start_err(std::cout) << "bcp: no branch found in project root directory " << quote(get_pwd()) << std::endl;
                 return 1;
@@ -1497,15 +1497,13 @@ int main(int argc, const char* argv[])
                 return ret_val;
             }
 
-            outputDirBranch = get_pb();
-
-            if(outputDirBranch == "##error##")
+            if(get_pb(outputDirBranch))
             {
                 start_err(std::cout) << "bcp: get_pb() failed in " << quote(get_pwd()) << std::endl;
                 return 0;
             }
 
-            if(outputDirBranch == "##not-found##")
+            if(outputDirBranch == "")
             {
                 start_err(std::cout) << "bcp: no branch found in project directory " << quote(get_pwd()) << std::endl;
                 return 1;
@@ -1676,12 +1674,14 @@ int main(int argc, const char* argv[])
         else if(cmd == "untrack")
         {
             //ensures correct number of parameters given
-            if(noParams != 2)
-                return parError(noParams, argv, "2");
+            if(noParams < 2)
+                return parError(noParams, argv, "2+");
 
-            Name nameToUntrack = argv[2];
+            std::vector<Name> namesToUntrack;
+            for(int i=2; i<=noParams; ++i)
+                namesToUntrack.push_back(argv[2]);
 
-            return project.untrack(nameToUntrack);
+            return project.untrack(namesToUntrack);
         }
         else if(cmd == "untrack-from-file")
         {
@@ -1717,7 +1717,12 @@ int main(int argc, const char* argv[])
 
             return result;
         }
-        else if(cmd == "rm-from-file" || cmd == "del-from-file" || cmd == "rmv-from-file")
+        else if(cmd == "rm-from-file" || cmd == "del-from-file")
+        {
+            start_err(std::cout) << "command has changed to rmv-from-file" << std::endl;
+            return 1;
+        }
+        else if(cmd == "rmv-from-file")
         {
             //ensures correct number of parameters given
             if(noParams != 2)
@@ -1730,7 +1735,12 @@ int main(int argc, const char* argv[])
 
             return result;
         }
-        else if(cmd == "rm-dir" || cmd == "del-dir" || cmd == "rmv-dir")
+        else if(cmd == "rm-dir" || cmd == "del-dir")
+            {
+            start_err(std::cout) << "command has changed to rmv-dir" << std::endl;
+            return 1;
+        }
+        else if(cmd == "rmv-dir")
         {
             //ensures correct number of parameters given
             if(noParams < 2 || noParams > 3)
@@ -1751,17 +1761,29 @@ int main(int argc, const char* argv[])
 
             return result;
         }
-        else if(cmd == "rm" || cmd == "del" || cmd == "rmv")
+        else if(cmd == "rm" || cmd == "del")
+        {
+            start_err(std::cout) << "command has changed to rmv" << std::endl;
+            return 1;
+        }
+        else if(cmd == "rmv")
         {
             //ensures correct number of parameters given
-            if(noParams != 2)
-                return parError(noParams, argv, "2");
+            if(noParams < 2)
+                return parError(noParams, argv, "2+");
 
-            Name nameToRemove = argv[2];
+            std::vector<Name> namesToRemove;
+            for(int i=2; i<=noParams; ++i)
+                namesToRemove.push_back(argv[2]);
 
-            return project.rm(nameToRemove);
+            return project.rm(namesToRemove);
         }
-        else if(cmd == "mv" || cmd == "move" || cmd == "mve")
+        else if(cmd == "mv" || cmd == "move")
+        {
+            start_err(std::cout) << "command has changed to mve" << std::endl;
+            return 1;
+        }
+        else if(cmd == "mve")
         {
             //ensures correct number of parameters given
             if(noParams != 3)
@@ -1772,7 +1794,12 @@ int main(int argc, const char* argv[])
 
             return project.mv(oldName, newName);
         }
-        else if(cmd == "cp" || cmd == "copy" || cmd == "cpy")
+        else if(cmd == "cp" || cmd == "copy")
+        {
+            start_err(std::cout) << "command has changed to rmv-from-file" << std::endl;
+            return 1;
+        }
+        else if(cmd == "cpy")
         {
             //ensures correct number of parameters given
             if(noParams != 3)
@@ -1824,6 +1851,11 @@ int main(int argc, const char* argv[])
         }
         else if(cmd == "new-output-dir")
         {
+            start_err(std::cout) << "command has changed to mve-output-dir" << std::endl;
+            return 1;
+        }
+        else if(cmd == "mve-output-dir")
+        {
             //ensures correct number of parameters given
             if(noParams != 2)
                 return parError(noParams, argv, "2");
@@ -1836,6 +1868,11 @@ int main(int argc, const char* argv[])
             return project.new_output_dir(newOutputDir);
         }
         else if(cmd == "new-cont-dir")
+        {
+            start_err(std::cout) << "command has changed to mve-cont-dir" << std::endl;
+            return 1;
+        }
+        else if(cmd == "mve-cont-dir")
         {
             //ensures correct number of parameters given
             if(noParams != 2)

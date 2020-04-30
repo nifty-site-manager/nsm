@@ -81,7 +81,7 @@
 
 bool format = 0;
 int tabWidth = 4;
-std::string formatStr(const std::string& str)
+std::string formatStr(std::string& str)
 {
 	std::string formatted;
 	size_t j;
@@ -89,14 +89,26 @@ std::string formatStr(const std::string& str)
 	{
 		if(str[i] == '\t')
 			formatted += std::string(tabWidth, ' ');
-		else if((str[i] == '\033' || str[i] == 0x1b) && 
-		        str.substr(i+1, 1) == "[" && str.substr(i+1, 4) != "[2K\r")
+		else if((str[i] == '\033' || str[i] == 0x1b) && str.substr(i+1, 1) == "[")
 		{
-			j = str.find_first_of('m', i);
-			if(j != std::string::npos)
-				i = j;
-			else
-				formatted += str[i];
+			if(str.substr(i+1, 4) == "[2K\r") //strips cleared lines
+			{
+				size_t pos = formatted.find_last_of('\n');
+				if(pos == std::string::npos)
+					pos = 0;
+				else
+					++pos;
+				formatted.replace(pos, formatted.size()-pos, "");
+				i += 4;
+			}
+			else //skips unix colour codes
+			{
+				j = str.find_first_of('m', i);
+				if(j != std::string::npos)
+					i = j;
+				else
+					formatted += str[i];
+			}
 		}
 		else
 			formatted += str[i];
@@ -117,6 +129,8 @@ int width = 0;
 
 bool addLineNo = 0, zigzag = 0;
 int posGrad = 1;
+
+const std::string arr = "⥤";
 
 int zigzagcat(std::istream& is)
 {
@@ -141,20 +155,40 @@ int zigzagcat(std::istream& is)
 
 		for(size_t i=0; i<inLine.size(); color=(color+1)%noColors)
 		{
-			if(i+width-1 < inLine.size() && inLine[i+width-1] == '\xF0')
+			if(format)
 			{
-				std::cout << colors[color] << inLine.substr(i, width+3);
-				i += width+3;
-			}
-			else if(i+width-2 < inLine.size() && inLine[i+width-2] == '\xF0')
-			{
-				std::cout << colors[color] << inLine.substr(i, width+2);
-				i += width+2;
-			}
-			else if(i+width-3 < inLine.size() && inLine[i+width-3] == '\xF0')
-			{
-				std::cout << colors[color] << inLine.substr(i, width+1);
-				i += width+1;
+				//checks for multi-char utf characters
+				if(i+width-1 < inLine.size() && inLine[i+width-1] == arr[0])
+				{
+					std::cout << colors[color] << inLine.substr(i, width+2);
+					i += width+2;
+				}
+				else if(i+width-2 < inLine.size() && inLine[i+width-2] == arr[0])
+				{
+					std::cout << colors[color] << inLine.substr(i, width+1);
+					i += width+1;
+				}
+				//checks for emojis
+				else if(i+width-1 < inLine.size() && inLine[i+width-1] == '\xF0')
+				{
+					std::cout << colors[color] << inLine.substr(i, width+3);
+					i += width+3;
+				}
+				else if(i+width-2 < inLine.size() && inLine[i+width-2] == '\xF0')
+				{
+					std::cout << colors[color] << inLine.substr(i, width+2);
+					i += width+2;
+				}
+				else if(i+width-3 < inLine.size() && inLine[i+width-3] == '\xF0')
+				{
+					std::cout << colors[color] << inLine.substr(i, width+1);
+					i += width+1;
+				}
+				else
+				{
+					std::cout << colors[color] << inLine.substr(i, width);
+					i += width;
+				}
 			}
 			else
 			{
@@ -201,20 +235,40 @@ int lolcat(std::istream& is)
 		else
 			sWidth = (((lineNo+r)*gradient - std::floor((lineNo+r)*gradient))/1.0)*width;
 
-		if(sWidth-1 < inLine.size() && inLine[sWidth-1] == '\xF0')
+		if(format)
 		{
-			std::cout << colors[color] << inLine.substr(i, sWidth+3);
-			i += sWidth+3;
-		}
-		else if(sWidth-2 < inLine.size() && inLine[sWidth-2] == '\xF0')
-		{
-			std::cout << colors[color] << inLine.substr(i, sWidth+2);
-			i += sWidth+2;
-		}
-		else if(sWidth-3 < inLine.size() && inLine[sWidth-3] == '\xF0')
-		{
-			std::cout << colors[color] << inLine.substr(i, sWidth+1);
-			i += sWidth+1;
+			// checks for multi-char characters
+			if(sWidth-1 < inLine.size() && inLine[sWidth-1] == arr[0])
+			{
+				std::cout << colors[color] << inLine.substr(i, sWidth+2);
+				i += sWidth+2;
+			}
+			else if(sWidth-2 < inLine.size() && inLine[sWidth-2] == arr[0])
+			{
+				std::cout << colors[color] << inLine.substr(i, sWidth+1);
+				i += sWidth+1;
+			}
+			// checks for emojis
+			else if(sWidth-1 < inLine.size() && inLine[sWidth-1] == '\xF0')
+			{
+				std::cout << colors[color] << inLine.substr(i, sWidth+3);
+				i += sWidth+3;
+			}
+			else if(sWidth-2 < inLine.size() && inLine[sWidth-2] == '\xF0')
+			{
+				std::cout << colors[color] << inLine.substr(i, sWidth+2);
+				i += sWidth+2;
+			}
+			else if(sWidth-3 < inLine.size() && inLine[sWidth-3] == '\xF0')
+			{
+				std::cout << colors[color] << inLine.substr(i, sWidth+1);
+				i += sWidth+1;
+			}
+			else
+			{
+				std::cout << colors[color] << inLine.substr(i, sWidth);
+				i += sWidth;
+			}
 		}
 		else
 		{
@@ -222,22 +276,43 @@ int lolcat(std::istream& is)
 			i += sWidth;
 		}
 		color=(color+1)%noColors;
+
 		for(; i<inLine.size(); color=(color+1)%noColors)
 		{
-			if(i+width-1 < inLine.size() && inLine[i+width-1] == '\xF0')
+			if(format)
 			{
-				std::cout << colors[color] << inLine.substr(i, width+3);
-				i += width+3;
-			}
-			else if(i+width-2 < inLine.size() && inLine[i+width-2] == '\xF0')
-			{
-				std::cout << colors[color] << inLine.substr(i, width+2);
-				i += width+2;
-			}
-			else if(i+width-3 < inLine.size() && inLine[i+width-3] == '\xF0')
-			{
-				std::cout << colors[color] << inLine.substr(i, width+1);
-				i += width+1;
+				// checks for multi-char characters
+				if(i+width-1 < inLine.size() && inLine[i+width-1] == arr[0])
+				{
+					std::cout << colors[color] << inLine.substr(i, width+2);
+					i += width+2;
+				}
+				else if(i+width-2 < inLine.size() && inLine[i+width-2] == arr[0])
+				{
+					std::cout << colors[color] << inLine.substr(i, width+1);
+					i += width+1;
+				}
+				// checks for emojis
+				if(i+width-1 < inLine.size() && inLine[i+width-1] == '\xF0')
+				{
+					std::cout << colors[color] << inLine.substr(i, width+3);
+					i += width+3;
+				}
+				else if(i+width-2 < inLine.size() && inLine[i+width-2] == '\xF0')
+				{
+					std::cout << colors[color] << inLine.substr(i, width+2);
+					i += width+2;
+				}
+				else if(i+width-3 < inLine.size() && inLine[i+width-3] == '\xF0')
+				{
+					std::cout << colors[color] << inLine.substr(i, width+1);
+					i += width+1;
+				}
+				else
+				{
+					std::cout << colors[color] << inLine.substr(i, width);
+					i += width;
+				}
 			}
 			else
 			{

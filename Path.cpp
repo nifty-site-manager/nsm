@@ -142,18 +142,24 @@ bool operator<(const Path& path1, const Path& path2)
 #if defined _WIN32 || defined _WIN64
 	void clear_console_line()
 	{
-		std::string bLine = std::string(console_width()-1, '\b');
-		std::cout << bLine << std::string(bLine.size(), ' ') << bLine;
+        #if defined __NO_CLEAR_LINES__
+        #else
+    		std::string bLine = std::string(console_width()-1, '\b');
+    		std::cout << bLine << std::string(bLine.size(), ' ') << bLine;
 
-		//std::cout << std::flush;
-		std::fflush(stdout);
+    		//std::cout << std::flush;
+    		std::fflush(stdout);
+        #endif
 	}
 #else
     void clear_console_line()
 	{
-        std::cout << "\33[2K\r";
-		//std::cout << std::flush;
-		std::fflush(stdout);
+        #if defined __NO_CLEAR_LINES__
+        #else
+            std::cout << "\33[2K\r";
+    		//std::cout << std::flush;
+    		std::fflush(stdout);
+        #endif
 	}
 #endif
 
