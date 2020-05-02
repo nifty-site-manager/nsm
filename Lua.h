@@ -16,16 +16,25 @@
 	#endif
 #else
 	#if defined __LUA_VERSION_5_3__
-		#include "/usr/local/include/lua.hpp"
-		#include "/usr/local/include/lualib.h"
-	    #include "/usr/local/include/lauxlib.h"
+		#if defined __FreeBSD__
+			#include "/usr/local/include/lua53/lua.hpp"
+			#include "/usr/local/include/lua53/lualib.h"
+			#include "/usr/local/include/lua53/lauxlib.h"
+		#else
+			#include "/usr/local/include/lua.hpp"
+			#include "/usr/local/include/lualib.h"
+			#include "/usr/local/include/lauxlib.h"
+		#endif
 	#else
-		#include "/usr/local/include/luajit-2.1/lua.hpp"
+		#if defined __FreeBSD__
+			#include "/usr/local/include/luajit-2.0/lua.hpp"
+		#else
+			#include "/usr/local/include/luajit-2.1/lua.hpp"
+		#endif
 	#endif
 #endif
 
 void process_lua_error(std::string& errStr, int& errLineNo);
-
 struct Lua
 {
 	bool initialised;
