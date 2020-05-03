@@ -142,25 +142,25 @@ make-lua:
 ifeq ($(_BUNDLED_),0)
 else ifeq ($(WAS_UNBUNDLED),1)
 else ifeq ($(LUA_VERSION) $(detected_OS),5.3 FreeBSD)       # FreeBSD 
-	cd Lua-5.3 && gmake freebsd
+	cd Lua-5.3 && $(MAKE) freebsd
 else ifeq ($(LUA_VERSION) $(detected_OS),5.3 Linux)         # Linux
-	cd Lua-5.3 && make linux
+	cd Lua-5.3 && $(MAKE) linux
 else ifeq ($(LUA_VERSION) $(detected_OS),5.3 Darwin)        # Mac OSX
-	cd Lua-5.3 && make macosx
+	cd Lua-5.3 && $(MAKE) macosx
 else ifeq ($(LUA_VERSION) $(detected_OS),5.3 Windows)       # Windows
-	cd Lua-5.3 && make mingw
+	cd Lua-5.3 && $(MAKE) mingw
 	copy Lua-5.3\src\lua53.dll .
 else ifeq ($(LUA_VERSION),5.3)                              # Generic
-	cd Lua-5.3 && make generic  # <- could have posix here
+	cd Lua-5.3 && $(MAKE) generic  # <- could have posix here
 else ifeq ($(detected_OS),Darwin)   # Mac OSX
-	cd LuaJIT && make MACOSX_DEPLOYMENT_TARGET=10.9
+	cd LuaJIT && $(MAKE) MACOSX_DEPLOYMENT_TARGET=10.9
 else ifeq ($(detected_OS),Windows)  # Windows
-	cd LuaJIT && make
+	cd LuaJIT && $(MAKE)
 	copy LuaJIT\src\lua51.dll .
 else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
-	cd LuaJIT && gmake
+	cd LuaJIT && $(MAKE)
 else                                # *nix
-	cd LuaJIT && make
+	cd LuaJIT && $(MAKE)
 endif
 
 ###
@@ -285,7 +285,7 @@ else                                     # FreeBSD/Linux/OSX/Posix/Unix
 	rm ${BINDIR}/nift
 	rm ${BINDIR}/nsm
 endif 
-	
+
 git-bash-install:
 	chmod 755 nsm
 	mv nift ~/bin
@@ -298,16 +298,12 @@ git-bash-uninstall:
 clean:
 ifeq ($(detected_OS),Windows)       # Windows
 	del $(objects)
-	cd Lua-5.3 && make clean
-	#cd LuaJIT && make clean        #has been fixed in development version, soon!
-else ifeq ($(detected_OS),FreeBSD)  # FreeBSD
+	cd Lua-5.3 && $(MAKE) clean
+	#cd LuaJIT && $(MAKE) clean        #has been fixed in development version, soon!
+else                                # FreeBSD/Linux/OSX/Posix/Unix
 	rm -f $(objects)
-	cd Lua-5.3 && gmake clean
-	cd LuaJIT && gmake clean
-else                                # Linux/OSX/Posix/Unix
-	rm -f $(objects)
-	cd Lua-5.3 && make clean
-	cd LuaJIT && make clean
+	cd Lua-5.3 && $(MAKE) clean
+	cd LuaJIT && $(MAKE) clean
 endif 
 
 clean-all: clean
