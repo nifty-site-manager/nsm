@@ -2,6 +2,58 @@
 Nift Release Notes
 ------------------
 
+Version 2.3.7 of Nift
+* fixed bug with retrieving present git branch when git is in another language
+* cleaned up GitInfo.cpp
+* changed new-cont-dir/new-output-dir to mve-cont-dir/mve-output-dir
+* removed cp/copy mv/move rm/del from commands (use nift specific)
+* added option to embed Lua 5.3 instead of LuaJIT at compile time
+* fixed up options for compiling with system installed LuaJIT/5.3 instead of bundled version
+* added options to compile version without clear lines, colours and/or progress
+* added option to compile binary for Vercel's servers
+
+Version 2.3.6 of Nift
+* improved how Nift searches for installed version of lolcat
+* fixed bug with lolcat output
+* embedded HashTk
+* added hash fn
+* added hash and hybrid modes for incremental builds
+* fixed various bugs
+* made various improvements
+
+Version 2.3.5 of Nift
+* added REPL shortcut support for more terminals
+* added support for powershell (add `terminal ps` to global/project config files)
+* made some cosmetic improvements to general output
+* now prevent output colour until global/project config is loaded
+* renamed type fn to typeof
+* made some improvements to cpy/mve/rmv fns with regards to working with permissions
+* now switch cat/type cp/copy ls/dir mv/move rm/del fn names on Windows vs (Free)BSD/Linux/OSX
+* added in-built version of lolcat-cc
+* fixed various bugs
+* made various improvements
+
+Version 2.3.4 of Nift
+* fixed major bug with new copy directory function
+* added in more familiar syntax for incrementing and decrementing variables
+* modified ExprTk to remove the old variable when registering a duplicate
+* added exprtk option to forget fn to remove variables from both Nift variables and ExprTk symbol table
+* added skipping whitespace to functions that needed it 
+* added cpy/mve/rmv commands
+
+Version 2.3.3 of Nift
+* fixed major bug where project content directory was deleted when removing a single tracked file
+
+Version 2.3.2 of Nift
+* added in proper cpy/lst/mve/rmv functions
+* renamed touch fn to poke
+* added in more familiar syntax for const and private variable definitions
+* added in lolcat, lolcat.on and lolcat.off fns for rainbow output on FreeBSD/Linux/OSX
+* cleaned up output (added a few select emojis on Linux/OSX)
+* hopefully fixed bug with build status/progress output
+* fixed various bugs
+* made various improvements
+
 Version 2.3.1 of Nift
 * added in pagination, including fns:
 	- item

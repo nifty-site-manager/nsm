@@ -15,8 +15,9 @@
 #include "Expr.h"
 #include "ExprtkFns.h"
 #include "Getline.h"
+#include "hashtk/HashTk.h"
 #include "LuaFns.h"
-#include "LuaJIT.h"
+#include "Lua.h"
 #include "Pagination.h"
 #include "SystemInfo.h"
 #include "TrackedInfo.h"
@@ -25,6 +26,8 @@
 #include "Timer.h"
 
 int find_last_of_special(const std::string& s);
+
+void setIncrMode(const int& IncrMode);
 
 struct Parser
 {
@@ -38,6 +41,8 @@ struct Parser
     bool contentAdded;
     std::string parsedText;
     int mode;
+    bool lolcat, lolcatInit;
+    std::string lolcatCmd;
     std::set<Path> depFiles, includedFiles;
     std::istringstream dummy_iss;
 
@@ -88,6 +93,7 @@ struct Parser
            const std::string& WinTextEditor);
 
     int lua_addnsmfns();
+    int lolcat_init();
 
     int run_script(std::ostream& os,
                    const Path& scriptPath, 
@@ -160,9 +166,48 @@ struct Parser
                         std::set<Path>& antiDepsOfReadPath,
                         const int& sLineNo,
                         const int& lineNo,
-                        std::ostream& eos);
+                        std::ostream& eos,
+                        std::string& outStr);
+    int try_system_call_console(const std::string& funcName, 
+                        const std::vector<std::string>& options,
+                        const std::vector<std::string>& params,
+                        const Path& readPath,
+                        std::set<Path>& antiDepsOfReadPath,
+                        const int& sLineNo,
+                        const int& lineNo,
+                        std::ostream& eos,
+                        std::string& outStr);
+    int try_system_call_inject(const std::string& funcName, 
+                        const std::vector<std::string>& options,
+                        const std::vector<std::string>& params,
+                        const Path& readPath,
+                        std::set<Path>& antiDepsOfReadPath,
+                        const int& sLineNo,
+                        const int& lineNo,
+                        std::ostream& eos,
+                        std::string& outStr);
+    int try_system_call(const int& whereTo,
+                        const std::string& funcName, 
+                        const std::vector<std::string>& options,
+                        const std::vector<std::string>& params,
+                        const Path& readPath,
+                        std::set<Path>& antiDepsOfReadPath,
+                        const int& sLineNo,
+                        const int& lineNo,
+                        std::ostream& eos,
+                        std::string& outStr);
 
     int parse_replace(const char& lang,
+                      std::string& str,
+                      const std::string& strType,
+                      const Path& readPath,
+                      std::set<Path>& antiDepsOfReadPath,
+                      const int& lineNo,
+                      const std::string& callType,
+                      const int& callLineNo,
+                      std::ostream& eos);
+    int parse_replace(const bool& addOutput,
+                      const char& lang,
                       std::string& str,
                       const std::string& strType,
                       const Path& readPath,

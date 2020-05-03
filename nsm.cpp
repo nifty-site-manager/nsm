@@ -91,7 +91,7 @@ void unrecognisedCommand(const std::string& cmd)
     start_err(std::cout) << "Nift does not recognise the command " << quote(cmd) << std::endl;
 }
 
-bool parError(int noParams, char* argv[], const std::string& expectedNo)
+bool parError(int noParams, const char* argv[], const std::string& expectedNo)
 {
     start_err(std::cout) << noParams;
     if(noParams == 1)
@@ -113,7 +113,7 @@ bool parError(int noParams, char* argv[], const std::string& expectedNo)
 
 void asciiNift()
 {
-    srand (time(NULL));
+    srand(time(NULL));
     int c = rand()%5,
         T = 3;
 
@@ -128,55 +128,57 @@ void asciiNift()
 
     int t = rand()%T;
 
-    if(c == 0)
-        std::cout << c_gold;
-    else if(c == 1)
-        std::cout << c_green;
-    else if(c == 2)
-        std::cout << c_light_blue;
-    else if(c == 3)
-        std::cout << c_purple;
-    else if(c == 4)
-        std::cout << c_red;
+    std::string asciiNift;
 
     if(t == 0)
     {
-        std::cout << "         _  _____   " << std::endl;
-        std::cout << "   ____ (_)/ __/ |   " << std::endl;
-        std::cout << "  |  _ \\ _ | |_| |_ " << std::endl;
-        std::cout << "  | | | | || _/  __) " << std::endl;
-        std::cout << "  |_| | |_|| | | |_ " << std::endl;
-        std::cout << "      |/   |/  |___) " << std::endl;
+        asciiNift += "         _  _____     \n";
+        asciiNift += "   ____ (_)/ __/ |    \n";
+        asciiNift += "  |  _ \\ _ | |_| |_   \n";
+        asciiNift += "  | | | | || _/  __)  \n";
+        asciiNift += "  |_| | |_|| | | |_   \n";
+        asciiNift += "      |/   |/  |___)  \n";
     }
-    if(t == 1)
+    else if(t == 1)
     {
-        std::cout << "         _  _____   " << std::endl;
-        std::cout << "   ____ |_|/ __/ |   " << std::endl;
-        std::cout << "  |  _ \\ _ | |_| |__ " << std::endl;
-        std::cout << "  | | | | || _/  __/ " << std::endl;
-        std::cout << "  |_| | |_|| | | |__ " << std::endl;
-        std::cout << "      |/   |/  |___/ " << std::endl;
+        asciiNift += "         _  _____     \n";
+        asciiNift += "   ____ |_|/ __/ |    \n";
+        asciiNift += "  |  _ \\ _ | |_| |__  \n";
+        asciiNift += "  | | | | || _/  __/  \n";
+        asciiNift += "  |_| | |_|| | | |__  \n";
+        asciiNift += "      |/   |/  |___/  \n";
     }
     else if(t == 2)
     {
-        std::cout << "   ____ ____ ____ ____ " << std::endl;
-        std::cout << "  ||n |||i |||f |||t ||" << std::endl;
-        std::cout << "  ||__|||__|||__|||__||" << std::endl;
-        std::cout << "  |/__\\|/__\\|/__\\|/__\\|" << std::endl;
+        asciiNift += "   ____ ____ ____ ____  \n";
+        asciiNift += "  ||n |||i |||f |||t || \n";
+        asciiNift += "  ||__|||__|||__|||__|| \n";
+        asciiNift += "  |/__\\|/__\\|/__\\|/__\\| \n";
     }
     else if(t == 3)
     {
-        std::cout << "         _________________  " << std::endl;
-        std::cout << "  __________(_)  / __/_/ /_ " << std::endl;
-        std::cout << "  __/ __ \\ __ __/ /_ _  __/ " << std::endl;
-        std::cout << "  _  / / // / _  __/ / /_   " << std::endl;
-        std::cout << "  /_/ /_//_/  /_/    \\__/   " << std::endl;
+        asciiNift += "         _________________  \n";
+        asciiNift += "  __________(_)  / __/_/ /_ \n";
+        asciiNift += "  __/ __ \\ __ __/ /_ _  __/ \n";
+        asciiNift += "  _  / / // / _  __/ / /_   \n";
+        asciiNift += "  /_/ /_//_/  /_/    \\__/   \n";
     }
+
+    if(c == 0)
+        std::cout << c_gold << asciiNift;
+    else if(c == 1)
+        std::cout << c_green << asciiNift;
+    else if(c == 2)
+        std::cout << c_light_blue << asciiNift;
+    else if(c == 3)
+        std::cout << c_purple << asciiNift;
+    else if(c == 4)
+        std::cout << c_red << asciiNift;
 
     std::cout << c_white << std::endl;
 }
 
-int main(int argc, char* argv[])
+int main(int argc, const char* argv[])
 {
     Timer timer;
     timer.start();
@@ -184,8 +186,6 @@ int main(int argc, char* argv[])
     Path globalConfigPath(app_dir() + "/.nift/", "nift.config");
     if(!file_exists(globalConfigPath.str()))
         create_config_file(globalConfigPath, ".html", 1);
-
-    //std::cin.sync_with_stdio(0);
 
     int noParams = argc-1;
     int ret_val;
@@ -200,25 +200,39 @@ int main(int argc, char* argv[])
     while(cmd.size() && cmd[0] == '-')
         cmd = cmd.substr(1, cmd.size()-1);
 
+    if(cmd == "lolcat-cc")
+        return lolmain(argc, argv);
+
     if(get_pwd() == "/")
     {
-        start_err(std::cout) << "don't run Nift from the root directory!" << std::endl;
+        start_err(std::cout) << "do not run Nift from the root directory!" << std::endl;
         return 1;
     }
 
     //Nift commands that can run from anywhere
     if(cmd == "version")
     {
-        std::cout << "Nift (aka nsm) (c)2015-" << DateTimeInfo().currentYYYY() << " " << c_gold << "v" << NSM_VERSION << c_white << std::endl;
+        #if defined _WIN32 || defined _WIN64
+            if(ProjectInfo().open_global_config())
+                return 1;
+        #endif
+
+        std::cout << "Nift (aka nsm) (c)" << DateTimeInfo().currentYYYY() << " " << c_gold << "v" << NSM_VERSION << c_white << std::endl;
 
         return 0;
     }
-    else if(cmd == "about" || cmd == "info" || cmd == "help")
+    else if(cmd == "about" || cmd == "help")
     {
+        #if defined _WIN32 || defined _WIN64
+            if(ProjectInfo().open_global_config())
+                return 1;
+        #endif
+
         if(console_width() > 22 && console_height() > 12)
             asciiNift();
 
-        std::cout << "Nift (aka nifty-site-manager or nsm) (c)2015-" << DateTimeInfo().currentYYYY() << " is a cross-platform open source website and project generator." << std::endl;
+        std::cout << "Nift (aka nifty-site-manager or nsm) (c)" << DateTimeInfo().currentYYYY();
+        std::cout << " is a cross-platform open source website and project generator" << std::endl;
         std::cout << "Official Website: " << c_blue << "https://nift.cc/" << c_white << std::endl;
         std::cout << "Source: " << c_blue << "https://github.com/nifty-site-manager/nsm" << c_white << std::endl;
         std::cout << "Installed: " << c_gold << "v" << NSM_VERSION << c_white << std::endl;
@@ -228,59 +242,66 @@ int main(int argc, char* argv[])
     }
     else if(cmd == "commands")
     {
-        std::cout << "+--------- available commands ------------------------------------------+" << std::endl;
-        std::cout << "| commands          | lists all Nift commands                           |" << std::endl;
-        std::cout << "| config            | list or set git email/username                    |" << std::endl;
-        std::cout << "| clone             | input: clone-url                                  |" << std::endl;
-        std::cout << "| diff              | input: file-path                                  |" << std::endl;
-        std::cout << "| pull              | pull remote changes locally                       |" << std::endl;
-        std::cout << "| bcp               | input: commit-message                             |" << std::endl;
-        std::cout << "| init              | start managing project - input: (out-ext)         |" << std::endl;
-        std::cout << "| init-html         | start managing html website                       |" << std::endl;
-        std::cout << "| status            | lists updated and problem files                   |" << std::endl;
-        std::cout << "| info              | input: name-1 .. name-k                           |" << std::endl;
-        std::cout << "| info-all          | lists watched directories and tracked files       |" << std::endl;
-        std::cout << "| info-config       | lists config settings                             |" << std::endl;
-        std::cout << "| info-names        | lists tracked names                               |" << std::endl;
-        std::cout << "| info-tracking     | lists tracked files                               |" << std::endl;
-        std::cout << "| info-watching     | lists watched directories                         |" << std::endl;
-        std::cout << "| track             | input: name (title) (template-path)               |" << std::endl;
-        std::cout << "| track-from-file   | input: file-path                                  |" << std::endl;
-        std::cout << "| track-dir         | input: dir-path (cont-ext) (temp-path) (out-ext)  |" << std::endl;
-        std::cout << "| untrack           | input: name                                       |" << std::endl;
-        std::cout << "| untrack-from-file | input: file-path                                  |" << std::endl;
-        std::cout << "| untrack-dir       | input: dir-path (content-ext)                     |" << std::endl;
-        std::cout << "| rm or del         | input: name                                       |" << std::endl;
-        std::cout << "| rm-from-file      | input: file-path                                  |" << std::endl;
-        std::cout << "| rm-dir            | input: dir-path (content-ext)                     |" << std::endl;
-        std::cout << "| mv or move        | input: old-name new-name                          |" << std::endl;
-        std::cout << "| cp or copy        | input: tracked-name new-name                      |" << std::endl;
-        std::cout << "| run               | input: (lang-opt) script-path                     |" << std::endl;
-        std::cout << "| interp            | input: (lang-opt)                                 |" << std::endl;
-        std::cout << "| sh                | input: (lang-opt)                                 |" << std::endl;
-        std::cout << "| build-names       | input: name-1 .. name-k                           |" << std::endl;
-        std::cout << "| build-updated     | builds updated output files                       |" << std::endl;
-        std::cout << "| build-all         | builds all tracked output files                   |" << std::endl;
-        std::cout << "| serve             | serves project locally input: (sleep-sec)         |" << std::endl;
-        std::cout << "| new-title         | input: name new-title                             |" << std::endl;
-        std::cout << "| new-template      | input: (name) template-path                       |" << std::endl;
-        std::cout << "| new-output-dir    | input: dir-path                                   |" << std::endl;
-        std::cout << "| new-cont-dir      | input: dir-path                                   |" << std::endl;
-        std::cout << "| new-cont-ext      | input: (name) content-extension                   |" << std::endl;
-        std::cout << "| new-output-ext    | input: (name) output-extension                    |" << std::endl;
-        std::cout << "| new-script-ext    | input: (name) script-extension                    |" << std::endl;
-        std::cout << "| no-build-thrds    | input: (no-threads) [-n == n*cores]               |" << std::endl;
-        std::cout << "| backup-scripts    | input: (option)                                   |" << std::endl;
-        std::cout << "| watch             | input: dir-path (cont-ext) (temp-path) (out-ext)  |" << std::endl;
-        std::cout << "| unwatch           | input: dir-path (cont-ext)                        |" << std::endl;
-        std::cout << "+-----------------------------------------------------------------------+" << std::endl;
+        std::cout << "+--------- available commands ---------------------------------+" << std::endl;
+        std::cout << "| commands          | list all commands                        |" << std::endl;
+        std::cout << "| config            | list or set git email/username           |" << std::endl;
+        std::cout << "| clone             | par: clone-url                           |" << std::endl;
+        std::cout << "| diff              | par: file-path                           |" << std::endl;
+        std::cout << "| pull              | pull remote changes locally              |" << std::endl;
+        std::cout << "| bcp               | par: commit-message                      |" << std::endl;
+        std::cout << "| init              | start managing project - par: (out-ext)  |" << std::endl;
+        std::cout << "| init-html         | start managing html website              |" << std::endl;
+        std::cout << "| status            | list updated & problem files             |" << std::endl;
+        std::cout << "| info              | par: name-1 .. name-k                    |" << std::endl;
+        std::cout << "| info-all          | list watched dirs & tracked files        |" << std::endl;
+        std::cout << "| info-config       | list config settings                     |" << std::endl;
+        std::cout << "| info-names        | list tracked names                       |" << std::endl;
+        std::cout << "| info-tracking     | list tracked files                       |" << std::endl;
+        std::cout << "| info-watching     | list watched dirs                        |" << std::endl;
+        std::cout << "| track             | par: name (title) (template)             |" << std::endl;
+        std::cout << "| track-from-file   | par: file-path                           |" << std::endl;
+        std::cout << "| track-dir         | par: dir (cont-ext) (template) (out-ext) |" << std::endl;
+        std::cout << "| untrack           | par: name                                |" << std::endl;
+        std::cout << "| untrack-from-file | par: file-path                           |" << std::endl;
+        std::cout << "| untrack-dir       | par: dir-path (content-ext)              |" << std::endl;
+        std::cout << "| rmv               | par: name                                |" << std::endl;
+        std::cout << "| rmv-from-file     | par: file-path                           |" << std::endl;
+        std::cout << "| rmv-dir           | par: dir-path (content-ext)              |" << std::endl;
+        std::cout << "| mve               | par: old-name new-name                   |" << std::endl;
+        std::cout << "| cpy               | par: tracked-name new-name               |" << std::endl;
+        std::cout << "| run               | par: (lang-opt) script-path              |" << std::endl;
+        std::cout << "| interp            | par: (lang-opt)                          |" << std::endl;
+        std::cout << "| sh                | par: (lang-opt)                          |" << std::endl;
+        std::cout << "| build-names       | par: name-1 .. name-k                    |" << std::endl;
+        std::cout << "| build-updated     | build updated output files               |" << std::endl;
+        std::cout << "| build-all         | build all tracked output files           |" << std::endl;
+        std::cout << "| serve             | serve project locally par: (sleep-sec)   |" << std::endl;
+        std::cout << "| mve-output-dir    | par: dir-path                            |" << std::endl;
+        std::cout << "| mve-cont-dir      | par: dir-path                            |" << std::endl;
+        std::cout << "| new-title         | par: name new-title                      |" << std::endl;
+        std::cout << "| new-template      | par: (name) template                     |" << std::endl;
+        std::cout << "| new-cont-ext      | par: (name) content-ext                  |" << std::endl;
+        std::cout << "| new-output-ext    | par: (name) output-ext                   |" << std::endl;
+        std::cout << "| new-script-ext    | par: (name) script-ext                   |" << std::endl;
+        std::cout << "| no-build-thrds    | par: (no-threads) [-n == n*cores]        |" << std::endl;
+        std::cout << "| backup-scripts    | par: (option)                            |" << std::endl;
+        std::cout << "| incr-mode         | par: (mode)                              |" << std::endl;
+        std::cout << "| watch             | par: dir (cont-ext) (template) (out-ext) |" << std::endl;
+        std::cout << "| unwatch           | par: dir (cont-ext)                      |" << std::endl;
+        std::cout << "+--------------------------------------------------------------+" << std::endl;
 
         return 0;
     }
-
-    if(cmd == "luarocks")
+    else if(cmd == "interp" || cmd == "sh")
     {
-        std::string sysStr = "luarocks";
+        std::cout << "Nift (aka nsm) " << c_gold << "v" << NSM_VERSION << c_white;
+        std::cout << " (c)" << DateTimeInfo().currentYYYY();
+        std::cout << " (" << c_blue << "https://nift.cc" << c_white << ")" << std::endl;
+    }
+
+    if(cmd == "git" || cmd == "luarocks")
+    {
+        std::string sysStr = cmd;
 
         for(int p=2; p<=noParams; ++p)
             sysStr += " " + std::string(argv[p]);
@@ -518,7 +539,7 @@ int main(int argc, char* argv[])
 
         if(dir_exists(dirName))
         {
-            start_err(std::cout) << "destination path " << quote(dirName) << " already exists." << std::endl;
+            start_err(std::cout) << "destination path " << quote(dirName) << " already exists" << std::endl;
             return 1;
         }
 
@@ -536,24 +557,28 @@ int main(int argc, char* argv[])
             return ret_val;
         }
 
-        std::string obranch = get_pb();
-        std::set<std::string> branches = get_git_branches();
+        std::string obranch;
+        std::set<std::string> branches;
 
-        if(obranch == "##error##")
+        if(get_pb(obranch))
         {
             start_err(std::cout) << "clone: get_pb() failed in repository root directory " << quote(get_pwd()) << std::endl;
             return 1;
         }
 
-        if(obranch == "##not-found##")
+        if(obranch == "")
         {
             start_err(std::cout) << "clone: no branch found in repository root directory " << quote(get_pwd()) << std::endl;
             return 1;
         }
 
-        if(branches.size() == 0) //don't we already have an error just above?
+        if(get_git_branches(branches)) 
         {
-            //start_err(std::cout) << "clone: get_git_branches() failed in " << quote(get_pwd()) << std::endl;
+            start_err(std::cout) << "clone: get_git_branches() failed in " << quote(get_pwd()) << std::endl;
+            return 1;
+        }
+        else if(!branches.size()) 
+        {
             std::cout << "no branches found, cloning finished" << std::endl;
             return 0;
         }
@@ -602,7 +627,9 @@ int main(int argc, char* argv[])
                         return ret_val;
                     }
 
-                    ret_val = cpDir(dirName, ".temp-output-dir");
+                    std::mutex os_mtx;
+                    Path emptyPath("", "");
+                    ret_val = cpDir(dirName, ".temp-output-dir", -1, emptyPath, std::cout, 0, &os_mtx);
                     if(ret_val)
                     {
                         start_err(std::cout) << "clone: failed to copy directory " << quote(dirName) << " to '.temp-output-dir/' from " << quote(get_pwd()) << std::endl;
@@ -616,7 +643,7 @@ int main(int argc, char* argv[])
                         return ret_val;
                     }
 
-                    ret_val = delDir(".nsm/"); //can delete this later
+                    ret_val = delDir(".nsm/", -1, emptyPath, std::cout, 0, &os_mtx); //can delete this later
                     if(ret_val)
                     {
                         start_err(std::cout) << "clone: failed to delete directory " << get_pwd() << "/.nsm/" << std::endl;
@@ -649,7 +676,7 @@ int main(int argc, char* argv[])
                         return ret_val;
                     }
 
-                    ret_val = delDir(project.outputDir);
+                    ret_val = delDir(project.outputDir, -1, emptyPath, std::cout, 0, &os_mtx);
                     if(ret_val)
                     {
                         start_err(std::cout) << "clone: failed to delete directory " << quote(project.outputDir) << " from " << quote(get_pwd()) << std::endl;
@@ -702,10 +729,10 @@ int main(int argc, char* argv[])
     else if(cmd == "interp" || cmd == "sh")
     {
         //ensures correct number of parameters given
-        if(noParams != 1 && noParams != 2)
-            return parError(noParams, argv, "1-2");
+        if(noParams != 1 && noParams != 2 && noParams != 3)
+            return parError(noParams, argv, "1-3");
 
-        std::string langOpt;
+        std::string param;
         Path path;
 
         std::string lang = "?";
@@ -713,20 +740,20 @@ int main(int argc, char* argv[])
             lang = "f++";
         else
         {
-            langOpt = argv[2];
+            param = argv[2];
 
-            if(langOpt.find_first_of('f') != std::string::npos)
+            if(param.find_first_of('f') != std::string::npos)
                 lang = "f++";
-            else if(langOpt.find_first_of('n') != std::string::npos)
+            else if(param.find_first_of('n') != std::string::npos)
                 lang = "n++";
-            if(langOpt.find_first_of('l') != std::string::npos)
+            else if(param.find_first_of('l') != std::string::npos)
                 lang = "lua";
-            else if(langOpt.find_first_of('x') != std::string::npos)
+            else if(param.find_first_of('x') != std::string::npos)
                 lang = "exprtk";
             else
             {
-                start_err(std::cout) << cmd << ": cannot determine chosen language from " << quote(langOpt) << ", ";
-                std::cout << "valid options include '-n++', '-f++'" << std::endl;
+                start_err(std::cout) << cmd << ": cannot determine chosen language from " << quote(param) << ", ";
+                std::cout << "valid options include '-n++', '-f++', '-lua', '-exprtk'" << std::endl;
                 return 1;
             }
         }
@@ -846,7 +873,7 @@ int main(int argc, char* argv[])
                       project.unixTextEditor,
                       project.winTextEditor);
 
-        int ret_val = parser.run(path, lang, std::cout);
+        ret_val = parser.run(path, lang, std::cout);
 
         std::cout.precision(4);
         std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
@@ -866,19 +893,18 @@ int main(int argc, char* argv[])
            cmd != "info-names" &&
            cmd != "info-tracking" &&
            cmd != "info-watching" &&
+           cmd != "incr-mode" &&
            cmd != "track" &&
            cmd != "track-from-file" &&
            cmd != "track-dir" &&
            cmd != "untrack" &&
            cmd != "untrack-from-file" &&
            cmd != "untrack-dir" &&
-           cmd != "rm-from-file" && cmd != "del-from-file" &&
-           cmd != "rm-dir"       && cmd != "del-dir" &&
-           cmd != "rm"           && cmd != "del" &&
-           cmd != "mv" &&
-           cmd != "move" &&
-           cmd != "cp" &&
-           cmd != "copy" &&
+           cmd != "rm-from-file" && cmd != "del-from-file" && cmd != "rmv-from-file" &&
+           cmd != "rm-dir"       && cmd != "del-dir"       && cmd != "rmv-dir" &&
+           cmd != "rm"           && cmd != "del"           && cmd != "rmv" &&
+           cmd != "mv" && cmd != "move" && cmd != "mve" &&
+           cmd != "cp" && cmd != "copy" && cmd != "cpy" &&
            cmd != "new-title" &&
            cmd != "new-template" &&
            cmd != "new-output-dir" &&
@@ -895,6 +921,11 @@ int main(int argc, char* argv[])
            cmd != "build-all" &&
            cmd != "serve")
         {
+            #if defined _WIN32 || defined _WIN64
+                if(ProjectInfo().open_global_config())
+                    return 1;
+            #endif
+
             unrecognisedCommand(cmd);
             return 1;
         }
@@ -995,18 +1026,27 @@ int main(int argc, char* argv[])
             if(project.buildThreads < 0)
                 project.buildThreads = -project.buildThreads*std::thread::hardware_concurrency();
 
-            std::cout << "contentDir: " << quote(project.contentDir) << std::endl;
-            std::cout << "contentExt: " << quote(project.contentExt) << std::endl;
-            std::cout << "outputDir: " << quote(project.outputDir) << std::endl;
-            std::cout << "outputExt: " << quote(project.outputExt) << std::endl;
-            std::cout << "scriptExt: " << quote(project.scriptExt) << std::endl;
-            std::cout << "defaultTemplate: " << project.defaultTemplate << std::endl << std::endl;
-            std::cout << "buildThreads: " << project.buildThreads << std::endl << std::endl;
-            std::cout << "backupScripts: " << project.backupScripts << std::endl << std::endl;
-            std::cout << "unixTextEditor: " << quote(project.unixTextEditor) << std::endl;
-            std::cout << "winTextEditor: " << quote(project.winTextEditor) << std::endl << std::endl;
-            std::cout << "rootBranch: " << quote(project.rootBranch) << std::endl;
-            std::cout << "outputBranch: " << quote(project.outputBranch) << std::endl;
+            #if defined __APPLE__ || defined __linux__
+                const std::string configStr = "⚙️  ";
+            #else
+                const std::string configStr = "=> ";
+            #endif
+
+            std::cout << c_light_blue << configStr << c_white << "project configuration:" << std::endl;
+
+            std::cout << " contentDir: " << quote(project.contentDir) << std::endl;
+            std::cout << " contentExt: " << quote(project.contentExt) << std::endl;
+            std::cout << " outputDir: " << quote(project.outputDir) << std::endl;
+            std::cout << " outputExt: " << quote(project.outputExt) << std::endl;
+            std::cout << " scriptExt: " << quote(project.scriptExt) << std::endl;
+            std::cout << " defaultTemplate: " << project.defaultTemplate << std::endl << std::endl;
+            std::cout << " buildThreads: " << project.buildThreads << std::endl << std::endl;
+            std::cout << " backupScripts: " << project.backupScripts << std::endl << std::endl;
+            std::cout << " incrementalMode: " << project.incrMode << std::endl << std::endl;
+            std::cout << " unixTextEditor: " << quote(project.unixTextEditor) << std::endl;
+            std::cout << " winTextEditor: " << quote(project.winTextEditor) << std::endl << std::endl;
+            std::cout << " rootBranch: " << quote(project.rootBranch) << std::endl;
+            std::cout << " outputBranch: " << quote(project.outputBranch) << std::endl;
 
             return 0;
         }
@@ -1026,28 +1066,28 @@ int main(int argc, char* argv[])
 
             std::string pullCmnd,
                         projectDirRemote,
-                        projectRootDirRemote = get_remote(),
+                        projectRootDirRemote,
                         projectDirBranch,
-                        projectRootDirBranch = get_pb();
+                        projectRootDirBranch;
 
-            if(projectRootDirRemote == "##error##")
+            if(get_remote(projectRootDirRemote))
             {
                 start_err(std::cout) << "pull: get_remote() failed in project root directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
-            if(projectRootDirRemote == "##not-found##")
+            if(projectRootDirRemote == "")
             {
                 start_err(std::cout) << "pull: get_remote() did not find any git remote in project root directory " << quote(get_pwd()) << std::endl;
             }
 
-            if(projectRootDirBranch == "##error##")
+            if(get_pb(projectRootDirBranch))
             {
                 start_err(std::cout) << "pull: get_pb() failed in project root directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
-            if(projectRootDirBranch == "##not-found##")
+            if(projectRootDirBranch == "")
             {
                 start_err(std::cout) << "pull: no branch found in project root directory " << quote(get_pwd()) << std::endl;
                 return 1;
@@ -1066,23 +1106,19 @@ int main(int argc, char* argv[])
                 return ret_val;
             }
 
-            projectDirRemote = get_remote();
-
-            if(projectDirRemote == "##error##")
+            if(get_remote(projectDirRemote))
             {
                 start_err(std::cout) << "pull: get_remote() failed in project directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
-            projectDirBranch = get_pb();
-
-            if(projectDirBranch == "##error##")
+            if(get_pb(projectDirBranch))
             {
                 start_err(std::cout) << "pull: get_pb() failed in project directory " << quote(get_pwd()) << std::endl;
                 return 1;
             }
 
-            if(projectDirBranch == "##not-found##")
+            if(projectDirBranch == "")
             {
                 start_err(std::cout) << "pull: no branch found in project directory " << quote(get_pwd()) << std::endl;
                 return 1;
@@ -1124,7 +1160,7 @@ int main(int argc, char* argv[])
 
             return 0;
         }
-        if(cmd == "no-build-thrds")
+        else if(cmd == "no-build-thrds")
         {
             //ensures correct number of parameters given
             if(noParams != 1 && noParams != 2)
@@ -1149,7 +1185,7 @@ int main(int argc, char* argv[])
 
             return 0;
         }
-        if(cmd == "backup-scripts")
+        else if(cmd == "backup-scripts")
         {
             //ensures correct number of parameters given
             if(noParams != 1 && noParams != 2)
@@ -1196,6 +1232,30 @@ int main(int argc, char* argv[])
             }
 
             return 0;
+        }
+        else if(cmd == "incr-mode")
+        {
+            if(noParams > 2)
+                return parError(noParams, argv, "1-2");
+
+            if(noParams == 1)
+            {
+                if(project.incrMode == INCR_MOD)
+                    std::cout << "mod" << std::endl;
+                else if(project.incrMode == INCR_HASH)
+                    std::cout << "hash" << std::endl;
+                else if(project.incrMode == INCR_HYB)
+                    std::cout << "hybrid" << std::endl;
+                else
+                {
+                    start_err(std::cout) << "incr-mode: do not recognise incremental mode " << project.incrMode << std::endl;
+                    return 1;
+                }
+
+                return 0;
+            }
+            else
+                return project.set_incr_mode(argv[2]);
         }
         else if(cmd == "watch")
         {
@@ -1408,15 +1468,15 @@ int main(int argc, char* argv[])
             std::string commitCmnd = "git commit -m \"" + std::string(argv[2]) + "\"",
                         pushCmnd,
                         outputDirBranch,
-                        projectRootDirBranch = get_pb();
+                        projectRootDirBranch;
 
-            if(projectRootDirBranch == "##error##")
+            if(get_pb(projectRootDirBranch))
             {
                 start_err(std::cout) << "bcp: get_pb() failed in " << quote(get_pwd()) << std::endl;
                 return 0;
             }
 
-            if(projectRootDirBranch == "##not-found##")
+            if(projectRootDirBranch == "")
             {
                 start_err(std::cout) << "bcp: no branch found in project root directory " << quote(get_pwd()) << std::endl;
                 return 1;
@@ -1437,15 +1497,13 @@ int main(int argc, char* argv[])
                 return ret_val;
             }
 
-            outputDirBranch = get_pb();
-
-            if(outputDirBranch == "##error##")
+            if(get_pb(outputDirBranch))
             {
                 start_err(std::cout) << "bcp: get_pb() failed in " << quote(get_pwd()) << std::endl;
                 return 0;
             }
 
-            if(outputDirBranch == "##not-found##")
+            if(outputDirBranch == "")
             {
                 start_err(std::cout) << "bcp: no branch found in project directory " << quote(get_pwd()) << std::endl;
                 return 1;
@@ -1495,9 +1553,11 @@ int main(int argc, char* argv[])
                 return ret_val;
             }
 
+            //clear_console_line();
             ret_val = system(commitCmnd.c_str());
             //can't handle error here incase we had to run bcp multiple times
 
+            //clear_console_line();
             ret_val = system(pushCmnd.c_str());
             if(ret_val)
             {
@@ -1614,12 +1674,14 @@ int main(int argc, char* argv[])
         else if(cmd == "untrack")
         {
             //ensures correct number of parameters given
-            if(noParams != 2)
-                return parError(noParams, argv, "2");
+            if(noParams < 2)
+                return parError(noParams, argv, "2+");
 
-            Name nameToUntrack = argv[2];
+            std::vector<Name> namesToUntrack;
+            for(int i=2; i<=noParams; ++i)
+                namesToUntrack.push_back(argv[2]);
 
-            return project.untrack(nameToUntrack);
+            return project.untrack(namesToUntrack);
         }
         else if(cmd == "untrack-from-file")
         {
@@ -1657,6 +1719,11 @@ int main(int argc, char* argv[])
         }
         else if(cmd == "rm-from-file" || cmd == "del-from-file")
         {
+            start_err(std::cout) << "command has changed to rmv-from-file" << std::endl;
+            return 1;
+        }
+        else if(cmd == "rmv-from-file")
+        {
             //ensures correct number of parameters given
             if(noParams != 2)
                 return parError(noParams, argv, "2");
@@ -1669,6 +1736,11 @@ int main(int argc, char* argv[])
             return result;
         }
         else if(cmd == "rm-dir" || cmd == "del-dir")
+            {
+            start_err(std::cout) << "command has changed to rmv-dir" << std::endl;
+            return 1;
+        }
+        else if(cmd == "rmv-dir")
         {
             //ensures correct number of parameters given
             if(noParams < 2 || noParams > 3)
@@ -1691,15 +1763,27 @@ int main(int argc, char* argv[])
         }
         else if(cmd == "rm" || cmd == "del")
         {
+            start_err(std::cout) << "command has changed to rmv" << std::endl;
+            return 1;
+        }
+        else if(cmd == "rmv")
+        {
             //ensures correct number of parameters given
-            if(noParams != 2)
-                return parError(noParams, argv, "2");
+            if(noParams < 2)
+                return parError(noParams, argv, "2+");
 
-            Name nameToRemove = argv[2];
+            std::vector<Name> namesToRemove;
+            for(int i=2; i<=noParams; ++i)
+                namesToRemove.push_back(argv[2]);
 
-            return project.rm(nameToRemove);
+            return project.rm(namesToRemove);
         }
         else if(cmd == "mv" || cmd == "move")
+        {
+            start_err(std::cout) << "command has changed to mve" << std::endl;
+            return 1;
+        }
+        else if(cmd == "mve")
         {
             //ensures correct number of parameters given
             if(noParams != 3)
@@ -1711,6 +1795,11 @@ int main(int argc, char* argv[])
             return project.mv(oldName, newName);
         }
         else if(cmd == "cp" || cmd == "copy")
+        {
+            start_err(std::cout) << "command has changed to rmv-from-file" << std::endl;
+            return 1;
+        }
+        else if(cmd == "cpy")
         {
             //ensures correct number of parameters given
             if(noParams != 3)
@@ -1762,6 +1851,11 @@ int main(int argc, char* argv[])
         }
         else if(cmd == "new-output-dir")
         {
+            start_err(std::cout) << "command has changed to mve-output-dir" << std::endl;
+            return 1;
+        }
+        else if(cmd == "mve-output-dir")
+        {
             //ensures correct number of parameters given
             if(noParams != 2)
                 return parError(noParams, argv, "2");
@@ -1774,6 +1868,11 @@ int main(int argc, char* argv[])
             return project.new_output_dir(newOutputDir);
         }
         else if(cmd == "new-cont-dir")
+        {
+            start_err(std::cout) << "command has changed to mve-cont-dir" << std::endl;
+            return 1;
+        }
+        else if(cmd == "mve-cont-dir")
         {
             //ensures correct number of parameters given
             if(noParams != 2)
@@ -1872,6 +1971,8 @@ int main(int argc, char* argv[])
                     result = project.status(std::cout, 1, 0, 1);
                 else if(optStr == "-bs")
                     result = project.status(std::cout, 0, 0, 1);
+                else if(optStr == "-n")
+                    result = project.status(std::cout, 2, 0, 0);
                 else if(optStr == "-s") //silent
                     result = project.status(std::cout, 0, 0, 0);
                 else
@@ -1912,6 +2013,8 @@ int main(int argc, char* argv[])
                     result = project.build_updated(std::cout, 1, 0, 1);
                 else if(optStr == "-bs")
                     result = project.build_updated(std::cout, 0, 0, 1);
+                else if(optStr == "-n") //newines for progress
+                    result = project.build_updated(std::cout, 2, 0, 0);
                 else if(optStr == "-s") //silent
                     result = project.build_updated(std::cout, 0, 0, 0);
                 else
@@ -1935,7 +2038,7 @@ int main(int argc, char* argv[])
             int p=2;
             bool noOpt = 1;
             std::string optStr = argv[2];
-            if(optStr == "-s")
+            if(optStr == "-s" || optStr == "-n")
             {
                 noOpt = 0;
                 ++p;
@@ -1949,8 +2052,10 @@ int main(int argc, char* argv[])
 
             if(noOpt)
                 result = project.build_names(std::cout, 1, namesToBuild);
-            else
+            else if(optStr == "-s")
                 result = project.build_names(std::cout, 0, namesToBuild);
+            else
+                result = project.build_names(std::cout, 2, namesToBuild);
 
             std::cout.precision(4);
             std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;
@@ -1973,6 +2078,8 @@ int main(int argc, char* argv[])
 
                 if(optStr == "-s")
                     result = project.build_all(std::cout, 0);
+                else if(optStr == "-n")
+                    result = project.build_all(std::cout, 2);
                 else
                 {
                     start_err(std::cout) << "do not recognise build-all option " << quote(argv[2]) << std::endl;

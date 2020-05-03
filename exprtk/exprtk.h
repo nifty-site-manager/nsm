@@ -17112,10 +17112,21 @@ namespace exprtk
             return false;
          else if (!valid_symbol(variable_name))
             return false;
-         else if (symbol_exists(variable_name))
-            return false;
+         /*else if (symbol_exists(variable_name))
+            return false;*/
          else
+         {
+            if (symbol_exists(variable_name))
+            {
+               if(is_variable(variable_name))
+                  remove_variable(variable_name);
+               else if(is_stringvar(variable_name))
+                  remove_stringvar(variable_name);
+               else if(is_vector(variable_name))
+                  remove_vector(variable_name);
+            }
             return local_data().variable_store.add(variable_name,t,is_constant);
+         }
       }
 
       inline bool add_constant(const std::string& constant_name, const T& value)
@@ -17124,8 +17135,18 @@ namespace exprtk
             return false;
          else if (!valid_symbol(constant_name))
             return false;
-         else if (symbol_exists(constant_name))
-            return false;
+         /*else if (symbol_exists(constant_name))
+            return false;*/
+
+         if (symbol_exists(constant_name))
+         {
+            if(is_variable(constant_name))
+               remove_variable(constant_name);
+            else if(is_stringvar(constant_name))
+               remove_stringvar(constant_name);
+            else if(is_vector(constant_name))
+               remove_vector(constant_name);
+         }
 
          local_data().local_symbol_list_.push_back(value);
          T& t = local_data().local_symbol_list_.back();
@@ -17140,10 +17161,22 @@ namespace exprtk
             return false;
          else if (!valid_symbol(stringvar_name))
             return false;
-         else if (symbol_exists(stringvar_name))
-            return false;
+         /*else if (symbol_exists(stringvar_name))
+            return false;*/
          else
+         {
+            if (symbol_exists(stringvar_name))
+            {
+               if(is_variable(stringvar_name))
+                  remove_variable(stringvar_name);
+               else if(is_stringvar(stringvar_name))
+                  remove_stringvar(stringvar_name);
+               else if(is_vector(stringvar_name))
+                  remove_vector(stringvar_name);
+            }
+
             return local_data().stringvar_store.add(stringvar_name,s,is_constant);
+         }
       }
       #endif
 
@@ -17304,10 +17337,22 @@ namespace exprtk
             return false;
          else if (!valid_symbol(vector_name))
             return false;
-         else if (symbol_exists(vector_name))
-            return false;
+         /*else if (symbol_exists(vector_name))
+            return false;*/
          else
+         {
+            if (symbol_exists(vector_name))
+            {
+               if(is_variable(vector_name))
+                  remove_variable(vector_name);
+               else if(is_stringvar(vector_name))
+                  remove_stringvar(vector_name);
+               else if(is_vector(vector_name))
+                  remove_vector(vector_name);
+            }
+
             return local_data().vector_store.add(vector_name,v);
+         }
       }
 
       inline bool add_vector(const std::string& vector_name, T* v, const std::size_t& v_size)
@@ -17316,12 +17361,24 @@ namespace exprtk
             return false;
          else if (!valid_symbol(vector_name))
             return false;
-         else if (symbol_exists(vector_name))
-            return false;
+         /*else if (symbol_exists(vector_name))
+            return false;*/
          else if (0 == v_size)
             return false;
          else
+         {
+            if (symbol_exists(vector_name))
+            {
+               if(is_variable(vector_name))
+                  remove_variable(vector_name);
+               else if(is_stringvar(vector_name))
+                  remove_stringvar(vector_name);
+               else if(is_vector(vector_name))
+                  remove_vector(vector_name);
+            }
+
             return local_data().vector_store.add(vector_name,v,v_size);
+         }
       }
 
       template <typename Allocator>
@@ -17331,12 +17388,24 @@ namespace exprtk
             return false;
          else if (!valid_symbol(vector_name))
             return false;
-         else if (symbol_exists(vector_name))
-            return false;
+         /*else if (symbol_exists(vector_name))
+            return false;*/
          else if (0 == v.size())
             return false;
          else
+         {
+            if (symbol_exists(vector_name))
+            {
+               if(is_variable(vector_name))
+                  remove_variable(vector_name);
+               else if(is_stringvar(vector_name))
+                  remove_stringvar(vector_name);
+               else if(is_vector(vector_name))
+                  remove_vector(vector_name);
+            }
+
             return local_data().vector_store.add(vector_name,v);
+         }
       }
 
       inline bool add_vector(const std::string& vector_name, exprtk::vector_view<T>& v)
@@ -17345,12 +17414,24 @@ namespace exprtk
             return false;
          else if (!valid_symbol(vector_name))
             return false;
-         else if (symbol_exists(vector_name))
-            return false;
+         /*else if (symbol_exists(vector_name))
+            return false;*/
          else if (0 == v.size())
             return false;
          else
+         {
+            if (symbol_exists(vector_name))
+            {
+               if(is_variable(vector_name))
+                  remove_variable(vector_name);
+               else if(is_stringvar(vector_name))
+                  remove_stringvar(vector_name);
+               else if(is_vector(vector_name))
+                  remove_vector(vector_name);
+            }
+
             return local_data().vector_store.add(vector_name,v);
+         }
       }
 
       inline bool remove_variable(const std::string& variable_name, const bool delete_node = true)

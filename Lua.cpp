@@ -1,4 +1,4 @@
-#include "LuaJIT.h"
+#include "Lua.h"
 
 void process_lua_error(std::string& errStr, int& errLineNo)
 {

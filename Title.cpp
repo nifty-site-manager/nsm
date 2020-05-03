@@ -24,10 +24,7 @@ bool Title::read_quoted_from(std::istream &is)
 //outputs title (quoted if it contains spaces)
 std::ostream& operator<<(std::ostream &os, const Title &tit)
 {
-	if(&os == &std::cout)
-	    os << c_light_blue << quote(tit.str) << c_white;
-	else
-		os << quote(tit.str);
+	os << c_light_blue << quote(tit.str) << c_white;
 
     return os;
 }

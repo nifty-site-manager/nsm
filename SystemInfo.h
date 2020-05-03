@@ -51,7 +51,7 @@ size_t console_height();
 std::string home_dir();
 std::string app_dir();
 
-std::string replace_home_dir(std::string str);
+std::string replace_home_dir(const std::string& str);
 
 std::string get_hostname();
 std::string get_username();

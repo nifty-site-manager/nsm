@@ -41,10 +41,11 @@ struct ProjectInfo
     Directory contentDir,
               outputDir;
     bool backupScripts;
-    int buildThreads;
+    int buildThreads, incrMode;
     std::string contentExt,
                 outputExt,
                 scriptExt,
+                terminal,
                 unixTextEditor,
                 winTextEditor,
                 rootBranch,
@@ -75,6 +76,9 @@ struct ProjectInfo
     int info_watching();
     int info_tracking();
     int info_names();
+
+    int set_incr_mode(const std::string& modeStr);
+    int remove_hash_files();
 
     std::string get_ext(const TrackedInfo& trackedInfo, 
                         const std::string& extType);
@@ -126,21 +130,20 @@ struct ProjectInfo
     int check_watch_dirs();
 
 
-    int build_names(const std::vector<Name>& namesToBuild);
     int build_untracked(std::ostream& os, 
-                        const bool& addBuildStatus, 
+                        const int& addBuildStatus, 
                         const std::set<TrackedInfo> infoToBuild);
     int build_names(std::ostream& os, 
-                    const bool& addBuildStatus, 
+                    const int& addBuildStatus, 
                     const std::vector<Name>& namesToBuild);
-    int build_all(std::ostream& os, const bool& addBuildStatus);
+    int build_all(std::ostream& os, const int& addBuildStatus);
     int build_updated(std::ostream& os, 
-                      const bool& addBuildStatus, 
+                      const int& addBuildStatus, 
                       const bool& addExpl, 
                       const bool& basicOpt);
 
     int status(std::ostream& os, 
-               const bool& addBuildStatus, 
+               const int& addBuildStatus, 
                const bool& addExpl, 
                const bool& basicOpt);
 };

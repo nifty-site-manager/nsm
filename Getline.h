@@ -6,6 +6,7 @@
 #include "ConsoleColor.h"
 #include "Consts.h"
 #include "FileSystem.h"
+#include "Lolcat.h"
 #include "StrFns.h"
 
 void save_session(const std::string& path);
@@ -26,9 +27,15 @@ void write_info(const std::string& info,
 
 #endif
 
+int nsm_getch();
+
+int rnbwcout(const std::string& str);
+int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd);
+
 int getline(const std::string& lang,
             const bool& addPwd, 
             const char& promptCh, 
+	        const int& lolcat,
             std::string& str, 
             bool trackLines, 
             const std::vector<std::string>& tabCompletionStrs);
