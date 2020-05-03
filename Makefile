@@ -64,7 +64,7 @@ ifeq ($(BUNDLED),0)
 	    	#LINK+= -LLua-5.3/src -llua
 		else ifeq ($(detected_OS),FreeBSD)  # FreeBSD
 			CXXFLAGS+= -D__LUA_VERSION_5_3__
-	    	LINK+= -L/usr/local/lib -llua -lm -ldl  
+			LINK+= -L/usr/local/lib -llua-5.3 -lm -ldl
 		else                                # *nix
 			CXXFLAGS+= -D__LUA_VERSION_5_3__
 	    	LINK+= -L/usr/local/lib -llua -ldl
@@ -142,7 +142,7 @@ make-lua:
 ifeq ($(_BUNDLED_),0)
 else ifeq ($(WAS_UNBUNDLED),1)
 else ifeq ($(LUA_VERSION) $(detected_OS),5.3 FreeBSD)       # FreeBSD 
-	cd Lua-5.3 && make freebsd
+	cd Lua-5.3 && gmake freebsd
 else ifeq ($(LUA_VERSION) $(detected_OS),5.3 Linux)         # Linux
 	cd Lua-5.3 && make linux
 else ifeq ($(LUA_VERSION) $(detected_OS),5.3 Darwin)        # Mac OSX
