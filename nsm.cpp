@@ -1796,7 +1796,7 @@ int main(int argc, const char* argv[])
         }
         else if(cmd == "cp" || cmd == "copy")
         {
-            start_err(std::cout) << "command has changed to rmv-from-file" << std::endl;
+            start_err(std::cout) << "command has changed to cpy" << std::endl;
             return 1;
         }
         else if(cmd == "cpy")

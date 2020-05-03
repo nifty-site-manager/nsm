@@ -9,12 +9,21 @@ LIBDIR=${DESTDIR}${PREFIX}/lib
 
 CXX?=g++
 CXXFLAGS=-std=c++11 -Wall -Wextra -pedantic -O3
+#CXXFLAGS=-std=c++11 -Wall -Wextra -Werror -pedantic -O3
 LINK=-pthread
 
 ifeq ($(OS),Windows_NT) 
     detected_OS := Windows
 else
     detected_OS := $(shell sh -c 'uname 2>/dev/null || echo Unknown')
+endif
+
+ifeq ($(CXX),clang)
+	ifeq ($(OS),FreeBSD) 
+	else
+		CXXFLAGS+= -Qunused-arguments -lstdc++
+	    LINK+= -lm
+	endif
 endif
 
 ifeq ($(detected_OS),Darwin)        # Mac OSX
@@ -46,6 +55,8 @@ else
 
 	ifeq ($(NO_COLOR),1)
 		CXXFLAGS+= -D__NO_COLOUR__
+	else ifeq ($(NO_COLOUR),1)
+		CXXFLAGS+= -D__NO_COLOUR__
 	endif
 
 	ifeq ($(NO_PROGRESS),1)
@@ -55,32 +66,54 @@ endif
 
 ifeq ($(BUNDLED),0)
 	_BUNDLED_=0
-	ifeq ($(LUA_VERSION),5.3) 
-	    ifeq ($(detected_OS),Windows)  # Windows
-			_BUNDLED_=1
-			WAS_UNBUNDLED=1
-	    	CXXFLAGS+= -D__BUNDLED__ -D__LUA_VERSION_5_3__
-	    	LINK+= -LLua-5.3/src -llua
-	    	#LINK+= -LLua-5.3/src -llua
-		else ifeq ($(detected_OS),FreeBSD)  # FreeBSD
-			CXXFLAGS+= -D__LUA_VERSION_5_3__
-			LINK+= -L/usr/local/lib -llua-5.3 -lm -ldl
+	ifeq ($(detected_OS),Windows)  # Windows
+		_BUNDLED_=1
+		WAS_UNBUNDLED=1
+		ifneq ($(LUA_VERSION),)
+    		CXXFLAGS+= -D__BUNDLED__ -D__LUA_VERSION_5_3__
+    		LINK+= -LLua-5.3/src -llua
+    	else
+    		CXXFLAGS+= -D__BUNDLED__ -D__LUAJIT_VERSION_2_1__
+			LINK+= -LLuaJIT/src -llua51
+    	endif
+	else ifeq ($(LUA_VERSION),x) 
+	    ifeq ($(detected_OS),FreeBSD)  # FreeBSD
+			CXXFLAGS+= -D__LUA_VERSION_x__
+	    	LINK+= -L/usr/local/lib -llua -lm -ldl  
 		else                                # *nix
-			CXXFLAGS+= -D__LUA_VERSION_5_3__
+			CXXFLAGS+= -D__LUA_VERSION_x__
 	    	LINK+= -L/usr/local/lib -llua -ldl
 		endif
-	else #do we need -ldl below?
-		ifeq ($(detected_OS),Windows)  # Windows
-			_BUNDLED_=1
-			WAS_UNBUNDLED=1
-			CXXFLAGS+= -D__BUNDLED__ -D__LUA_VERSION_JIT__
-			LINK+= -LLuaJIT/src -llua51
-			#LINK+= -L. -llua51
-		else ifeq ($(detected_OS),FreeBSD)  # FreeBSD
-			CXXFLAGS+= -D__LUA_VERSION_JIT__
+	else ifeq ($(LUA_VERSION),5.4) 
+	    ifeq ($(detected_OS),FreeBSD)  # FreeBSD
+			CXXFLAGS+= -D__LUA_VERSION_5_4__
+	    	LINK+= -L/usr/local/lib -llua-5.4 -lm -ldl  
+		else                                # *nix
+			CXXFLAGS+= -D__LUA_VERSION_5_4__
+	    	LINK+= -L/usr/local/lib -llua-5.4 -ldl
+		endif
+	else ifeq ($(LUA_VERSION),5.3) 
+	    ifeq ($(detected_OS),FreeBSD)  # FreeBSD
+			CXXFLAGS+= -D__LUA_VERSION_5_3__
+	    	LINK+= -L/usr/local/lib -llua-5.3 -lm -ldl  
+		else                                # *nix
+			CXXFLAGS+= -D__LUA_VERSION_5_3__
+	    	LINK+= -L/usr/local/lib -llua-5.3 -ldl
+		endif
+	else ifeq ($(LUAJIT_VERSION),2.0)
+		ifeq ($(detected_OS),FreeBSD)  # FreeBSD
+			CXXFLAGS+= -D__LUAJIT_VERSION_2_0__
 			LINK+= -ldl -lm -L/usr/local/lib -lluajit-5.1  
 		else                                # *nix
-			CXXFLAGS+= -D__LUA_VERSION_JIT__
+			CXXFLAGS+= -D__LUAJIT_VERSION_2_0__
+			LINK+= -ldl -L/usr/local/lib -lluajit-5.1 
+		endif
+	else
+		ifeq ($(detected_OS),FreeBSD)  # FreeBSD
+			CXXFLAGS+= -D__LUAJIT_VERSION_2_1__
+			LINK+= -ldl -lm -L/usr/local/lib -lluajit-5.1  
+		else                                # *nix
+			CXXFLAGS+= -D__LUAJIT_VERSION_2_1__
 			LINK+= -ldl -L/usr/local/lib -lluajit-5.1 
 		endif
 	endif
@@ -97,7 +130,7 @@ else
 	    	LINK+= -LLua-5.3/src -llua -ldl
 		endif
 	else
-		CXXFLAGS+= -D__BUNDLED__ -D__LUA_VERSION_JIT__
+		CXXFLAGS+= -D__BUNDLED__ -D__LUAJIT_VERSION_2_1__
 		ifeq ($(detected_OS),Windows)  # Windows
 	    	LINK+= -LLuaJIT/src -llua51
 			#LINK+= -L. -llua51
@@ -140,7 +173,6 @@ endif
 
 make-lua:
 ifeq ($(_BUNDLED_),0)
-else ifeq ($(WAS_UNBUNDLED),1)
 else ifeq ($(LUA_VERSION) $(detected_OS),5.3 FreeBSD)       # FreeBSD 
 	cd Lua-5.3 && $(MAKE) freebsd
 else ifeq ($(LUA_VERSION) $(detected_OS),5.3 Linux)         # Linux
@@ -150,16 +182,16 @@ else ifeq ($(LUA_VERSION) $(detected_OS),5.3 Darwin)        # Mac OSX
 else ifeq ($(LUA_VERSION) $(detected_OS),5.3 Windows)       # Windows
 	cd Lua-5.3 && $(MAKE) mingw
 	copy Lua-5.3\src\lua53.dll .
+else ifeq ($(LUA_VERSION) $(POSIX),5.3 1)                   # Posix
+	cd Lua-5.3 && $(MAKE) posix
 else ifeq ($(LUA_VERSION),5.3)                              # Generic
-	cd Lua-5.3 && $(MAKE) generic  # <- could have posix here
-else ifeq ($(detected_OS),Darwin)   # Mac OSX
+	cd Lua-5.3 && $(MAKE) generic
+else ifeq ($(detected_OS),Darwin)        # Mac OSX
 	cd LuaJIT && $(MAKE) MACOSX_DEPLOYMENT_TARGET=10.9
-else ifeq ($(detected_OS),Windows)  # Windows
+else ifeq ($(detected_OS),Windows)       # Windows
 	cd LuaJIT && $(MAKE)
 	copy LuaJIT\src\lua51.dll .
-else ifeq ($(detected_OS),FreeBSD)  #FreeBSD
-	cd LuaJIT && $(MAKE)
-else                                # *nix
+else                                     # FreeBSD/Linux/Posix/Unix
 	cd LuaJIT && $(MAKE)
 endif
 
@@ -285,7 +317,7 @@ else                                     # FreeBSD/Linux/OSX/Posix/Unix
 	rm ${BINDIR}/nift
 	rm ${BINDIR}/nsm
 endif 
-
+	
 git-bash-install:
 	chmod 755 nsm
 	mv nift ~/bin
@@ -299,7 +331,7 @@ clean:
 ifeq ($(detected_OS),Windows)       # Windows
 	del $(objects)
 	cd Lua-5.3 && $(MAKE) clean
-	#cd LuaJIT && $(MAKE) clean        #has been fixed in development version, soon!
+	#cd LuaJIT && $(MAKE) clean     #has been fixed in development version, soon!
 else                                # FreeBSD/Linux/OSX/Posix/Unix
 	rm -f $(objects)
 	cd Lua-5.3 && $(MAKE) clean

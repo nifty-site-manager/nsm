@@ -2,6 +2,9 @@
 Nift Release Notes
 ------------------
 
+Verstion 2.3.8 of Nift
+* added clang support to Makefile (pass `CXX=clang` to Makefile)
+
 Version 2.3.7 of Nift
 * fixed bug with retrieving present git branch when git is in another language
 * cleaned up GitInfo.cpp
