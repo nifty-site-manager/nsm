@@ -106,7 +106,7 @@ struct Parser
     int interactive(std::string& lang, std::ostream& eos);
     int run(const Path& path, char lang, std::ostream& eos);
     int build(const TrackedInfo& ToBuild,
-              std::atomic<double>& noPagesFinished,
+              std::atomic<double>& estNoPagesFinished,
               std::atomic<int>& noPagesToBuild,
               std::ostream& eos);
     int n_read_and_process(const bool& indent,

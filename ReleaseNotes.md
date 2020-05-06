@@ -4,6 +4,15 @@ Nift Release Notes
 
 Verstion 2.3.8 of Nift
 * added clang support to Makefile (pass `CXX=clang` to Makefile)
+* fixed up Makefile and Lua.h for various versions of Lua and LuaJIT
+* changed how pagination works so that paths are not broken
+* added b/block, pb, f++ and n++ options to = and write fns
+* added exprtk.add_variable fn
+* added lua_version fn
+* improved errors for lua_tonumber and lua_tostring
+* fixed a couple of bugs with tab completion
+* fixed various bugs
+* made various improvements
 
 Version 2.3.7 of Nift
 * fixed bug with retrieving present git branch when git is in another language

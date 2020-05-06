@@ -882,7 +882,7 @@ int Parser::run(const Path& path, char lang, std::ostream& eos)
 }
 
 int Parser::build(const TrackedInfo& ToBuild,
-                  std::atomic<double>& noPagesFinished,
+                  std::atomic<double>& estNoPagesFinished,
                   std::atomic<int>& noPagesToBuild,
                   std::ostream& eos)
 {
@@ -998,11 +998,6 @@ int Parser::build(const TrackedInfo& ToBuild,
 
     pagesInfo.reset();
 
-    //sets pagesDir for pagination
-    pagesInfo.pagesDir = toBuild.outputPath.str();
-    size_t pos = pagesInfo.pagesDir.find_first_of('.');
-    pagesInfo.pagesDir = pagesInfo.pagesDir.substr(0, pos) + "/";
-
     //checks number of pagination pages from previous build
     Path paginationPath = toBuild.outputPath.getPaginationPath();
     std::string paginationPathStr = paginationPath.str();
@@ -1075,9 +1070,7 @@ int Parser::build(const TrackedInfo& ToBuild,
         chmod(paginationPathStr.c_str(), 0444); 
 
         //creates pages
-        Path(pagesInfo.pagesDir, "").ensureDirExists();
-
-        pos = parsedText.find("__paginate_here__");
+        size_t pos = parsedText.find("__paginate_here__");
         if(pos == std::string::npos)
         {
             if(!consoleLocked)
@@ -1097,7 +1090,7 @@ int Parser::build(const TrackedInfo& ToBuild,
                 pagesInfo.indentAmount += " ";
         }
 
-        Directory outputDirBackup = outputDir;
+        //Directory outputDirBackup = outputDir;
         Path outputPathBackup = toBuild.outputPath;
 
         std::string page;
@@ -1113,8 +1106,7 @@ int Parser::build(const TrackedInfo& ToBuild,
                 if(i != iStart)
                 {
                     page += pagesInfo.separator;
-                    outputDir = pagesInfo.pagesDir;
-                    toBuild.outputPath = Path(pagesInfo.pagesDir, std::to_string(p+1) + outputExt);
+                    toBuild.outputPath.file = pagesInfo.paginateName + std::to_string(p+1) + outputExt;
                 }
                 if(parse_replace('n', pagesInfo.items[i], "paginate item", pagesInfo.itemCallPaths[i], antiDepsOfReadPath, pagesInfo.itemLineNos[i], "item", pagesInfo.itemCallLineNos[i], eos))
                     return 1;
@@ -1122,18 +1114,17 @@ int Parser::build(const TrackedInfo& ToBuild,
             }
 
             pagesInfo.pages.push_back(page);
-            noPagesFinished = noPagesFinished + 0.05;
+            estNoPagesFinished = estNoPagesFinished + 0.05;
         }
         pagesInfo.items.clear();
 
         for(size_t p=pagesInfo.noPages; p<oldNoPaginationPages; ++p)
         {
-            Path removePath(pagesInfo.pagesDir, std::to_string(p+1) + outputExt);
+            Path removePath(outputPathBackup.dir, pagesInfo.paginateName + std::to_string(p+1) + outputExt);
             chmod(removePath.str().c_str(), 0666);
             remove_file(removePath);
         }
 
-        outputDir = outputDirBackup;
         toBuild.outputPath = outputPathBackup;
 
         /*os_mtx->lock();
@@ -1141,7 +1132,6 @@ int Parser::build(const TrackedInfo& ToBuild,
         std::cout << "pagesInfo.noPages: " << pagesInfo.noPages << std::endl;
         std::cout << "pagesInfo.noItemsPerPage: " << pagesInfo.noItemsPerPage << std::endl;
 
-        std::cout << "pagesInfo.pagesDir: " << quote(pagesInfo.pagesDir) << std::endl;
         std::cout << "outputExt: " << quote(outputExt) << std::endl;
         std::cout << "pagesInfo.pages.size(): " << pagesInfo.pages.size() << std::endl;
         os_mtx->unlock();*/
@@ -1150,11 +1140,10 @@ int Parser::build(const TrackedInfo& ToBuild,
     {
         chmod(paginationPathStr.c_str(), 0666);
         remove_file(paginationPath);
-        rmdir(pagesInfo.pagesDir.c_str()); 
 
         for(size_t p=0; p<oldNoPaginationPages; ++p)
         {
-            Path removePath(pagesInfo.pagesDir, std::to_string(p+1) + outputExt);
+            Path removePath(toBuild.outputPath.dir, pagesInfo.paginateName + std::to_string(p+1) + outputExt);
             chmod(removePath.str().c_str(), 0666);
             remove_file(removePath);
         }
@@ -1162,7 +1151,7 @@ int Parser::build(const TrackedInfo& ToBuild,
 
     vars = Variables();
 
-    //deconstructs and lua (if initialised) (has low initialise time, high deconstruct/reset time)
+    //deconstructs lua (if initialised) (has low initialise time, high deconstruct/reset time)
     lua.~Lua();
 
     //symbol_table.clear_functions();
@@ -2501,7 +2490,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 {
                     getline(iss, str);
                     if(0 < fileLineNo++)
-                        outStr += "\n" + baseIndentAmount;
+                        outStr += "\n" + indentAmount;
                     outStr += str;
                     oldLine = str;
                 }
@@ -2525,7 +2514,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 {
                     getline(iss, str);
                     if(0 < fileLineNo++)
-                        outStr += "\n" + baseIndentAmount;
+                        outStr += "\n" + indentAmount;
                     outStr += str;
                     oldLine = str;
                 }
@@ -3746,11 +3735,17 @@ int Parser::read_and_process_fn(const bool& indent,
             }
             else if(luaFnName == "pop")
             {
-                if(params.size() != 1)
+                if(!params.size())
+                {
+                    lua_pop(lua.L, 1);
+                    return 0;
+                }
+
+                if(params.size() > 1)
                 {
                     if(!consoleLocked)
                         os_mtx->lock();
-                    start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": expected 1 parameter, got " << params.size() << std::endl;
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": expected 0-1 parameters, got " << params.size() << std::endl;
                     os_mtx->unlock();
                     return 1;
                 }
@@ -3821,11 +3816,22 @@ int Parser::read_and_process_fn(const bool& indent,
                 }
                 else
                 {
-                    if(!consoleLocked)
-                        os_mtx->lock();
-                    start_err_ml(eos, readPath, sLineNo, lineNo) << "lua_tonumber: item number " << params[0] << " on Lua stack is not a number" << std::endl;
-                    os_mtx->unlock();
-                    return 1;
+                    if(lua_gettop(lua.L) < abs(i))
+                    {
+                        if(!consoleLocked)
+                            os_mtx->lock();
+                        start_err_ml(eos, readPath, sLineNo, lineNo) << "lua_tonumber(" << i << "): Lua stack has " << lua_gettop(lua.L) << " elements" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+                    else
+                    {
+                        if(!consoleLocked)
+                            os_mtx->lock();
+                        start_err_ml(eos, readPath, sLineNo, lineNo) << "lua_tonumber: item number " << params[0] << " on Lua stack is not a number" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
                 }
 
                 return 0;
@@ -3861,11 +3867,22 @@ int Parser::read_and_process_fn(const bool& indent,
                 }
                 else
                 {
-                    if(!consoleLocked)
-                        os_mtx->lock();
-                    start_err_ml(eos, readPath, sLineNo, lineNo) << "lua_tostring: item number " << params[0] << " on Lua stack is not a string" << std::endl;
-                    os_mtx->unlock();
-                    return 1;
+                    if(lua_gettop(lua.L) < abs(i))
+                    {
+                        if(!consoleLocked)
+                            os_mtx->lock();
+                        start_err_ml(eos, readPath, sLineNo, lineNo) << "lua_tostring(" << i << "): Lua stack has " << lua_gettop(lua.L) << " elements" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+                    else
+                    {
+                        if(!consoleLocked)
+                            os_mtx->lock();
+                        start_err_ml(eos, readPath, sLineNo, lineNo) << "lua_tostring: item number " << params[0] << " on Lua stack is not a string" << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
                 }
 
                 return 0;
@@ -3961,6 +3978,40 @@ int Parser::read_and_process_fn(const bool& indent,
                 }
 
                 lua_pushstring(lua.L, params[0].c_str());
+
+                return 0;
+            }
+            else if(luaFnName == "version")
+            {
+                if(params.size() != 0)
+                {
+                    if(!consoleLocked)
+                        os_mtx->lock();
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": expected 0 parameters, got " << params.size() << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
+
+                lua_getglobal(lua.L, "_VERSION");
+
+                if(lua_type(lua.L, -1) == LUA_TSTRING)
+                {
+                    std::string val = std::string(lua_tostring(lua.L, -1));
+
+                    outStr += val;
+                    if(indent)
+                        indentAmount += into_whitespace(val);
+                }
+                else
+                {
+                    if(!consoleLocked)
+                        os_mtx->lock();
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << "lua_tostring: item number " << params[0] << " on Lua stack is not a string" << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
+
+                lua_pop(lua.L, 1);
 
                 return 0;
             }
@@ -4692,11 +4743,9 @@ int Parser::read_and_process_fn(const bool& indent,
             Path targetPath;
 
             if(pageNo > 1)
-                targetPath = Path(pagesInfo.pagesDir, params[0] + outputExt);
+                targetPath = Path(toBuild.outputPath.dir, pagesInfo.paginateName + params[0] + outputExt);
             else
-                targetPath.set_file_path_from(pagesInfo.pagesDir.substr(0, pagesInfo.pagesDir.size()-1) + outputExt);
-
-            //targetPath.set_file_path_from(targetPathStr);
+                targetPath = outputDir + toBuild.name + outputExt;
 
             Path pathToTarget(pathBetween(toBuild.outputPath.dir, targetPath.dir), targetPath.file);
 
@@ -4827,6 +4876,17 @@ int Parser::read_and_process_fn(const bool& indent,
             pagesInfo.callPath = readPath;
             pagesInfo.callLineNo = sLineNo;
             parsedText += "__paginate_here__";
+
+            size_t pos = toBuild.name.find_last_of('/');
+            if(pos == std::string::npos)
+                pos = 0;
+            else
+                ++pos;
+            pagesInfo.paginateName = toBuild.name.substr(pos, toBuild.name.size()-pos);
+            if(pagesInfo.paginateName == "index")
+                pagesInfo.paginateName = "";
+            else
+                pagesInfo.paginateName += "-";
 
             for(; linePos < inStr.size() && inStr[linePos] != '\n'; ++linePos)
             {
@@ -6307,6 +6367,7 @@ int Parser::read_and_process_fn(const bool& indent,
             }
 
             bool readBlock = 0, parseBlock = 0;
+            char bLang = lang;
             int bLineNo;
 
             if(options.size())
@@ -6317,6 +6378,10 @@ int Parser::read_and_process_fn(const bool& indent,
                         readBlock = 1;
                     else if(options[o] == "pb")
                         parseBlock = 1;
+                    else if(options[o] == "f++")
+                        bLang = 'f';
+                    else if(options[o] == "n++")
+                        bLang = 'n';
                 }
             }
 
@@ -6326,7 +6391,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 if(read_block(params[params.size()-1], linePos, inStr, readPath, lineNo, bLineNo, "=", eos))
                     return 1;
 
-                if(parseBlock && parse_replace(lang, params[params.size()-1], "= block", readPath, antiDepsOfReadPath, bLineNo, "=", sLineNo, eos))
+                if(parseBlock && parse_replace(bLang, params[params.size()-1], "= block", readPath, antiDepsOfReadPath, bLineNo, "=", sLineNo, eos))
                     return 1;
             }
             else if(params.size() < 2)
@@ -9183,6 +9248,7 @@ int Parser::read_and_process_fn(const bool& indent,
             }
 
             bool readBlock = 0, parseBlock = 1;
+            char bLang = lang;
             int bLineNo;
             std::string txt;
 
@@ -9194,6 +9260,10 @@ int Parser::read_and_process_fn(const bool& indent,
                         readBlock = 1;
                     else if(options[o] == "!pb")
                         parseBlock = 0;
+                    else if(options[o] == "f++")
+                        bLang = 'f';
+                    else if(options[o] == "n++")
+                        bLang = 'n';
                 }
             }
 
@@ -9202,7 +9272,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 if(read_block(txt, linePos, inStr, readPath, lineNo, bLineNo, "write{block}", eos))
                    return 1;
 
-                if(parseBlock && parse_replace(lang, txt, "write block", readPath, antiDepsOfReadPath, lineNo, "write{block}", sLineNo, eos))
+                if(parseBlock && parse_replace(bLang, txt, "write block", readPath, antiDepsOfReadPath, lineNo, "write{block}", sLineNo, eos))
                     return 1;
 
                 txt += "\r\n";
@@ -10656,6 +10726,50 @@ int Parser::read_and_process_fn(const bool& indent,
                     if(!consoleLocked)
                         os_mtx->lock();
                     start_err_ml(eos, readPath, sLineNo, lineNo) << "exprtk.add_package: do not recognise package " << quote(params[p]) << std::endl;
+                    os_mtx->unlock();
+                    return 1;
+                }
+            }
+
+            return 0;
+        }
+        else if(funcName == "exprtk.add_variable")
+        {
+            if(params.size() == 0)
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "exprtk.add_variable: expected parameters, got " << params.size() << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+
+            VPos vpos;
+
+            for(size_t p=0; p<params.size(); ++p)
+            {
+                if(vars.find(params[p], vpos))
+                {
+                    if(vpos.type == "bool" || vpos.type == "int" || vpos.type == "double" || vpos.type == "std::double")
+                        symbol_table.add_variable(params[p], vars.layers[vpos.layer].doubles[params[p]]);
+                    else if(vpos.type == "char" || vpos.type == "string" || vpos.type == "std::string")
+                        symbol_table.add_stringvar(params[p], vars.layers[vpos.layer].strings[params[p]]);
+                    else if(vpos.type == "std::vector<double>")
+                        symbol_table.add_vector(params[p], vars.layers[vpos.layer].doubVecs[params[p]]);
+                    else
+                    {
+                        if(!consoleLocked)
+                            os_mtx->lock();
+                        start_err_ml(eos, readPath, sLineNo, lineNo) << "exprtk.add_variable: cannot add variable " << quote(params[p]) << " of type " << quote(vpos.type) << std::endl;
+                        os_mtx->unlock();
+                        return 1;
+                    }
+                }
+                else
+                {
+                    if(!consoleLocked)
+                        os_mtx->lock();
+                    start_err_ml(eos, readPath, sLineNo, lineNo) << "exprtk.add_variable: no variables named " << quote(params[p]) << std::endl;
                     os_mtx->unlock();
                     return 1;
                 }

@@ -202,6 +202,9 @@ int rnbwcout(const std::set<std::string>& strs)
 						str[searchPos] == '{' ||
 						str[searchPos] == ',')
 					{
+						if(searchPos+1<(int)str.size() && str[searchPos] == ' ' && str[searchPos+1] == ' ')
+							continue;
+
 						searchPosVec.push_back(searchPos + 1);
 						if(trimPos == -1)
 							trimPosVec.push_back(searchPos + 1);
@@ -211,11 +214,14 @@ int rnbwcout(const std::set<std::string>& strs)
 					if(searchPos && (str[searchPos] == '/' || str[searchPos] == '\\') && trimPos == -1)
 						trimPos = searchPos+1;
 				}
-				searchPosVec.push_back(searchPos + 1);
-				if(trimPos == -1)
-					trimPosVec.push_back(searchPos + 1);
-				else
-					trimPosVec.push_back(trimPos);
+				if(str[searchPos+1] != ' ')
+				{
+					searchPosVec.push_back(searchPos + 1);
+					if(trimPos == -1)
+						trimPosVec.push_back(searchPos + 1);
+					else
+						trimPosVec.push_back(trimPos);
+				}
 
 				for(int i=searchPosVec.size()-1; i>=0; --i)
 				{
@@ -685,6 +691,9 @@ int rnbwcout(const std::set<std::string>& strs)
 						str[searchPos] == '{' ||
 						str[searchPos] == ',')
 					{
+						if(searchPos+1<(int)str.size() && str[searchPos] == ' ' && str[searchPos+1] == ' ')
+							continue;
+
 						searchPosVec.push_back(searchPos + 1);
 						if(trimPos == -1)
 							trimPosVec.push_back(searchPos + 1);
@@ -694,11 +703,14 @@ int rnbwcout(const std::set<std::string>& strs)
 					if(searchPos && (str[searchPos] == '/' || str[searchPos] == '\\') && trimPos == -1)
 						trimPos = searchPos+1;
 				}
-				searchPosVec.push_back(searchPos + 1);
-				if(trimPos == -1)
-					trimPosVec.push_back(searchPos + 1);
-				else
-					trimPosVec.push_back(trimPos);
+				if(str[searchPos+1] != ' ')
+				{
+					searchPosVec.push_back(searchPos + 1);
+					if(trimPos == -1)
+						trimPosVec.push_back(searchPos + 1);
+					else
+						trimPosVec.push_back(trimPos);
+				}
 
 				for(int i=searchPosVec.size()-1; i>=0; --i)
 				{

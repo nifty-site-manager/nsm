@@ -139,7 +139,7 @@ int getTypeInt(const std::string& str)
 		else if(str[i] == '+')
 		{
 			if(i > 0 && str[i-1] != 'e')
-				return 0;
+				return 2;
 		}
 		else if(str[i] == '.')
 		{

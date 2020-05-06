@@ -3342,8 +3342,8 @@ std::set<Name> failedNames, builtNames;
 std::set<TrackedInfo>::iterator nextInfo;
 
 Timer timer;
-std::atomic<int> counter, noFinished, noPagesToBuild;
-std::atomic<double> noPagesFinished;
+std::atomic<int> counter, noFinished, noPagesToBuild, noPagesFinished;
+std::atomic<double> estNoPagesFinished;
 std::atomic<int> cPhase;
 const int DUMMY_PHASE = 1;
 const int UPDATE_PHASE = 2;
@@ -3369,7 +3369,7 @@ void build_progress(const int& no_to_build, const int& addBuildStatus)
 
         total_no_to_build = no_to_build + noPagesToBuild;
         no_to_build_length = std::to_string(total_no_to_build).size();
-        cFinished = noFinished + noPagesFinished;
+        cFinished = noFinished + estNoPagesFinished;
 
         if(cPhase != phaseToCheck || cFinished >= total_no_to_build)
         {
@@ -3427,6 +3427,7 @@ void build_progress(const int& no_to_build, const int& addBuildStatus)
 std::atomic<size_t> paginationCounter;
 
 void pagination_thread(const Pagination& pagesInfo,
+                       const std::string& paginateName,
                        const std::string& outputExt,
                        const Path& mainOutputPath)
 {
@@ -3455,11 +3456,9 @@ void pagination_thread(const Pagination& pagesInfo,
 
         pageStr += pagesInfo.splitFile.second;
 
-        Path outputPath;
+        Path outputPath = mainOutputPath;
         if(cPageNo)
-            outputPath = Path(pagesInfo.pagesDir, std::to_string(cPageNo+1) + outputExt);
-        else
-            outputPath = mainOutputPath;
+            outputPath.file = paginateName + std::to_string(cPageNo+1) + outputExt;
 
         chmod(outputPath.str().c_str(), 0666);
 
@@ -3474,7 +3473,8 @@ void pagination_thread(const Pagination& pagesInfo,
 
         chmod(outputPath.str().c_str(), 0444);
 
-        noPagesFinished = noPagesFinished + 0.55;
+        estNoPagesFinished = estNoPagesFinished + 0.55;
+        noPagesFinished++;
     }
 
 }
@@ -3518,23 +3518,21 @@ void build_thread(std::ostream& eos,
         cInfo = nextInfo++;
         set_mtx.unlock();
 
-        int result = parser.build(*cInfo, noPagesFinished, noPagesToBuild, eos);
+        int result = parser.build(*cInfo, estNoPagesFinished, noPagesToBuild, eos);
 
         //more pagination here
         parser.pagesInfo.noPages = parser.pagesInfo.pages.size();
         if(parser.pagesInfo.noPages)
         {
-            Directory outputDirBackup = parser.outputDir;
             Path outputPathBackup = parser.toBuild.outputPath;
+
             std::string innerPageStr;
             std::set<Path> antiDepsOfReadPath;
             for(size_t p=0; p<parser.pagesInfo.noPages; ++p)
             {
+                
                 if(p)
-                {
-                    parser.outputDir = parser.pagesInfo.pagesDir;
-                    parser.toBuild.outputPath = Path(parser.pagesInfo.pagesDir, std::to_string(p+1) + parser.outputExt);
-                }
+                    parser.toBuild.outputPath.file = parser.pagesInfo.paginateName + std::to_string(p+1) + parser.outputExt;
                 antiDepsOfReadPath.clear();
                 parser.pagesInfo.cPageNo = p+1;
                 innerPageStr = parser.pagesInfo.templateStr;
@@ -3557,7 +3555,7 @@ void build_thread(std::ostream& eos,
                 }
 
                 parser.pagesInfo.pages[p] = innerPageStr;
-                noPagesFinished = noPagesFinished + 0.4;
+                estNoPagesFinished = estNoPagesFinished + 0.4;
             }
 
             //pagination threads
@@ -3565,6 +3563,7 @@ void build_thread(std::ostream& eos,
             for(int i=0; i<no_threads; i++)
                 threads.push_back(std::thread(pagination_thread, 
                                   parser.pagesInfo,
+                                  parser.pagesInfo.paginateName,
                                   parser.outputExt,
                                   outputPathBackup));
 
@@ -3627,7 +3626,7 @@ int ProjectInfo::build_names(std::ostream& os, const int& addBuildStatus, const 
         return 1;
 
     nextInfo = trackedInfoToBuild.begin();
-    counter = noFinished = noPagesFinished = 0;
+    counter = noFinished = estNoPagesFinished = noPagesFinished = 0;
 
     os_mtx.lock();
     if(addBuildStatus) // should we check if os is std::cout?
@@ -3677,6 +3676,9 @@ int ProjectInfo::build_names(std::ostream& os, const int& addBuildStatus, const 
 
     if(failedNames.size() || untrackedNames.size())
     {
+        if(noPagesFinished)
+            os << "paginated files: " << noPagesFinished << std::endl;
+
         if(builtNames.size() == 1)
             os << builtNames.size() << " specified file built successfully" << std::endl;
         else
@@ -3726,6 +3728,9 @@ int ProjectInfo::build_names(std::ostream& os, const int& addBuildStatus, const 
             const std::string pkgStr = ":: ";
         #endif
 
+        if(noPagesFinished)
+            os << "paginated files: " << noPagesFinished << std::endl;
+
         std::cout << c_light_blue << pkgStr << c_white << "all " << namesToBuild.size() << " specified files built successfully" << std::endl;
 
         //checks for post-build scripts
@@ -3764,7 +3769,7 @@ int ProjectInfo::build_all(std::ostream& os, const int& addBuildStatus)
         return 1;
 
     nextInfo = trackedAll.begin();
-    counter = noFinished = noPagesFinished = 0;
+    counter = noFinished = estNoPagesFinished = noPagesFinished = 0;
 
     os_mtx.lock();
     if(addBuildStatus)
@@ -3814,6 +3819,9 @@ int ProjectInfo::build_all(std::ostream& os, const int& addBuildStatus)
 
     if(failedNames.size() > 0)
     {
+        if(noPagesFinished)
+            os << "paginated files: " << noPagesFinished << std::endl;
+
         if(builtNames.size() == 1)
             os << builtNames.size() << " file built successfully" << std::endl;
         else
@@ -3842,7 +3850,9 @@ int ProjectInfo::build_all(std::ostream& os, const int& addBuildStatus)
             const std::string pkgStr = ":: ";
         #endif
 
-        os << c_light_blue << pkgStr << c_white << "all " << builtNames.size() << " tracked files built successfully" << std::endl;
+        if(noPagesFinished)
+            os << "paginated files: " << noPagesFinished << std::endl;
+        os << c_light_blue << pkgStr << c_white << "all " << noFinished << " tracked files built successfully" << std::endl;
 
         //checks for post-build scripts
         if(parser.run_script(os, Path("", "post-build" + scriptExt), backupScripts, 1))
@@ -4140,7 +4150,7 @@ int ProjectInfo::build_updated(std::ostream& os, const int& addBuildStatus, cons
         no_threads = buildThreads;
 
     nextInfo = trackedAll.begin();
-    counter = noFinished = noPagesFinished = 0;
+    counter = noFinished = estNoPagesFinished = noPagesFinished = 0;
 
     if(addBuildStatus)
     {
@@ -4309,6 +4319,9 @@ int ProjectInfo::build_updated(std::ostream& os, const int& addBuildStatus, cons
 
         if(failedNames.size() > 0)
         {
+            if(noPagesFinished)
+                os << "paginated files: " << noPagesFinished << std::endl;
+
             if(builtNames.size() == 1)
                 os << builtNames.size() << " file built successfully" << std::endl;
             else
@@ -4338,6 +4351,9 @@ int ProjectInfo::build_updated(std::ostream& os, const int& addBuildStatus, cons
                     const std::string pkgStr = ":: ";
                 #endif
 
+                if(noPagesFinished)
+                    os << "paginated files: " << noPagesFinished << std::endl;
+
                 if(builtNames.size() == 1)
                     std::cout << c_light_blue << pkgStr << c_white << builtNames.size() << " updated file built successfully" << std::endl;
                 else
@@ -4350,6 +4366,9 @@ int ProjectInfo::build_updated(std::ostream& os, const int& addBuildStatus, cons
                 #else  // FreeBSD/Windows
                     const std::string pkgStr = ":: ";
                 #endif
+
+                if(noPagesFinished)
+                    os << "paginated files: " << noPagesFinished << std::endl;
 
                 os << c_light_blue << pkgStr << c_white << "successfully built:" << std::endl;
                 if(builtNames.size() < noToDisplay)

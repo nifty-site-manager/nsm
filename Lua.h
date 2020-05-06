@@ -1,5 +1,5 @@
-#ifndef LUAJIT_H_
-#define LUAJIT_H_
+#ifndef LUA_H_
+#define LUA_H_
 
 #include <cstdio>
 #include <iostream>
@@ -57,4 +57,4 @@ struct Lua
 };
 
 
-#endif //LUAJIT_H_
+#endif //LUA_H_

@@ -2,7 +2,7 @@
     Nift (aka nsm) is a cross-platform open source
     command-line website and project generator.
 
-    Official Website: https://nift.cc
+    Official Website: https://nift.dev
     GitHub: https://github.com/nifty-site-manager/nsm
 
     Copyright (c) 2015-present
@@ -233,7 +233,7 @@ int main(int argc, const char* argv[])
 
         std::cout << "Nift (aka nifty-site-manager or nsm) (c)" << DateTimeInfo().currentYYYY();
         std::cout << " is a cross-platform open source website and project generator" << std::endl;
-        std::cout << "Official Website: " << c_blue << "https://nift.cc/" << c_white << std::endl;
+        std::cout << "Official Website: " << c_blue << "https://nift.dev/" << c_white << std::endl;
         std::cout << "Source: " << c_blue << "https://github.com/nifty-site-manager/nsm" << c_white << std::endl;
         std::cout << "Installed: " << c_gold << "v" << NSM_VERSION << c_white << std::endl;
         std::cout << "enter `nsm commands` or `nift commands` for available commands" << std::endl;
@@ -296,7 +296,7 @@ int main(int argc, const char* argv[])
     {
         std::cout << "Nift (aka nsm) " << c_gold << "v" << NSM_VERSION << c_white;
         std::cout << " (c)" << DateTimeInfo().currentYYYY();
-        std::cout << " (" << c_blue << "https://nift.cc" << c_white << ")" << std::endl;
+        std::cout << " (" << c_blue << "https://nift.dev" << c_white << ")" << std::endl;
     }
 
     if(cmd == "git" || cmd == "luarocks")
@@ -905,10 +905,10 @@ int main(int argc, const char* argv[])
            cmd != "rm"           && cmd != "del"           && cmd != "rmv" &&
            cmd != "mv" && cmd != "move" && cmd != "mve" &&
            cmd != "cp" && cmd != "copy" && cmd != "cpy" &&
+           cmd != "mve-output-dir" &&
+           cmd != "mve-cont-dir" &&
            cmd != "new-title" &&
            cmd != "new-template" &&
-           cmd != "new-output-dir" &&
-           cmd != "new-cont-dir" &&
            cmd != "new-cont-ext" &&
            cmd != "new-output-ext" &&
            cmd != "new-script-ext" &&

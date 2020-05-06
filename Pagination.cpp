@@ -9,9 +9,8 @@ void Pagination::reset()
 {
     cPageNo = noPages = 0;
     noItemsPerPage = 25;
-    pagesDir = "";
     callLineNo = separatorLineNo = templateCallLineNo = templateLineNo = -1;
-    indentAmount = "";
+    indentAmount = paginateName = "";
     separator = "\n\n";
     templateStr = "$[paginate.page]";
     items.clear();

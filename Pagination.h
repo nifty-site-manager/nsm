@@ -13,8 +13,8 @@ struct Pagination
         templateCallLineNo,
         templateLineNo;
     size_t cPageNo;
-    std::string pagesDir;
     std::string indentAmount,
+                paginateName,
                 separator,
                 templateStr;
     Path callPath;
