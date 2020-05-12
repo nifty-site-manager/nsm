@@ -100,6 +100,22 @@ ifeq ($(BUNDLED),0)
 			CXXFLAGS+= -D__LUA_VERSION_5_3__
 	    	LINK+= -L/usr/local/lib -llua-5.3 -ldl
 		endif
+	else ifeq ($(LUA_VERSION),5.2) 
+	    ifeq ($(detected_OS),FreeBSD)  # FreeBSD
+			CXXFLAGS+= -D__LUA_VERSION_5_2__
+	    	LINK+= -L/usr/local/lib -llua-5.2 -lm -ldl  
+		else                                # *nix
+			CXXFLAGS+= -D__LUA_VERSION_5_2__
+	    	LINK+= -L/usr/local/lib -llua-5.2 -ldl
+		endif
+	else ifeq ($(LUA_VERSION),5.1) 
+	    ifeq ($(detected_OS),FreeBSD)  # FreeBSD
+			CXXFLAGS+= -D__LUA_VERSION_5_1__
+	    	LINK+= -L/usr/local/lib -llua-5.1 -lm -ldl  
+		else                                # *nix
+			CXXFLAGS+= -D__LUA_VERSION_5_1__
+	    	LINK+= -L/usr/local/lib -llua-5.1 -ldl
+		endif
 	else ifeq ($(LUAJIT_VERSION),2.0)
 		ifeq ($(detected_OS),FreeBSD)  # FreeBSD
 			CXXFLAGS+= -D__LUAJIT_VERSION_2_0__
