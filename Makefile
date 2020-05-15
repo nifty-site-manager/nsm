@@ -8,7 +8,7 @@ BINDIR=${DESTDIR}${PREFIX}/bin
 LIBDIR=${DESTDIR}${PREFIX}/lib
 
 CXX?=g++
-CXXFLAGS=-std=c++11 -Wall -Wextra -pedantic -O3
+CXXFLAGS=-std=c++11 -Wall -Wextra -pedantic -O3 -Dexprtk_disable_caseinsensitivity
 #CXXFLAGS=-std=c++11 -Wall -Wextra -Werror -pedantic -O3
 LINK=-pthread
 

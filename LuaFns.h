@@ -23,6 +23,10 @@ int lua_sys(lua_State* L);
 int lua_sys_bell(lua_State* L);
 
 int lua_exprtk(lua_State* L);
+int lua_exprtk_compile(lua_State* L);
+int lua_exprtk_eval(lua_State* L);
+int lua_exprtk_load(lua_State* L);
+int lua_exprtk_str(lua_State* L);
 
 int lua_nsm_lang(lua_State* L);
 int lua_nsm_mode(lua_State* L);

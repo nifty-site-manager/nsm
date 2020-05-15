@@ -142,6 +142,20 @@ std::string join(const std::vector<std::string>& vec, const std::string& str)
     return ans;
 }
 
+std::string join(const std::vector<std::string>& vec, const std::string& str, const size_t& spos)
+{
+    std::string ans = "";
+
+    if(vec.size() > spos)
+    {
+        ans += vec[spos];
+        for(size_t v=spos+1; v<vec.size(); v++)
+            ans += str + vec[v];
+    }
+
+    return ans;
+}
+
 std::string findAndReplaceAll(const std::string& orig, const std::string& toSearch, const std::string& replaceStr)
 {
 	std::string data = orig;

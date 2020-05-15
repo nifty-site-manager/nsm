@@ -17,16 +17,15 @@ struct Expr
 
 	void register_symbol_table(exprtk::symbol_table<double>& Symbol_Table);
 
-	int set_expr(const std::string &Expr_Str);
+	int compile(const std::string &Expr_Str);
 	double evaluate();
-	double evaluate(const std::string &Expr_Str);
 };
 
 struct ExprSet
 {
 	exprtk::symbol_table<double>* symbol_table;
 	std::map<std::string, exprtk::expression<double> > expressions;
-	std::string c_expr_str;
+	std::map<std::string, std::string> expr_strs;
 	exprtk::parser<double> parser;
 	
 
@@ -34,9 +33,9 @@ struct ExprSet
 
 	void add_symbol_table(exprtk::symbol_table<double>* Symbol_Table);
 
-	int add_expr(const std::string &Expr_Str);
+	int compile(const std::string& Name, const std::string &Expr_Str);
 	double evaluate_last();
-	double evaluate(const std::string &Expr_Str);
+	double evaluate(const std::string &Name);
 };
 
 

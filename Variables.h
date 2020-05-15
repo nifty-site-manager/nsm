@@ -36,6 +36,7 @@ struct VLayer
 	std::map<std::string, char> chars;
 	std::map<std::string, std::string> strings;
 	std::map<std::string, std::vector<double> > doubVecs;
+	std::map<std::string, std::vector<std::string> > strVecs;
 	std::map<std::string, std::fstream> fstreams;
 	std::map<std::string, std::ifstream> ifstreams;
 	std::map<std::string, std::ofstream> ofstreams;

@@ -9,37 +9,14 @@ void Expr::register_symbol_table(exprtk::symbol_table<double> &Symbol_Table)
 	expression.register_symbol_table(Symbol_Table);
 }
 
-int Expr::set_expr(const std::string &Expr_Str)
+int Expr::compile(const std::string &Expr_Str)
 {
-	if(expr_str == Expr_Str)
-		return 1;
-	else
-	{
-		int result = parser.compile(Expr_Str, expression);
-		if(result)
-			expr_str = Expr_Str;
-		else
-			expr_str = "##ERROR##";
-		return result;
-	}
+	expr_str = Expr_Str;
+	return parser.compile(expr_str, expression);
 }
 
 double Expr::evaluate()
 {
-	return expression.value();
-}
-
-double Expr::evaluate(const std::string &Expr_Str)
-{
-	if(Expr_Str != "" && expr_str != Expr_Str)
-	{
-		expr_str = Expr_Str;
-		if(!parser.compile(Expr_Str,expression))
-		{
-			std::cout << "Compilation error..." << std::endl;
-			//return 1;
-		}
-	}
 	return expression.value();
 }
 
@@ -56,29 +33,18 @@ void ExprSet::add_symbol_table(exprtk::symbol_table<double>* Symbol_Table)
 		expression->second.register_symbol_table(*symbol_table);
 }
 
-int ExprSet::add_expr(const std::string &Expr_Str)
+int ExprSet::compile(const std::string& Name, const std::string &Expr_Str)
 {
-	if(!expressions.count(Expr_Str))
-	{
-		expressions[Expr_Str].register_symbol_table(*symbol_table);
-		int result = parser.compile(Expr_Str, expressions[Expr_Str]);
-		if(!result)
-			expressions.erase(Expr_Str);
-		return result;
-	}
+	expressions[Name].register_symbol_table(*symbol_table);
+	int result = parser.compile(Expr_Str, expressions[Name]);
+	if(result)
+		expr_strs[Name] = Expr_Str;
 	else
-		return 1;
+		expressions.erase(Name);
+	return result;
 }
 
-double ExprSet::evaluate_last()
+double ExprSet::evaluate(const std::string &Name)
 {
-	return expressions[c_expr_str].value();
-}
-
-double ExprSet::evaluate(const std::string &Expr_Str)
-{
-	c_expr_str = Expr_Str;
-	//add_expr(c_expr_str);
-
-	return expressions[c_expr_str].value();
+	return expressions[Name].value();
 }

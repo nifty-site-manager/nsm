@@ -17,6 +17,7 @@ void strip_surrounding_whitespace(std::string& str);
 void strip_surrounding_whitespace_multiline(std::string& str);
 
 std::string join(const std::vector<std::string>& vec, const std::string& str);
+std::string join(const std::vector<std::string>& vec, const std::string& str, const size_t& spos);
 
 std::string findAndReplaceAll(const std::string& orig, const std::string& toSearch, const std::string& replaceStr);
 

@@ -50,6 +50,7 @@ Variables::Variables()
 	basic_types.insert("std::char");
 	basic_types.insert("std::string");
 	basic_types.insert("std::vector<double>");
+    basic_types.insert("std::vector<string>");
 	basic_types.insert("fstream");
 	basic_types.insert("ifstream");
 	basic_types.insert("ofstream");

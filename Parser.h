@@ -61,6 +61,7 @@ struct Parser
 
     exprtk_cd<double>            exprtk_cd_fn;
     exprtk_sys<double>           exprtk_sys_fn;
+    exprtk_to_string<double>     exprtk_to_string_fn;
     exprtk_nsm_tonumber<double>  exprtk_nsm_tonumber_fn;
     exprtk_nsm_tostring<double>  exprtk_nsm_tostring_fn;
     exprtk_nsm_setnumber<double> exprtk_nsm_setnumber_fn;

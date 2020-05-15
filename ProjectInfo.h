@@ -54,13 +54,13 @@ struct ProjectInfo
     std::set<TrackedInfo> trackedAll;
     std::mutex os_mtx3; //should this be removed?
 
-    int open();
-    int open_config(const Path& configPath, bool global);
-    int open_global_config();
-    int open_local_config();
-    int open_tracking();
+    int open(const bool& addMsg);
+    int open_config(const Path& configPath, const bool& global, const bool& addMsg);
+    int open_global_config(const bool& addMsg);
+    int open_local_config(const bool& addMsg);
+    int open_tracking(const bool& addMsg);
 
-    int save_config(const std::string& configPathStr, bool global);
+    int save_config(const std::string& configPathStr, const bool& global);
     int save_global_config();
     int save_local_config();
     int save_tracking();

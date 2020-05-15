@@ -118,12 +118,12 @@ bool upgradeProject()
     }
 
     ProjectInfo project;
-    if(project.open_local_config())
+    if(project.open_local_config(1))
     {
         start_err(std::cout) << "upgrade: failed, was unable to open configuration file" << std::endl;
         return 1;
     }
-    else if(project.open_tracking()) //this needs to change
+    else if(project.open_tracking(1)) //this needs to change
     {
         start_err(std::cout) << "upgrade: failed, was unable to open tracking list" << std::endl;
         return 1;
@@ -153,17 +153,17 @@ bool upgradeProject()
     return 0;
 }
 
-int ProjectInfo::open()
+int ProjectInfo::open(const bool& addMsg)
 {
-    if(open_local_config())
+    if(open_local_config(addMsg))
         return 1;
-    if(open_tracking())
+    if(open_tracking(addMsg))
         return 1;
 
     return 0;
 }
 
-int ProjectInfo::open_config(const Path& configPath, bool global)
+int ProjectInfo::open_config(const Path& configPath, const bool& global, const bool& addMsg)
 {
     if(!file_exists(configPath.str()))
     {
@@ -177,16 +177,17 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
         }
     }
 
-    //if(!global)
-      //  std::cout << "  ";
-    std::cout << "loading ";
-    if(global)
-        std::cout << "global ";
-    else
-        std::cout << "project ";
-    std::cout << "config file: " << configPath << std::endl;
-    //std::cout << std::flush;
-    std::fflush(stdout);
+    if(addMsg)
+    {
+        std::cout << "loading ";
+        if(global)
+            std::cout << "global ";
+        else
+            std::cout << "project ";
+        std::cout << "config file: " << configPath << std::endl;
+        //std::cout << std::flush;
+        std::fflush(stdout);
+    }
 
     contentDir = outputDir = "";
     backupScripts = 1;
@@ -403,19 +404,20 @@ int ProjectInfo::open_config(const Path& configPath, bool global)
     return 0;
 }
 
-int ProjectInfo::open_global_config()
+int ProjectInfo::open_global_config(const bool& addMsg)
 {
-    return open_config(Path(app_dir() + "/.nift/", "nift.config"), 1);
+    return open_config(Path(app_dir() + "/.nift/", "nift.config"), 1, addMsg);
 }
 
-int ProjectInfo::open_local_config()
+int ProjectInfo::open_local_config(const bool& addMsg)
 {
-    return open_config(Path(".nsm/", "nift.config"), 0);
+    return open_config(Path(".nsm/", "nift.config"), 0, addMsg);
 }
 
-int ProjectInfo::open_tracking()
+int ProjectInfo::open_tracking(const bool& addMsg)
 {
-    std::cout << "loading project tracking file: " << Path(".nsm/", "tracking.list") << std::endl;
+    if(addMsg)
+        std::cout << "loading project tracking file: " << Path(".nsm/", "tracking.list") << std::endl;
     //std::cout << std::flush;
     std::fflush(stdout);
 
@@ -511,7 +513,7 @@ int ProjectInfo::open_tracking()
     return 0;
 }
 
-int ProjectInfo::save_config(const std::string& configPathStr, bool global)
+int ProjectInfo::save_config(const std::string& configPathStr, const bool& global)
 {
     std::ofstream ofs(configPathStr);
     if(!global)
@@ -900,7 +902,7 @@ int ProjectInfo::set_incr_mode(const std::string& modeStr)
 
 int ProjectInfo::remove_hash_files()
 {
-    open_tracking();
+    open_tracking(1);
 
     std::cout << "removing hashes.." << std::endl;
 

@@ -80,6 +80,30 @@ struct exprtk_sys : public exprtk::igeneric_function<T>
 };
 
 template <typename T>
+struct exprtk_to_string : public exprtk::igeneric_function<T>
+{
+	typedef typename exprtk::igeneric_function<T>::parameter_list_t parameter_list_t;
+
+	exprtk_to_string() : exprtk::igeneric_function<T>("T",exprtk::igeneric_function<T>::e_rtrn_string)
+	{}
+
+	inline T operator()(std::string& result, parameter_list_t parameters)
+	{
+		typedef typename exprtk::igeneric_function<T>::generic_type generic_type;
+		typedef typename generic_type::scalar_view scalar_t;
+
+		generic_type& gt = parameters[0];
+		double val = scalar_t(gt).v_;
+		if(std::trunc(val) == val)
+			result = std::to_string((int)val);
+		else
+			result = std::to_string(val);
+
+		return T(0);
+	}
+};
+
+template <typename T>
 struct exprtk_nsm_lang : public exprtk::igeneric_function<T>
 {
 	typedef typename exprtk::igeneric_function<T>::parameter_list_t parameter_list_t;

@@ -169,7 +169,7 @@ int lua_exprtk(lua_State* L)
 	Expr* expr = (Expr*)lua_topointer(L, 1);
 	lua_remove(L, 1);
 
-	if(!expr->set_expr(exprStr))
+	if(!expr->compile(exprStr))
 	{
 		//lua_nsm_pusherrmsg(L, "exprtk: failed to compile expression");
 
@@ -191,6 +191,288 @@ int lua_exprtk(lua_State* L)
 	}
 	
 	lua_pushnumber(L, expr->evaluate());
+	return 1;
+}
+
+int lua_exprtk_compile(lua_State* L)
+{
+	int noParams = lua_gettop(L);
+	if(noParams == 1)
+	{
+		if(!lua_isstring(L, 1))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_compile: expression parameter is not a string");
+			lua_error(L);
+			return 0;
+		}
+
+		std::string exprStr = lua_tostring(L, 1);
+		lua_remove(L, 1);
+
+		lua_getglobal(L, "nsm_exprtk__");
+
+		if(!lua_islightuserdata(L, 1))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_compile: variable 'nsm_exprtk__' should be of type 'lightuserdata'");
+			lua_error(L);
+			return 0;
+		}
+		Expr* expr = (Expr*)lua_topointer(L, 1);
+		lua_remove(L, 1);
+
+		if(!expr->compile(exprStr))
+		{
+			size_t errLineNo;
+		    for(size_t i=0; i < expr->parser.error_count(); ++i)
+		    {
+		        exprtk::parser_error::type error = expr->parser.get_error(i);
+
+		        if(std::to_string(error.token.position) == "18446744073709551615")
+		            errLineNo = 0;
+		        else
+		            errLineNo = 0 + std::count(expr->expr_str.begin(), expr->expr_str.begin() + error.token.position, '\n');
+
+		        lua_nsm_pusherrmsg(L, "exprtk_compile: " + exprtk::parser_error::to_str(error.mode) + ": " + error.diagnostic, errLineNo);
+		    }
+
+			lua_error(L);
+			return 0;
+		}
+	}
+	else if(noParams == 2)
+	{
+		if(!lua_isstring(L, 1))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_compile: first name parameter is not a string");
+			lua_error(L);
+			return 0;
+		}
+		else if(!lua_isstring(L, 2))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_compile: second expression parameter is not a string");
+			lua_error(L);
+			return 0;
+		}
+
+		std::string name = lua_tostring(L, 1);
+		lua_remove(L, 1);
+
+		std::string exprStr = lua_tostring(L, 1);
+		lua_remove(L, 1);
+
+		lua_getglobal(L, "nsm_exprtkset__");
+
+		if(!lua_islightuserdata(L, 1))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_compile: variable 'nsm_exprtkset__' should be of type 'lightuserdata'");
+			lua_error(L);
+			return 0;
+		}
+		ExprSet* exprset = (ExprSet*)lua_topointer(L, 1);
+		lua_remove(L, 1);
+
+		if(!exprset->compile(name, exprStr))
+		{
+			size_t errLineNo;
+		    for(size_t i=0; i < exprset->parser.error_count(); ++i)
+		    {
+		        exprtk::parser_error::type error = exprset->parser.get_error(i);
+
+		        if(std::to_string(error.token.position) == "18446744073709551615")
+		            errLineNo = 0;
+		        else
+		            errLineNo = 0 + std::count(exprStr.begin(), exprStr.begin() + error.token.position, '\n');
+
+		        lua_nsm_pusherrmsg(L, "exprtk_compile: " + exprtk::parser_error::to_str(error.mode) + ": " + error.diagnostic, errLineNo);
+		    }
+
+			lua_error(L);
+			return 0;
+		}
+	}
+	else
+	{
+		lua_nsm_pusherrmsg(L, "exprtk_compile: expected 1-2 parameters, got " + std::to_string(lua_gettop(L)));
+		lua_error(L);
+		return 0;
+	}
+
+	return 0;
+}
+
+int lua_exprtk_eval(lua_State* L)
+{
+	int noParams = lua_gettop(L);
+	if(noParams == 0)
+	{
+		lua_getglobal(L, "nsm_exprtk__");
+
+		if(!lua_islightuserdata(L, 1))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_eval: variable 'nsm_exprtk__' should be of type 'lightuserdata'");
+			lua_error(L);
+			return 0;
+		}
+		Expr* expr = (Expr*)lua_topointer(L, 1);
+		lua_remove(L, 1);
+
+		lua_pushnumber(L, expr->evaluate());
+	}
+	else if(noParams == 1)
+	{
+		if(!lua_isstring(L, 1))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_eval: name parameter is not a string");
+			lua_error(L);
+			return 0;
+		}
+
+		std::string name = lua_tostring(L, 1);
+		lua_remove(L, 1);
+
+		lua_getglobal(L, "nsm_exprtkset__");
+
+		if(!lua_islightuserdata(L, 1))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_eval: variable 'nsm_exprtkset__' should be of type 'lightuserdata'");
+			lua_error(L);
+			return 0;
+		}
+		ExprSet* exprset = (ExprSet*)lua_topointer(L, 1);
+		lua_remove(L, 1);
+
+		if(!exprset->expressions.count(name))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_eval: no expression named " + quote(name) + " has been compiled");
+			lua_error(L);
+			return 0;
+		}
+
+		lua_pushnumber(L, exprset->evaluate(name));
+	}
+	else
+	{
+		lua_nsm_pusherrmsg(L, "exprtk_eval: expected 0-1 parameters, got " + std::to_string(lua_gettop(L)));
+		lua_error(L);
+		return 0;
+	}
+
+	return 1;
+}
+
+int lua_exprtk_load(lua_State* L)
+{
+	if(lua_gettop(L) == 1)
+	{
+		if(!lua_isstring(L, 1))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_load: name parameter is not a string");
+			lua_error(L);
+			return 0;
+		}
+
+		std::string name = lua_tostring(L, 1);
+		lua_remove(L, 1);
+
+		lua_getglobal(L, "nsm_exprtk__");
+		if(!lua_islightuserdata(L, 1))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_load: variable 'nsm_exprtk__' should be of type 'lightuserdata'");
+			lua_error(L);
+			return 0;
+		}
+		Expr* expr = (Expr*)lua_topointer(L, 1);
+		lua_remove(L, 1);
+
+		lua_getglobal(L, "nsm_exprtkset__");
+		if(!lua_islightuserdata(L, 1))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_load: variable 'nsm_exprtkset__' should be of type 'lightuserdata'");
+			lua_error(L);
+			return 0;
+		}
+		ExprSet* exprset = (ExprSet*)lua_topointer(L, 1);
+		lua_remove(L, 1);
+
+		if(exprset->expressions.count(name))
+        {
+            expr->expr_str = exprset->expr_strs[name];
+            expr->expression = exprset->expressions[name];
+        }
+        else
+        {
+			lua_nsm_pusherrmsg(L, "exprtk_load: no expression named " + quote(name) + " has been compiled");
+			lua_error(L);
+			return 0;
+		}
+	}
+	else
+	{
+		lua_nsm_pusherrmsg(L, "exprtk_load: expected 1 parameter, got " + std::to_string(lua_gettop(L)));
+		lua_error(L);
+		return 0;
+	}
+
+	return 0;
+}
+
+int lua_exprtk_str(lua_State* L)
+{
+	int noParams = lua_gettop(L);
+	if(noParams == 0)
+	{
+		lua_getglobal(L, "nsm_exprtk__");
+
+		if(!lua_islightuserdata(L, 1))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_str: variable 'nsm_exprtk__' should be of type 'lightuserdata'");
+			lua_error(L);
+			return 0;
+		}
+		Expr* expr = (Expr*)lua_topointer(L, 1);
+		lua_remove(L, 1);
+
+		lua_pushstring(L, expr->expr_str.c_str());
+	}
+	else if(noParams == 1)
+	{
+		if(!lua_isstring(L, 1))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_str: name parameter is not a string");
+			lua_error(L);
+			return 0;
+		}
+
+		std::string name = lua_tostring(L, 1);
+		lua_remove(L, 1);
+
+		lua_getglobal(L, "nsm_exprtkset__");
+
+		if(!lua_islightuserdata(L, 1))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_str: variable 'nsm_exprtkset__' should be of type 'lightuserdata'");
+			lua_error(L);
+			return 0;
+		}
+		ExprSet* exprset = (ExprSet*)lua_topointer(L, 1);
+		lua_remove(L, 1);
+
+		if(!exprset->expressions.count(name))
+		{
+			lua_nsm_pusherrmsg(L, "exprtk_str: no expression named " + quote(name) + " has been compiled");
+			lua_error(L);
+			return 0;
+		}
+
+		lua_pushstring(L, exprset->expr_strs[name].c_str());
+	}
+	else
+	{
+		lua_nsm_pusherrmsg(L, "exprtk_str: expected 0-1 parameters, got " + std::to_string(lua_gettop(L)));
+		lua_error(L);
+		return 0;
+	}
+
 	return 1;
 }
 

@@ -52,7 +52,7 @@ int serve()
     while(serving)
     {
         ProjectInfo project;
-        if(project.open())
+        if(project.open(1))
         {
             start_err(std::cout) << "serve(): failed to open project, no longer serving" << std::endl;
             return 1;
@@ -213,7 +213,7 @@ int main(int argc, const char* argv[])
     if(cmd == "version")
     {
         #if defined _WIN32 || defined _WIN64
-            if(ProjectInfo().open_global_config())
+            if(ProjectInfo().open_global_config(0))
                 return 1;
         #endif
 
@@ -224,7 +224,7 @@ int main(int argc, const char* argv[])
     else if(cmd == "about" || cmd == "help")
     {
         #if defined _WIN32 || defined _WIN64
-            if(ProjectInfo().open_global_config())
+            if(ProjectInfo().open_global_config(0))
                 return 1;
         #endif
 
@@ -414,7 +414,7 @@ int main(int argc, const char* argv[])
             create_default_html_template(templatePath);
 
             ProjectInfo project;
-            if(project.open() > 0)
+            if(project.open(1) > 0)
                 return 1;
 
             Name name = "index";
@@ -604,7 +604,7 @@ int main(int argc, const char* argv[])
                         return 1;
 
                 ProjectInfo project;
-                if(project.open())
+                if(project.open(1))
                     return 1;
 
                 if(!branches.count(project.rootBranch))
@@ -764,13 +764,13 @@ int main(int argc, const char* argv[])
         ProjectInfo project;
         if(file_exists(".nsm/nift.config"))
         {
-            if(project.open_local_config())
+            if(project.open_local_config(1))
                 return 1;
 
-            if(project.open_tracking())
+            if(project.open_tracking(1))
                 return 1;
         }
-        else if(project.open_global_config())
+        else if(project.open_global_config(1))
                 return 1;
 
         Parser parser(&project.trackedAll,
@@ -852,13 +852,13 @@ int main(int argc, const char* argv[])
         ProjectInfo project;
         if(file_exists(".nsm/nift.config"))
         {
-            if(project.open_local_config())
+            if(project.open_local_config(0))
                 return 1;
 
-            if(project.open_tracking())
+            if(project.open_tracking(0))
                 return 1;
         }
-        else if(project.open_global_config())
+        else if(project.open_global_config(0))
                 return 1;
 
         Parser parser(&project.trackedAll,
@@ -921,8 +921,8 @@ int main(int argc, const char* argv[])
            cmd != "build-all" &&
            cmd != "serve")
         {
-            #if defined _WIN32 || defined _WIN64
-                if(ProjectInfo().open_global_config())
+            #if defined _WIN32 || defined _WIN64 //what is this for?
+                if(ProjectInfo().open_global_config(1))
                     return 1;
             #endif
 
@@ -1017,7 +1017,7 @@ int main(int argc, const char* argv[])
         }
 
         ProjectInfo project;
-        if(project.open_local_config())
+        if(project.open_local_config(1))
             return 1;
 
         //Nift commands that need project information file open
@@ -1443,7 +1443,7 @@ int main(int argc, const char* argv[])
         }
 
         //opens up tracking.list file
-        if(project.open_tracking())
+        if(project.open_tracking(1))
             return 1;
 
         //Nift commands that need tracking list file open

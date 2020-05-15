@@ -2,6 +2,20 @@
 Nift Release Notes
 ------------------
 
+Version 2.3.9 of Nift
+* added exprtk_disable_caseinsensitivity for ExprTk
+* merged PR from Mamadou fixing support for compiling with Lua 5.2 and 5.1
+* added !mf option to definitions
+* added in types std::vector<double> and std::vector<string>
+* added in std::vector. fns at, erase, pop_back, push_back, set, size (also member fns)
+* added in stream. fns close, open (also member fns)
+* added in exprtk.compile, exprtk.eval, exprtk.load and exprtk.str fns for f++/n++
+* added in exprtk_compile, exprtk_eval, exprtk_load and exprtk_str fns for Lua
+* added in to_string fn for ExprTk
+* fixed so that fn name/options/params are parsed with f++ always
+* fixed various bugs
+* made various improvements
+
 Verstion 2.3.8 of Nift
 * added clang support to Makefile (pass `CXX=clang` to Makefile)
 * fixed up Makefile and Lua.h for various versions of Lua and LuaJIT
