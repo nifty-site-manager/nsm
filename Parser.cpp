@@ -45,6 +45,7 @@ Parser::Parser(std::set<TrackedInfo>* TrackedAll,
     outputExt = OutputExt;
     scriptExt = ScriptExt;
     defaultTemplate = DefaultTemplate;
+    addMemberFnsGlobal = addScopeGlobal = replaceVarsGlobal = 1;
     backupScripts = BackupScripts;
     consoleLocked = 0;
     unixTextEditor = UnixTextEditor;
@@ -708,7 +709,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
         {
             if(!consoleLocked)
                 os_mtx->lock();
-            start_err(eos, consoleLockedPath, consoleLockedOnLine) << "console.lock() called with no following console.unlock()" << std::endl;
+            start_err(eos, consoleLockedPath, consoleLockedOnLine) << "console.lock called with no following console.unlock" << std::endl;
             result = 1;
         }
         consoleLocked = 0;
@@ -875,7 +876,7 @@ int Parser::run(const Path& path, char lang, std::ostream& eos)
         {
             if(!consoleLocked)
                 os_mtx->lock();
-            start_err(eos, consoleLockedPath, consoleLockedOnLine) << "console.lock() called with no following console.unlock()" << std::endl;
+            start_err(eos, consoleLockedPath, consoleLockedOnLine) << "console.lock called with no following console.unlock" << std::endl;
             result = 1;
         }
         consoleLocked = 0;
@@ -1001,6 +1002,7 @@ int Parser::build(const TrackedInfo& ToBuild,
     codeBlockDepth = htmlCommentDepth = 0;
     indentAmount = "";
     contentAdded = 0;
+    addMemberFnsGlobal = addScopeGlobal = replaceVarsGlobal = 1;
     parsedText = "";
     contentAdded = 0;
 
@@ -1175,7 +1177,7 @@ int Parser::build(const TrackedInfo& ToBuild,
         {
             if(!consoleLocked)
                 os_mtx->lock();
-            start_err(eos, consoleLockedPath, consoleLockedOnLine) << "console.lock() called with no following console.unlock()" << std::endl;
+            start_err(eos, consoleLockedPath, consoleLockedOnLine) << "console.lock called with no following console.unlock" << std::endl;
             result = 1;
         }
         consoleLocked = 0;
@@ -2250,7 +2252,7 @@ int Parser::read_and_process_fn(const bool& indent,
          parseFnName = 0, 
          parseOptions = 0, 
          parseParams = 0, 
-         replaceVars = 1;
+         replaceVars = replaceVarsGlobal;
 
     //reads function name
     parseFnName = 0;
@@ -2280,6 +2282,8 @@ int Parser::read_and_process_fn(const bool& indent,
                 oneParamOpt = 1;
             else if(options[o] == "!p")
                 doNotParse = 1;
+            else if(options[o] == "v")
+            	replaceVars = 1;
             else if(options[o] == "!v")
                 replaceVars = 0;
         }
@@ -2346,7 +2350,7 @@ int Parser::read_and_process_fn(const bool& indent,
     std::string brackets = "()";
 
     //reads parameters
-    if(funcName == "if" || funcName == "for" || funcName == "while" || funcName == "do-while")
+    if(funcName == "if" || funcName == "for" || funcName == "while" || funcName == "do-while" || funcName == "?")
     {
         conditionLineNo = lineNo;
         if(read_params(params, ';', linePos, inStr, readPath, lineNo, funcName, eos))
@@ -2371,22 +2375,22 @@ int Parser::read_and_process_fn(const bool& indent,
             brackets = "[]";
         if(doNotParse)
         {
-            if(read_params(params, linePos, inStr, readPath, lineNo, funcName + brackets, eos))
+            if(read_params(params, linePos, inStr, readPath, lineNo, funcName, eos))
                 return 1;
         }
         else
         {
-            if(read_paramsStr(paramsStr, parseParams, linePos, inStr, readPath, lineNo, funcName + brackets, eos))
+            if(read_paramsStr(paramsStr, parseParams, linePos, inStr, readPath, lineNo, funcName, eos))
                 return 1;
 
             if(parseParams)
-                if(parse_replace('f', paramsStr, "params string", readPath, antiDepsOfReadPath, lineNo, funcName + brackets, sLineNo, eos))
+                if(parse_replace('f', paramsStr, "params string", readPath, antiDepsOfReadPath, lineNo, funcName, sLineNo, eos))
                     return 1;
 
             size_t pos=0;
             if(oneParamOpt)
                 params.push_back(unquote(paramsStr.substr(1, paramsStr.size()-2)));
-            else if(read_params(params, pos, paramsStr, readPath, lineNo, funcName + brackets, eos))
+            else if(read_params(params, pos, paramsStr, readPath, lineNo, funcName, eos))
                 return 1;
         }
     }
@@ -2404,6 +2408,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 return 0;
             }
 
+            bool round = 1;
             std::string newline = "\n";
             if(options.size())
             {
@@ -2411,6 +2416,8 @@ int Parser::read_and_process_fn(const bool& indent,
                 {
                     if(options[o] == "\\n")
                         newline = "\\n";
+                    else if(options[o] == "!round")
+                    	round = 0;
                 }
             }
 
@@ -2435,7 +2442,7 @@ int Parser::read_and_process_fn(const bool& indent,
             }
             else if(vars.find(varName, vpos)) //should this go after hard-coded variables?
             {
-                if(!vars.add_str_from_var(vpos, outStr, 1, indent, indentAmount))
+                if(!vars.add_str_from_var(vpos, outStr, round, indent, indentAmount))
                 {
                     std::string type = vpos.type.substr(0, vpos.type.find_first_of('<')),
                                 toParse = "@'" + type + ".$'" + optionsStr + paramsStr;
@@ -3207,7 +3214,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 return 1;
             }
 
-            bool addScope = 1, addOut = addOutput, addWhitespace = 0;
+            bool addScope = addScopeGlobal, addOut = addOutput, addWhitespace = 0;
             char iLang = lang;
             std::string block, parsedCondition, whitespace;
             std::vector<std::string> blocks, conditions;
@@ -3263,7 +3270,7 @@ int Parser::read_and_process_fn(const bool& indent,
                             if(parse_replace('f', parsedCondition, "if/else-if condition", readPath, antiDepsOfReadPath, conditionLineNo, "if(" + params[0] + ")", sLineNo, eos))
                                 return 1;
 
-                            if(replace_var(parsedCondition, readPath, conditionLineNo, "if/else-if()", eos))
+                            if(replace_var(parsedCondition, readPath, conditionLineNo, "if/else-if", eos))
                                 return 1;
 
                             if(!get_bool(result, parsedCondition))
@@ -3287,7 +3294,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 else
                     result = 1;
 
-                if(result != 0)
+                if(result)
                 {
                     if(addOut)
                         addWhitespace = 1;
@@ -3495,7 +3502,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 if(read_block(inputMsg, linePos, inStr, readPath, lineNo, bLineNo, "in{block}", eos))
                    return 1;
 
-                if(parseBlock && parse_replace(lang, inputMsg, "in block", readPath, antiDepsOfReadPath, bLineNo, "in{block}()", sLineNo, eos))
+                if(parseBlock && parse_replace(lang, inputMsg, "in block", readPath, antiDepsOfReadPath, bLineNo, "in{block}", sLineNo, eos))
                     return 1;
             }
 
@@ -7687,7 +7694,7 @@ int Parser::read_and_process_fn(const bool& indent,
             bool oldFP = vars.fixedPrecision;
             vars.fixedPrecision = 1;
 
-            /*if(parse_replace(lang, params, "/ params", readPath, antiDepsOfReadPath, sLineNo, "@/()", sLineNo, eos))
+            /*if(parse_replace(lang, params, "/ params", readPath, antiDepsOfReadPath, sLineNo, "/", sLineNo, eos))
                 return 1;*/ //should change fixed precision earlier for this function!!
 
             if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "/", eos))
@@ -7763,7 +7770,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 bool oldFP = vars.fixedPrecision;
                 vars.fixedPrecision = 1;
 
-                /*if(parse_replace(lang, params, "/ params", readPath, antiDepsOfReadPath, sLineNo, "@/()", sLineNo, eos))
+                /*if(parse_replace(lang, params, "/ params", readPath, antiDepsOfReadPath, sLineNo, "/", sLineNo, eos))
                     return 1;*/ //should change fixed precision earlier for this function!!
 
                 if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "/=", eos))
@@ -7847,7 +7854,7 @@ int Parser::read_and_process_fn(const bool& indent,
             bool oldFP = vars.fixedPrecision;
             vars.fixedPrecision = 1;
 
-            /*if(parse_replace(lang, params, "/ params", readPath, antiDepsOfReadPath, sLineNo, "@/()", sLineNo, eos))
+            /*if(parse_replace(lang, params, "/ params", readPath, antiDepsOfReadPath, sLineNo, "%", sLineNo, eos))
                 return 1;*/ //should change fixed precision earlier for this function!!
 
             if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "%", eos))
@@ -7898,7 +7905,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 bool oldFP = vars.fixedPrecision;
                 vars.fixedPrecision = 1;
 
-                /*if(parse_replace(lang, params, "/ params", readPath, antiDepsOfReadPath, sLineNo, "@%()", sLineNo, eos))
+                /*if(parse_replace(lang, params, "/ params", readPath, antiDepsOfReadPath, sLineNo, "%=", sLineNo, eos))
                     return 1;*/ //should change fixed precision earlier for this function!!
 
                 if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "%=", eos))
@@ -7941,13 +7948,100 @@ int Parser::read_and_process_fn(const bool& indent,
             return 0;
         }
     }
+    else if(funcName[0] == '?')
+    {
+    	if(funcName == "?")
+    	{
+    		if(params.size() != 3)
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "?: expected 3 parameters, got " << params.size() << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+
+            bool result, addOut= addOutput;
+            char ternaryLang = lang;
+
+            if(options.size())
+            {
+            	for(size_t o=0; o<options.size(); ++o)
+            	{
+            		if(options[o] == "f++")
+            			ternaryLang = 'f';
+            		else if(options[o] == "n++")
+            			ternaryLang = 'n';
+            		else if(options[o] == "o")
+            			addOut = 1;
+            		else if(options[o] == "!o")
+            			addOut = 0;
+            	}
+            }
+
+            if(get_bool(result, params[0]))
+            {}
+            else
+            {
+                if(params[0] != "" && expr.compile(params[0]))
+                    result = expr.evaluate();
+                else
+                {
+                    std::string parsedCondition = params[0];
+
+                    if(!doNotParse && parse_replace('f', parsedCondition, "? condition", readPath, antiDepsOfReadPath, sLineNo, "?", sLineNo, eos))
+                        return 1;
+
+                    if(replaceVars && replace_var(parsedCondition, readPath, sLineNo, "?", eos))
+                        return 1;
+
+                    if(!get_bool(result, parsedCondition))
+                    {
+                        if(parsedCondition != "" && expr.compile(parsedCondition))
+                            result = expr.evaluate();
+                        else
+                        {
+                            if(!consoleLocked)
+                                os_mtx->lock();
+                            start_err(eos, readPath, conditionLineNo) << "?: cannot convert " << quote(parsedCondition) << " to bool" << std::endl;
+                            start_err(eos, readPath, conditionLineNo) << "?: possible errors from ExprTk:" << std::endl;
+                            print_exprtk_parser_errs(eos, expr.parser, expr.expr_str, readPath, sLineNo);
+                            os_mtx->unlock();
+                            return 1;
+                        }
+                    }
+                }
+            }
+
+            std::string block;
+
+            if(result)
+            	block = params[1];
+            else
+            	block = params[2];
+
+            int ret_val;
+
+            if(ternaryLang == 'n')
+                ret_val = n_read_and_process_fast(1, addOut, block, sLineNo-1, readPath, antiDepsOfReadPath, outStr, eos);
+            else
+                ret_val = f_read_and_process_fast(addOut, block, sLineNo-1, readPath, antiDepsOfReadPath, outStr, eos);
+
+			if(ret_val == NSM_BREAK)
+                return NSM_BREAK;
+			else if(ret_val)
+                return ret_val;
+
+    		return 0;
+    	}
+    }
     else if(funcName[0] == ':')
     {
         if(funcName == ":=")
         {
             std::string varType;
             std::vector<std::pair<std::string, std::vector<std::string> > > inputVars;
-            bool constants = 0, privates = 0, addToExpr = 1, addMemberFns = 1;
+            bool constants = 0, privates = 0, addToExpr = 1, addMemberFns = addMemberFnsGlobal, normalVecDef = 1;
             int pOption = -1;
             size_t layer = vars.layers.size()-1;
             std::string vScope, bScope;
@@ -7957,7 +8051,7 @@ int Parser::read_and_process_fn(const bool& indent,
             if(read_def(varType, inputVars, pos, paramsStr, readPath, lineNo, ":=", eos))
                 return 1;
 
-            /*if(!valid_type(varType, readPath, antiDepsOfReadPath, sLineNo, ":=()", sLineNo, eos))
+            /*if(!valid_type(varType, readPath, antiDepsOfReadPath, sLineNo, ":=", sLineNo, eos))
             {
                 if(!consoleLocked)
                     os_mtx->lock();
@@ -7974,6 +8068,8 @@ int Parser::read_and_process_fn(const bool& indent,
                         addToExpr = 0;
                     else if(options[o] == "const")
                         constants = 1;
+                    else if(options[o] == "mf")
+                    	addMemberFns = 1;
                     else if(options[o] == "!mf")
                         addMemberFns = 0;
                     else if(options[o] == "private")
@@ -8008,6 +8104,8 @@ int Parser::read_and_process_fn(const bool& indent,
                         privates = 1;
                         inScopes.insert(unquote(options[o].substr(7, options[o].size()-7)));
                     }
+                    else if(options[o] == "...")
+                    	normalVecDef = 0;
                 }
             }
 
@@ -8363,7 +8461,7 @@ int Parser::read_and_process_fn(const bool& indent,
                         {
                             int noParams = inputVars[v].second.size();
 
-                            if(noParams > 2)
+                            if(normalVecDef && noParams > 2)
                             {
                                 if(!consoleLocked)
                                     os_mtx->lock();
@@ -8372,42 +8470,65 @@ int Parser::read_and_process_fn(const bool& indent,
                                 return 1;
                             }
 
-                            size_t vSize = 0;
-                            double vValue = 0.0;
-
-                            if(noParams > 0)
+                            if(normalVecDef)
                             {
-                                if(!isNonNegInt(inputVars[v].second[0]))
-                                {
-                                    if(!consoleLocked)
-                                        os_mtx->lock();
-                                    start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: size given for " << quote(inputVars[v].first) << " is not a non-negative integer" << std::endl;
-                                    start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: size given = " << quote(inputVars[v].second[0]) << std::endl;
-                                    os_mtx->unlock();
-                                    return 1;
-                                }
-                                else
-                                    vSize = std::atoi(inputVars[v].second[0].c_str());
-                            }
+                            	size_t vSize = 0;
+	                            double vValue = 0.0;
 
-                            if(noParams == 2)
-                            {
-                                if(!isDouble(inputVars[v].second[1]))
-                                {
-                                    if(!consoleLocked)
-                                        os_mtx->lock();
-                                    start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: value given for " << quote(inputVars[v].first) << " is not a double" << std::endl;
-                                    start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: value given = " << quote(inputVars[v].second[1]) << std::endl;
-                                    os_mtx->unlock();
-                                    return 1;
-                                }
-                                else
-                                    vValue = std::strtod(inputVars[v].second[1].c_str(), NULL);
-                            }
-                            vars.layers[layer].doubVecs[inputVars[v].first] = std::vector<double>(vSize, vValue);
+	                            if(noParams > 0)
+	                            {
+	                                if(!isNonNegInt(inputVars[v].second[0]))
+	                                {
+	                                    if(!consoleLocked)
+	                                        os_mtx->lock();
+	                                    start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: size given for " << quote(inputVars[v].first) << " is not a non-negative integer" << std::endl;
+	                                    start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: size given = " << quote(inputVars[v].second[0]) << std::endl;
+	                                    os_mtx->unlock();
+	                                    return 1;
+	                                }
+	                                else
+	                                    vSize = std::atoi(inputVars[v].second[0].c_str());
+	                            }
+
+	                            if(noParams == 2)
+	                            {
+	                                if(!isDouble(inputVars[v].second[1]))
+	                                {
+	                                    if(!consoleLocked)
+	                                        os_mtx->lock();
+	                                    start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: value given for " << quote(inputVars[v].first) << " is not a double" << std::endl;
+	                                    start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: value given = " << quote(inputVars[v].second[1]) << std::endl;
+	                                    os_mtx->unlock();
+	                                    return 1;
+	                                }
+	                                else
+	                                    vValue = std::strtod(inputVars[v].second[1].c_str(), NULL);
+	                            }
+	                            vars.layers[layer].doubVecs[inputVars[v].first] = std::vector<double>(vSize, vValue);
+	                        }
+	                        else
+	                        {
+	                        	std::vector<double>* v_ptr = &vars.layers[layer].doubVecs[inputVars[v].first];
+
+	                        	for(int p=0; p<noParams; ++p)
+	                        	{
+	                        		if(isDouble(inputVars[v].second[p]))
+	                        			v_ptr->push_back(std::strtod(inputVars[v].second[p].c_str(), NULL));
+		                            else
+		                            {
+		                                if(!consoleLocked)
+		                                    os_mtx->lock();
+		                                start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: value given for " << quote(inputVars[v].first) << " is not a double" << std::endl;
+		                                start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: value given = " << quote(inputVars[v].second[p]) << std::endl;
+		                                os_mtx->unlock();
+		                                return 1;
+		                            }
+	                        	}
+	                        }
 
                             if(addToExpr)
                             {
+                            	size_t vSize = vars.layers[layer].doubVecs[inputVars[v].first].size();
                                 if(!vSize)
                                     vars.layers[layer].doubVecs[inputVars[v].first].push_back(0.0);
                                 symbol_table.add_vector(inputVars[v].first, vars.layers[layer].doubVecs[inputVars[v].first]);
@@ -8418,37 +8539,37 @@ int Parser::read_and_process_fn(const bool& indent,
                             if(addMemberFns)
                             {
                                 if(add_fn(inputVars[v].first + ".push_back", 'n',
-                                          "@std::vector.push_back{mf@join{<-}(options, ', ')}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")",
+                                          "@std::vector.push_back{mf@vjoin{<-}(options, ', ')}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")",
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/,
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
 
                                 if(add_fn(inputVars[v].first + ".size", 'n',
-                                          "@std::vector.size{mf}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")",
+                                          "@std::vector.size{mf}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")",
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/,
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
 
                                 if(add_fn(inputVars[v].first + ".at", 'n',
-                                          "@std::vector.at{mf@join{<-}(options, ', ')}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")",
+                                          "@std::vector.at{mf@vjoin{<-}(options, ', ')}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")",
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/,
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
 
                                 if(add_fn(inputVars[v].first + ".set", 'n',
-                                          "@std::vector.set{mf@join{<-}(options, ', ')}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")",
+                                          "@std::vector.set{mf@vjoin{<-}(options, ', ')}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")",
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/,
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
 
                                 if(add_fn(inputVars[v].first + ".pop_back", 'n',
-                                          "@std::vector.pop_back{mf@join{<-}(options, ', ')}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")",
+                                          "@std::vector.pop_back{mf@vjoin{<-}(options, ', ')}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")",
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/,
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
 
                                 if(add_fn(inputVars[v].first + ".erase", 'n',
-                                          "@std::vector.erase{mf@join{<-}(options, ', ')}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")",
+                                          "@std::vector.erase{mf@vjoin{<-}(options, ', ')}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")",
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/,
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
@@ -8458,7 +8579,7 @@ int Parser::read_and_process_fn(const bool& indent,
                         {
                             int noParams = inputVars[v].second.size();
 
-                            if(noParams > 2)
+                            if(normalVecDef && noParams > 2)
                             {
                                 if(!consoleLocked)
                                     os_mtx->lock();
@@ -8467,62 +8588,72 @@ int Parser::read_and_process_fn(const bool& indent,
                                 return 1;
                             }
 
-                            size_t vSize = 0;
-                            std::string vValue = "";
-
-                            if(noParams > 0)
+                            if(normalVecDef)
                             {
-                                if(!isNonNegInt(inputVars[v].second[0]))
-                                {
-                                    if(!consoleLocked)
-                                        os_mtx->lock();
-                                    start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: size given for " << quote(inputVars[v].first) << " is not a non-negative integer" << std::endl;
-                                    start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: size given = " << quote(inputVars[v].second[0]) << std::endl;
-                                    os_mtx->unlock();
-                                    return 1;
-                                }
-                                else
-                                    vSize = std::atoi(inputVars[v].second[0].c_str());
-                            }
+	                            size_t vSize = 0;
+	                            std::string vValue = "";
 
-                            if(noParams == 2)
-                                vValue = inputVars[v].second[1];
-                            vars.layers[layer].strVecs[inputVars[v].first] = std::vector<std::string>(vSize, vValue);
+	                            if(noParams > 0)
+	                            {
+	                                if(!isNonNegInt(inputVars[v].second[0]))
+	                                {
+	                                    if(!consoleLocked)
+	                                        os_mtx->lock();
+	                                    start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: size given for " << quote(inputVars[v].first) << " is not a non-negative integer" << std::endl;
+	                                    start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: size given = " << quote(inputVars[v].second[0]) << std::endl;
+	                                    os_mtx->unlock();
+	                                    return 1;
+	                                }
+	                                else
+	                                    vSize = std::atoi(inputVars[v].second[0].c_str());
+	                            }
+
+	                            if(noParams == 2)
+	                                vValue = inputVars[v].second[1];
+	                            vars.layers[layer].strVecs[inputVars[v].first] = std::vector<std::string>(vSize, vValue);
+	                        }
+	                        else
+	                        {
+	                        	std::vector<std::string>* v_ptr = &vars.layers[layer].strVecs[inputVars[v].first];
+
+	                        	for(int p=0; p<noParams; ++p)
+	                        		v_ptr->push_back(inputVars[v].second[p]);
+	                        }
 
                             if(addMemberFns)
                             {
                                 if(add_fn(inputVars[v].first + ".push_back", 'n',
-                                          "@std::vector.push_back{mf@join{<-}(options, ', ')}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")",
+                                          "@std::vector.push_back{mf@vjoin{<-}(options, ', ')}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")",
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/,
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
 
                                 if(add_fn(inputVars[v].first + ".size", 'n',
-                                          "@std::vector.size{mf}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")",
+                                          "@std::vector.size{mf}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")",
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/,
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
 
                                 if(add_fn(inputVars[v].first + ".at", 'n',
-                                          "@std::vector.at{mf@join{<-}(options, ', ')}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")",
+                                          "@std::vector.at{mf, !s@vjoin{<-}(options, ', ')}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")",
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/,
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
 
                                 if(add_fn(inputVars[v].first + ".set", 'n',
-                                          "@std::vector.set{mf@join{<-}(options, ', ')}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")",
+                                          "@std::vector.set{mf@vjoin{<-}(options, ', ')}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")",
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/,
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
 
                                 if(add_fn(inputVars[v].first + ".pop_back", 'n',
-                                          "@std::vector.pop_back{mf@join{<-}(options, ', ')}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")",
+                                          "@std::vector.pop_back{mf@vjoin{<-}(options, ', ')}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")",
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/,
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
 
                                 if(add_fn(inputVars[v].first + ".erase", 'n',
-                                          "@std::vector.erase{mf@join{<-}(options, ', ')}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")",
+                                          "@std::vector.erase{mf@vjoin{<-}(options, ', ')}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")",
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/,
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
@@ -8558,13 +8689,13 @@ int Parser::read_and_process_fn(const bool& indent,
                             if(addMemberFns)
                             {
                                 if(add_fn(inputVars[v].first + ".close", 'n', 
-                                          "@stream.close{mf}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")", 
+                                          "@stream.close{mf}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")", 
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/, 
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
 
                                 if(add_fn(inputVars[v].first + ".open", 'n', 
-                                          "@stream.open{mf}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")", 
+                                          "@stream.open{mf}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")", 
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/, 
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
@@ -8609,13 +8740,13 @@ int Parser::read_and_process_fn(const bool& indent,
                             if(addMemberFns)
                             {
                                 if(add_fn(inputVars[v].first + ".close", 'n', 
-                                          "@stream.close{mf}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")", 
+                                          "@stream.close{mf}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")", 
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/, 
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
 
                                 if(add_fn(inputVars[v].first + ".open", 'n', 
-                                          "@stream.open{mf}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")", 
+                                          "@stream.open{mf}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")", 
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/, 
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
@@ -8651,13 +8782,13 @@ int Parser::read_and_process_fn(const bool& indent,
                             if(addMemberFns)
                             {
                                 if(add_fn(inputVars[v].first + ".close", 'n', 
-                                          "@stream.close{mf}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")", 
+                                          "@stream.close{mf}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")", 
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/, 
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
 
                                 if(add_fn(inputVars[v].first + ".open", 'n', 
-                                          "@stream.open{mf}(" + inputVars[v].first + "@join{<-}(params, ', ')" + ")", 
+                                          "@stream.open{mf}(" + inputVars[v].first + "@vjoin{<-}(params, ', ')" + ")", 
                                           "function", layer, 1 /*isConst*/, privates, 1 /*?isUnscoped?*/, 1 /*addOut*/, 
                                           vars.layers[layer].inScopes[inputVars[v].first], readPath, sLineNo, ":=(" + varType + ")", eos))
                                     return 1;
@@ -8726,11 +8857,16 @@ int Parser::read_and_process_fn(const bool& indent,
                         }
                         else */if(vars.typeDefs.count(preType))
                         {
-                            std::vector<bool> typToDel, optToDel, parToDel;
+                            /*std::vector<bool> typToDel, optToDel, parToDel;
                             std::vector<bool> typWasConst, optWasConst, parWasConst;
                             std::vector<std::string> oldTypTypes, oldOptTypes, oldParTypes;
                             int old_no_types = 0, old_no_options = 0, old_no_params = 0;
-                            std::vector<std::string> oldTyps, oldOpts, oldPars;
+                            std::vector<std::string> oldTyps, oldOpts, oldPars;*/
+
+                            std::vector<std::string> oldOpts, oldPars, oldTypes;
+					        std::string oldOptType, oldParType, oldTypesType;
+					        bool optWasConst = 0, parWasConst = 0, typesWasConst = 0;
+					        bool optWasPrivate = 0, parWasPrivate = 0, typesWasPrivate = 0;
 
                             bool varNameToDel = 1, varNameWasConst = 0;
                             std::string oldVarNameType, oldVarName;
@@ -8738,138 +8874,128 @@ int Parser::read_and_process_fn(const bool& indent,
                             params = inputVars[v].second;
 
                             //backs up variables already defined at this scope
-                            typToDel = std::vector<bool>(types.size() + 1, 1);
-                            optToDel = std::vector<bool>(options.size() + 1, 1);
-                            parToDel = std::vector<bool>(params.size() + 1, 1);
-                            typWasConst = std::vector<bool>(types.size() + 1, 0);
-                            optWasConst = std::vector<bool>(options.size() + 1, 0);
-                            parWasConst = std::vector<bool>(params.size() + 1, 0);
-                            oldTypTypes = std::vector<std::string>(types.size() + 1, "");
-                            oldOptTypes = std::vector<std::string>(options.size() + 1, "");
-                            oldParTypes = std::vector<std::string>(params.size() + 1, "");
-                            oldTyps = std::vector<std::string>(types.size() + 1, "");
-                            oldOpts = std::vector<std::string>(options.size() + 1, "");
-                            oldPars = std::vector<std::string>(params.size() + 1, "");
+                            if(vars.layers[0].typeOf.count("options"))
+				            {
+				            	if(vars.layers[0].constants.count("options"))
+				            		optWasConst = 1;
+				            	if(vars.layers[0].privates.count("options"))
+				            		optWasPrivate = 1;
 
-                            if(vars.layers[layer].typeOf.count("types.size"))
-                            {
-                                typToDel[types.size()] = 0;
-                                if(vars.layers[layer].constants.count("types.size"))
-                                    typWasConst[types.size()] = 1;
-                                oldTypTypes[types.size()] = vars.layers[layer].typeOf["types.size"];
-                                if(oldTypTypes[types.size()] == "std::int")
-                                    old_no_types = vars.layers[layer].ints["types.size"];
-                            }
+				            	oldOptType = vars.layers[0].typeOf["options"];
 
-                            for(size_t t=0; t<types.size(); t++)
-                            {
-                                if(vars.layers[layer].typeOf.count("types[" + std::to_string(t) + "]"))
-                                {
-                                    typToDel[t] = 0;
-                                    if(vars.layers[layer].constants.count("types[" + std::to_string(t) + "]"))
-                                        typWasConst[t] = 1;
-                                    oldTypTypes[t] = vars.layers[layer].typeOf["types[" + std::to_string(t) + "]"];
-                                    if(oldTypTypes[t] == "string")
-                                        oldTyps[t] = vars.layers[layer].strings["types[" + std::to_string(t) + "]"];
-                                }
-                            }
+				            	if(oldOptType == "std::vector<string>")
+				            	{
+				            		oldOpts = vars.layers[0].strVecs["options"];
+				            		vars.layers[0].strVecs["__options"] = oldOpts;
+				            	}
 
+				            	vars.layers[0].typeOf.erase("options");
+				            }
 
-                            if(vars.layers[layer].typeOf.count("options.size"))
-                            {
-                                optToDel[options.size()] = 0;
-                                if(vars.layers[layer].constants.count("options.size"))
-                                    optWasConst[options.size()] = 1;
-                                oldOptTypes[options.size()] = vars.layers[layer].typeOf["options.size"];
-                                if(oldOptTypes[options.size()] == "std::int")
-                                    old_no_options = vars.layers[layer].ints["options.size"];
-                            }
-
-                            for(size_t o=0; o<options.size(); o++)
-                            {
-                                if(vars.layers[layer].typeOf.count("options[" + std::to_string(o) + "]"))
-                                {
-                                    optToDel[o] = 0;
-                                    if(vars.layers[layer].constants.count("options[" + std::to_string(o) + "]"))
-                                        optWasConst[o] = 1;
-                                    oldOptTypes[o] = vars.layers[layer].typeOf["options[" + std::to_string(o) + "]"];
-                                    if(oldOptTypes[o] == "string")
-                                        oldOpts[o] = vars.layers[layer].strings["options[" + std::to_string(o) + "]"];
-                                }
-                            }
-
-                            if(vars.layers[layer].typeOf.count("params.name"))
+                            if(vars.layers[0].typeOf.count("params.name"))
                             {
                                 varNameToDel = 0;
-                                if(vars.layers[layer].constants.count("params.name"))
+                                if(vars.layers[0].constants.count("params.name"))
                                     varNameWasConst = 1;
-                                oldVarNameType = vars.layers[layer].typeOf["params.name"];
+                                oldVarNameType = vars.layers[0].typeOf["params.name"];
                                 if(oldVarNameType == "string")
-                                    oldVarName = vars.layers[layer].strings["params.name"];
+                                    oldVarName = vars.layers[0].strings["params.name"];
                             }
 
-                            if(vars.layers[layer].typeOf.count("params.size"))
-                            {
-                                parToDel[params.size()] = 0;
-                                if(vars.layers[layer].constants.count("params.size"))
-                                    parWasConst[params.size()] = 1;
-                                oldParTypes[params.size()] = vars.layers[layer].typeOf["params.size"];
-                                if(oldParTypes[params.size()] == "std::int")
-                                    old_no_params = vars.layers[layer].ints["params.size"];
-                            }
+				            if(vars.layers[0].typeOf.count("params"))
+				            {
+				            	if(vars.layers[0].constants.count("params"))
+				            		parWasConst = 1;
+				            	if(vars.layers[0].privates.count("params"))
+				            		parWasPrivate = 1;
 
-                            for(size_t p=0; p<params.size(); p++)
-                            {
-                                if(vars.layers[layer].typeOf.count("params[" + std::to_string(p) + "]"))
-                                {
-                                    parToDel[p] = 0;
-                                    if(vars.layers[layer].constants.count("params[" + std::to_string(p) + "]"))
-                                        parWasConst[p] = 1;
-                                    oldParTypes[p] = vars.layers[layer].typeOf["params[" + std::to_string(p) + "]"];
-                                    if(oldParTypes[p] == "string")
-                                        oldPars[p] = vars.layers[layer].strings["params[" + std::to_string(p) + "]"];
-                                }
-                            }
+				            	oldParType = vars.layers[0].typeOf["params"];
+
+				            	if(oldParType == "std::vector<string>")
+				            	{
+				            		oldPars = vars.layers[0].strVecs["params"];
+				            		vars.layers[0].strVecs["__params"] = oldPars;
+				            	}
+
+				            	vars.layers[0].typeOf.erase("params");
+				            }
+
+				            if(vars.layers[0].typeOf.count("types"))
+				            {
+				            	if(vars.layers[0].constants.count("types"))
+				            		typesWasConst = 1;
+				            	if(vars.layers[0].privates.count("types"))
+				            		typesWasPrivate = 1;
+
+				            	oldTypesType = vars.layers[0].typeOf["types"];
+
+				            	if(oldTypesType == "std::vector<string>")
+				            	{
+				            		oldTypes = vars.layers[0].strVecs["types"];
+				            		//vars.layers[0].strVecs["__types"] = oldTypes;
+				            	}
+
+				            	vars.layers[0].typeOf.erase("types");
+				            }
 
                             //defines types/params/options
-                            vars.layers[layer].typeOf[inputVars[v].first] = varType;
+				            if(addMemberFns && !vars.layers[0].functions.count("options.at"))
+					        {
+					        	std::string toParse = ":={layer=0}(std::vector<string>, options)";
+					        	std::string trash;
+					        	if(f_read_and_process_fast(0, toParse, lineNo, readPath, antiDepsOfReadPath, trash, eos) > 0)
+					            {
+					                if(!consoleLocked)
+					                    os_mtx->lock();
+					                start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": failed to define options vector" << std::endl;
+					                os_mtx->unlock();
+					                return 1;
+					            }
+					        }
+					        else
+					        	vars.layers[0].typeOf["options"] = "std::vector<string>";
+					        vars.layers[0].strVecs["options"] = options;
+					        vars.layers[0].constants.insert("options");
 
-                            vars.layers[layer].typeOf["types.size"] = "std::int";
-                            vars.layers[layer].ints["types.size"] = types.size();
-                            vars.layers[layer].constants.insert("types.size");
+				            vars.layers[0].typeOf["params.name"] = "string";
+                            vars.layers[0].strings["params.name"] = inputVars[v].first;
+                            vars.layers[0].constants.insert("params.name");
 
-                            for(size_t t=0; t<types.size(); t++)
-                            {
-                                vars.layers[layer].typeOf["types[" + std::to_string(t) + "]"] = "string";
-                                vars.layers[layer].strings["types[" + std::to_string(t) + "]"] = types[t];
-                                vars.layers[layer].constants.insert("types[" + std::to_string(t) + "]");
-                            }
+					        if(addMemberFns && !vars.layers[0].functions.count("params.at"))
+					        {
+					        	std::string toParse = ":={layer=0}(std::vector<string>, params)";
+					        	std::string trash;
+					        	if(f_read_and_process_fast(0, toParse, lineNo, readPath, antiDepsOfReadPath, trash, eos) > 0)
+					            {
+					                if(!consoleLocked)
+					                    os_mtx->lock();
+					                start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": failed to define params vector" << std::endl;
+					                os_mtx->unlock();
+					                return 1;
+					            }
+					        }
+					        else
+					        	vars.layers[0].typeOf["params"] = "std::vector<string>";
+					        vars.layers[0].strVecs["params"] = params;
+					        vars.layers[0].constants.insert("params");
 
-                            vars.layers[layer].typeOf["params.name"] = "string";
-                            vars.layers[layer].strings["params.name"] = inputVars[v].first;
-                            vars.layers[layer].constants.insert("params.name");
-
-                            vars.layers[layer].typeOf["params.size"] = "std::int";
-                            vars.layers[layer].ints["params.size"] = params.size();
-                            vars.layers[layer].constants.insert("params.size");
-
-                            for(size_t p=0; p<params.size(); p++)
-                            {
-                                vars.layers[layer].typeOf["params[" + std::to_string(p) + "]"] = "string";
-                                vars.layers[layer].strings["params[" + std::to_string(p) + "]"] = params[p];
-                                vars.layers[layer].constants.insert("params[" + std::to_string(p) + "]");
-                            }
-
-                            vars.layers[layer].typeOf["options.size"] = "std::int";
-                            vars.layers[layer].ints["options.size"] = options.size();
-                            vars.layers[layer].constants.insert("options.size");
-
-                            for(size_t o=0; o<options.size(); o++)
-                            {
-                                vars.layers[layer].typeOf["options[" + std::to_string(o) + "]"] = "string";
-                                vars.layers[layer].strings["options[" + std::to_string(o) + "]"] = options[o];
-                                vars.layers[layer].constants.insert("options[" + std::to_string(o) + "]");
-                            }
+					        if(addMemberFns && !vars.layers[0].functions.count("types.at"))
+					        {
+					        	std::string toParse = ":={layer=0}(std::vector<string>, types)";
+					        	std::string trash;
+					        	if(f_read_and_process_fast(0, toParse, lineNo, readPath, antiDepsOfReadPath, trash, eos) > 0)
+					            {
+					                if(!consoleLocked)
+					                    os_mtx->lock();
+					                start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": failed to define types vector" << std::endl;
+					                os_mtx->unlock();
+					                return 1;
+					            }
+					        }
+					        else
+					        	vars.layers[0].typeOf["types"] = "std::vector<string>";
+					        vars.layers[0].strVecs["types"] = types;
+					        vars.layers[0].constants.insert("types");
 
                             //parses typedef function
                             std::string defOutput;
@@ -8897,106 +9023,72 @@ int Parser::read_and_process_fn(const bool& indent,
                             }
 
                             //reverts existing variables otherwise deletes them
-                            if(!typWasConst[types.size()])
-                                vars.layers[layer].constants.erase("types.size");
-                            if(oldTypTypes[types.size()] == "std::int")
-                                vars.layers[layer].ints["types.size"] = old_no_types;
-                            else
-                            {
-                                vars.layers[layer].ints.erase("types.size");
-                                if(oldTypTypes[types.size()].size() == 0)
-                                    vars.layers[layer].typeOf.erase("types.size");
-                                else
-                                    vars.layers[layer].typeOf["types.size"] = oldTypTypes[types.size()];
-                            }
+                            if(!optWasConst)
+				            	vars.layers[0].constants.erase("options");
+				            if(!optWasPrivate)
+				            	vars.layers[0].privates.erase("options");
+				            if(oldOptType == "std::vector<string>")
+				            {
+				            	vars.layers[0].strVecs["options"] = oldOpts;
+				            	vars.layers[0].strVecs.erase("__options");
+				            }
+				            else
+				            {
+				            	vars.layers[0].strVecs.erase("options");
+				            	if(oldOptType == "")
+				            		vars.layers[0].typeOf.erase("options");
+				            	else
+				            		vars.layers[0].typeOf["options"] = oldOptType;
+				            }
 
-                            for(size_t t=0; t<types.size(); t++)
-                            {
-                                if(!typWasConst[t])
-                                    vars.layers[layer].constants.erase("types[" + std::to_string(t) + "]");
-                                if(oldTypTypes[t] == "string")
-                                    vars.layers[layer].strings["types[" + std::to_string(t) + "]"] = oldTyps[t];
-                                else
-                                {
-                                    vars.layers[layer].strings.erase("types[" + std::to_string(t) + "]");
-                                    if(oldTypTypes[t].size() == 0)
-                                        vars.layers[layer].typeOf.erase("types[" + std::to_string(t) + "]");
-                                    else
-                                        vars.layers[layer].typeOf["types[" + std::to_string(t) + "]"] = oldTypTypes[t];
-                                }
-                            }
-
-
-                            if(!optWasConst[options.size()])
-                                vars.layers[layer].constants.erase("options.size");
-                            if(oldOptTypes[options.size()] == "std::int")
-                                vars.layers[layer].ints["options.size"] = old_no_options;
-                            else
-                            {
-                                vars.layers[layer].ints.erase("options.size");
-                                if(oldOptTypes[options.size()].size() == 0)
-                                    vars.layers[layer].typeOf.erase("options.size");
-                                else
-                                    vars.layers[layer].typeOf["options.size"] = oldOptTypes[options.size()];
-                            }
-
-                            for(size_t o=0; o<options.size(); o++)
-                            {
-                                if(!optWasConst[o])
-                                    vars.layers[layer].constants.erase("options[" + std::to_string(o) + "]");
-                                if(oldOptTypes[o] == "string")
-                                    vars.layers[layer].strings["options[" + std::to_string(o) + "]"] = oldOpts[o];
-                                else
-                                {
-                                    vars.layers[layer].strings.erase("options[" + std::to_string(o) + "]");
-                                    if(oldOptTypes[o].size() == 0)
-                                        vars.layers[layer].typeOf.erase("options[" + std::to_string(o) + "]");
-                                    else
-                                        vars.layers[layer].typeOf["options[" + std::to_string(o) + "]"] = oldOptTypes[o];
-                                }
-                            }
-
-                            if(!varNameWasConst)
-                                vars.layers[layer].constants.erase("params.name");
+				            if(!varNameWasConst)
+                                vars.layers[0].constants.erase("params.name");
                             if(oldVarNameType == "string")
-                                vars.layers[layer].strings["params.name"] = oldVarName;
+                                vars.layers[0].strings["params.name"] = oldVarName;
                             else
                             {
-                                vars.layers[layer].strings.erase("params.name");
+                                vars.layers[0].strings.erase("params.name");
                                 if(varNameToDel)
-                                    vars.layers[layer].typeOf.erase("params.name");
+                                    vars.layers[0].typeOf.erase("params.name");
                                 else
-                                    vars.layers[layer].typeOf["params.name"] = oldVarNameType;
+                                    vars.layers[0].typeOf["params.name"] = oldVarNameType;
                             }
 
-                            if(!parWasConst[params.size()])
-                                vars.layers[layer].constants.erase("params.size");
-                            if(oldParTypes[params.size()] == "std::int")
-                                vars.layers[layer].ints["params.size"] = old_no_params;
-                            else
-                            {
-                                vars.layers[layer].ints.erase("params.size");
-                                if(oldParTypes[params.size()].size() == 0)
-                                    vars.layers[layer].typeOf.erase("params.size");
-                                else
-                                    vars.layers[layer].typeOf["params.size"] = oldParTypes[params.size()];
-                            }
+				            if(!parWasConst)
+				            	vars.layers[0].constants.erase("params");
+				            if(!parWasPrivate)
+				            	vars.layers[0].privates.erase("params");
+				            if(oldParType == "std::vector<string>")
+				            {
+				            	vars.layers[0].strVecs["params"] = oldPars;
+				            	vars.layers[0].strVecs.erase("__params");
+				            }
+				            else
+				            {
+				            	vars.layers[0].strVecs.erase("params");
+				            	if(oldParType == "")
+				            		vars.layers[0].typeOf.erase("params");
+				            	else
+				            		vars.layers[0].typeOf["params"] = oldParType;
+				            }
 
-                            for(size_t p=0; p<params.size(); p++)
-                            {
-                                if(!parWasConst[p])
-                                    vars.layers[layer].constants.erase("params[" + std::to_string(p) + "]");
-                                if(oldParTypes[p] == "string")
-                                    vars.layers[layer].strings["params[" + std::to_string(p) + "]"] = oldPars[p];
-                                else
-                                {
-                                    vars.layers[layer].strings.erase("params[" + std::to_string(p) + "]");
-                                    if(oldParTypes[p].size() == 0)
-                                        vars.layers[layer].typeOf.erase("params[" + std::to_string(p) + "]");
-                                    else
-                                        vars.layers[layer].typeOf["params[" + std::to_string(p) + "]"] = oldParTypes[p];
-                                }
-                            }
+				            if(!typesWasConst)
+				            	vars.layers[0].constants.erase("types");
+				            if(!typesWasPrivate)
+				            	vars.layers[0].privates.erase("types");
+				            if(oldTypesType == "std::vector<string>")
+				            {
+				            	vars.layers[0].strVecs["types"] = oldTypes;
+				            	//vars.layers[0].strVecs.erase("__types");
+				            }
+				            else
+				            {
+				            	vars.layers[0].strVecs.erase("types");
+				            	if(oldTypesType == "")
+				            		vars.layers[0].typeOf.erase("types");
+				            	else
+				            		vars.layers[0].typeOf["types"] = oldTypesType;
+				            }
                         }
                     }
                 }
@@ -9264,7 +9356,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 }
                 else if(vars.find(params[p], vpos) && vpos.type == "string")
                 {
-                    result = set_var_from_str(vpos, txt, readPath, lineNo, "getline()", eos);
+                    result = set_var_from_str(vpos, txt, readPath, lineNo, "getline", eos);
 
                     if(!result)
                     {
@@ -9464,7 +9556,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 return 1;
             }
 
-            bool first = 1, addNewLines = 1, addIndent = 1, addScope = 1, addOut = addOutput;
+            bool first = 1, addNewLines = 1, addIndent = 1, addScope = addScopeGlobal, addOut = addOutput;
             char wLang = lang;
             std::string block, parsedCondition, eob = "\n", wBaseIndentAmount = indentAmount;
             int bLineNo;
@@ -9488,6 +9580,8 @@ int Parser::read_and_process_fn(const bool& indent,
                         if(eob[eob.size()-1] != '\n')
                             addIndent = 0;
                     }
+                    else if(options[o] == "s")
+                    	addScope = 1;
                     else if(options[o] == "!s")
                         addScope = 0;
                     else if(options[o] == "n++")
@@ -10039,6 +10133,42 @@ int Parser::read_and_process_fn(const bool& indent,
 
             return refresh_completions();
         }
+        else if(funcName == "replace_vars")
+        {
+            if(params.size() > 1)
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": expected 0-1 parameters, got " << params.size() << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+
+            if(params.size())
+            {
+            	if(isInt(params[0]))
+            		replaceVarsGlobal = std::atoi(params[0].c_str());
+            	else if(isDouble(params[0]))
+            		replaceVarsGlobal = std::strtod(params[0].c_str(), NULL);
+            	else
+	            {
+	                if(!consoleLocked)
+	                    os_mtx->lock();
+	                start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": cannot convert " << quote(params[0]) << " to bool" << std::endl;
+	                os_mtx->unlock();
+	                return 1;
+	            }
+            }
+            else
+            {
+            	std::string output = std::to_string(replaceVarsGlobal);
+            	outStr += output;
+            	if(indent)
+            		indentAmount += into_whitespace(output);
+            }
+
+            return 0;
+        }
     }
     else if(funcName[0] == 'b')
     {
@@ -10124,7 +10254,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 return 1;
             }
 
-            bool first = 1, addNewLines = 1, addIndent = 1, addScope = 1, addOut = addOutput;
+            bool first = 1, addNewLines = 1, addIndent = 1, addScope = addScopeGlobal, addOut = addOutput;
             char fLang = lang;
             std::string block, parsedCondition, eob = "\n", wBaseIndentAmount = indentAmount;
             int bLineNo;
@@ -10155,6 +10285,8 @@ int Parser::read_and_process_fn(const bool& indent,
                         if(eob[eob.size()-1] != '\n')
                             addIndent = 0;
                     }
+                    else if(options[o] == "s")
+                    	addScope = 1;
                     else if(options[o] == "!s")
                         addScope = 0;
                     else if(options[o] == "n++")
@@ -10466,10 +10598,10 @@ int Parser::read_and_process_fn(const bool& indent,
             if(read_block(block, linePos, inStr, readPath, lineNo, bLineNo, fnType + "(" + params[0] + ")", eos))
                 return 1;
 
-            if(parseBlock && parse_replace(lang, block, fnType + " block", readPath, antiDepsOfReadPath, bLineNo, fnType + "()", sLineNo, eos))
+            if(parseBlock && parse_replace(lang, block, fnType + " block", readPath, antiDepsOfReadPath, bLineNo, fnType, sLineNo, eos))
                 return 1;
 
-            if(add_fn(params[0], fnLang, block, fnType, layer, isConst, isPrivate, unscopedFn, addOut, inScopes, readPath, bLineNo, std::string(1, fnLang) + "()", eos))
+            if(add_fn(params[0], fnLang, block, fnType, layer, isConst, isPrivate, unscopedFn, addOut, inScopes, readPath, bLineNo, "function", eos))
                 return 1;
 
             if(linePos < inStr.size() && inStr[linePos] == '!')
@@ -10769,12 +10901,17 @@ int Parser::read_and_process_fn(const bool& indent,
 
             int bLineNo;
             bool blockOpt = 0, parseBlock = 0, addOut = addOutput, round = 1;
+            char blockLang = lang;
 
             if(options.size())
             {
                 for(size_t o=0; o<options.size(); o++)
                 {
-                    if(options[o] == "pb")
+                	if(options[o] == "f++")
+                		blockLang = 'f';
+                	else if(options[o] == "n++")
+                		blockLang = 'n';
+                    else if(options[o] == "pb")
                         parseBlock = 1;
                     else if(options[o] == "o")
                         addOut = 1;
@@ -10792,7 +10929,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 if(read_block(params[0], linePos, inStr, readPath, lineNo, bLineNo, "exprtk{block}", eos))
                     return 1;
 
-                if(parseBlock && parse_replace(lang, params[0], "exprtk block", readPath, antiDepsOfReadPath, bLineNo, "exprtk{block}", sLineNo, eos))
+                if(parseBlock && parse_replace(blockLang, params[0], "exprtk block", readPath, antiDepsOfReadPath, bLineNo, "exprtk{block}", sLineNo, eos))
                     return 1;
             }
 
@@ -10835,6 +10972,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
             int bLineNo;
             bool blockOpt = 0, parseBlock = 0;
+            char blockLang = lang;
 
             if(options.size())
             {
@@ -10842,6 +10980,10 @@ int Parser::read_and_process_fn(const bool& indent,
                 {
                     if(options[o] == "b" || options[o] == "block")
                         blockOpt = 1;
+                    else if(options[o] == "f++")
+                    	blockLang = 'f';
+                    else if(options[o] == "n++")
+                    	blockLang = 'n';
                     else if(options[o] == "pb")
                         parseBlock = 1;
                 }
@@ -10856,7 +10998,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 if(read_block(block_str, linePos, inStr, readPath, lineNo, bLineNo, "exprtk.compile{block}", eos))
                     return 1;
 
-                if(parseBlock && parse_replace(lang, block_str, "exprtk block", readPath, antiDepsOfReadPath, bLineNo, "exprtk.compile{block}", sLineNo, eos))
+                if(parseBlock && parse_replace(blockLang, block_str, "exprtk block", readPath, antiDepsOfReadPath, bLineNo, "exprtk.compile{block}", sLineNo, eos))
                     return 1;
 
                 params.push_back(block_str);
@@ -11458,7 +11600,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 return 1;
             }
 
-            bool first = 1, addNewLines = 1, addIndent = 1, addScope = 1, addOut = addOutput;
+            bool first = 1, addNewLines = 1, addIndent = 1, addScope = addScopeGlobal, addOut = addOutput;
             char dwLang = lang;
             std::string block, parsedCondition, eob = "\n", wBaseIndentAmount = indentAmount;
             int bLineNo;
@@ -11482,6 +11624,8 @@ int Parser::read_and_process_fn(const bool& indent,
                         if(eob[eob.size()-1] != '\n')
                             addIndent = 0;
                     }
+                    else if(options[o] == "s")
+                    	addScope = 1;
                     else if(options[o] == "!s")
                         addScope = 0;
                     else if(options[o] == "n++")
@@ -11724,7 +11868,7 @@ int Parser::read_and_process_fn(const bool& indent,
             }
 
             std::string block;
-            char structLang = lang;
+            char structLang = 'f';
             bool parseBlock = 0;
 
             if(options.size())
@@ -11763,7 +11907,7 @@ int Parser::read_and_process_fn(const bool& indent,
                 if(read_block(block, linePos, inStr, readPath, lineNo, vars.typeDefLineNo[params[0]], "struct(" + params[0] + ")", eos))
                     return 1;
 
-                if(parseBlock && parse_replace(lang, block, "struct block", readPath, antiDepsOfReadPath, vars.typeDefLineNo[params[0]], "struct()", sLineNo, eos))
+                if(parseBlock && parse_replace(lang, block, "struct block", readPath, antiDepsOfReadPath, vars.typeDefLineNo[params[0]], "struct(" + params[0] + ")", sLineNo, eos))
                     return 1;
 
                 vars.typeDefs[params[0]] = block;
@@ -11837,6 +11981,23 @@ int Parser::read_and_process_fn(const bool& indent,
 
                 if(vars.find(params[0], vpos))
                 {
+                	if(vars.layers[vpos.layer].constants.count(vpos.name))
+				    {
+				        if(!consoleLocked)
+				            os_mtx->lock();
+				        start_err(eos, readPath, lineNo) << errStr << ".push_back: attempted illegal change of constant variable " << quote(params[0]) << std::endl;
+				        os_mtx->unlock();
+				        return 1;
+				    }
+
+                	if(memberFn)
+                    {
+	                    if(params[0] == "options")
+	                    	vpos.name = params[0] = "__options";
+	                    else if(params[0] == "params")
+	                    	vpos.name = params[0] = "__params";
+	                }
+
                     if(vpos.type == "std::vector<double>")
                     {
                         for(size_t v=1; v<params.size(); v++)
@@ -11915,6 +12076,14 @@ int Parser::read_and_process_fn(const bool& indent,
 
                 if(vars.find(params[0], vpos))
                 {
+                	if(memberFn)
+                    {
+	                    if(params[0] == "options")
+	                    	vpos.name = params[0] = "__options";
+	                    else if(params[0] == "params")
+	                    	vpos.name = params[0] = "__params";
+	                }
+
                     if(vpos.type == "std::vector<double>")
                     {
                         std::string sizeStr = std::to_string(vars.layers[vpos.layer].doubVecs[vpos.name].size());
@@ -11994,7 +12163,6 @@ int Parser::read_and_process_fn(const bool& indent,
                     }
                 }
 
-
                 VPos vpos;
 
                 if(vars.find(params[0], vpos))
@@ -12009,6 +12177,14 @@ int Parser::read_and_process_fn(const bool& indent,
                         os_mtx->unlock();
                         return 1;
                     }
+
+                    if(memberFn)
+                    {
+	                    if(params[0] == "options")
+	                    	vpos.name = params[0] = "__options";
+	                    else if(params[0] == "params")
+	                    	vpos.name = params[0] = "__params";
+	                }
 
                     if(vpos.type == "std::vector<double>")
                     {
@@ -12100,6 +12276,15 @@ int Parser::read_and_process_fn(const bool& indent,
 
                 if(vars.find(params[0], vpos))
                 {
+                	if(vars.layers[vpos.layer].constants.count(vpos.name))
+				    {
+				        if(!consoleLocked)
+				            os_mtx->lock();
+				        start_err(eos, readPath, lineNo) << errStr << ".set: attempted illegal change of constant variable " << quote(params[0]) << std::endl;
+				        os_mtx->unlock();
+				        return 1;
+				    }
+
                     int i = std::atoi(params[1].c_str());
 
                     if(i < 0)
@@ -12110,6 +12295,14 @@ int Parser::read_and_process_fn(const bool& indent,
                         os_mtx->unlock();
                         return 1;
                     }
+
+                    if(memberFn)
+                    {
+	                    if(params[0] == "options")
+	                    	vpos.name = params[0] = "__options";
+	                    else if(params[0] == "params")
+	                    	vpos.name = params[0] = "__params";
+	                }
 
                     if(vpos.type == "std::vector<double>")
                     {
@@ -12208,6 +12401,23 @@ int Parser::read_and_process_fn(const bool& indent,
 
                 if(vars.find(params[0], vpos))
                 {
+                	if(vars.layers[vpos.layer].constants.count(vpos.name))
+				    {
+				        if(!consoleLocked)
+				            os_mtx->lock();
+				        start_err(eos, readPath, lineNo) << errStr << ".pop_back: attempted illegal change of constant variable " << quote(params[0]) << std::endl;
+				        os_mtx->unlock();
+				        return 1;
+				    }
+
+                	if(memberFn)
+                    {
+	                    if(params[0] == "options")
+	                    	vpos.name = params[0] = "__options";
+	                    else if(params[0] == "params")
+	                    	vpos.name = params[0] = "__params";
+	                }
+
                     if(vpos.type == "std::vector<double>")
                         vars.layers[vpos.layer].doubVecs[vpos.name].pop_back();
                     else if(vpos.type == "std::vector<string>")
@@ -12270,6 +12480,23 @@ int Parser::read_and_process_fn(const bool& indent,
 
                 if(vars.find(params[0], vpos))
                 {
+                	if(vars.layers[vpos.layer].constants.count(vpos.name))
+				    {
+				        if(!consoleLocked)
+				            os_mtx->lock();
+				        start_err(eos, readPath, lineNo) << errStr << ".erase: attempted illegal change of constant variable " << quote(params[0]) << std::endl;
+				        os_mtx->unlock();
+				        return 1;
+				    }
+
+                	if(memberFn)
+                    {
+	                    if(params[0] == "options")
+	                    	vpos.name = params[0] = "__options";
+	                    else if(params[0] == "params")
+	                    	vpos.name = params[0] = "__params";
+	                }
+
                     int i = std::atoi(params[1].c_str()), j;
                     int size = vars.layers[vpos.layer].doubVecs[vpos.name].size();
 
@@ -13788,7 +14015,211 @@ int Parser::read_and_process_fn(const bool& indent,
     }
     else if(funcName[0] == 'v')
     {
-        if(funcName == "valid_type")
+    	if(funcName == "vjoin")
+        {
+            if(params.size() < 1 || params.size() > 4)
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "vjoin: expected 1-4 parameters, got " << params.size() << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+
+            bool round = 1;
+            std::string output, separator = ", ";
+            bool addAtStart = 0, addAtEnd = 0;
+            VPos vpos;
+
+            if(params.size() == 2)
+                separator = params[1];
+
+            if(options.size())
+            {
+                for(size_t o=0; o<options.size(); o++)
+                {
+                    if(options[o] == "<-")
+                        addAtStart = 1;
+                    else if(options[o] == "->")
+                        addAtEnd = 1;
+                    else if(options[o] == "<->")
+                        addAtStart = addAtEnd = 1;
+                    else if(options[o] == "!round")
+                    	round = 0;
+                }
+            }
+
+            if(vars.find(params[0], vpos))
+            {
+            	if(vpos.type == "std::vector<string>")
+            	{
+            		std::vector<std::string>* v = &vars.layers[vpos.layer].strVecs[params[0] ];
+
+            		int sizeOf = v->size();
+
+            		int spos = 0, epos = sizeOf-1;
+
+	                if(params.size() > 2)
+	                {
+	                    if(!isNonNegInt(params[2]))
+	                    {
+	                        if(!consoleLocked)
+	                            os_mtx->lock();
+	                        start_err_ml(eos, readPath, sLineNo, lineNo) << "vjoin: ";
+	                        eos << "third parameter " << params[2] << " should be a non-negative integer less than the ";
+	                        eos << "size of vector specified in first parameter" << std::endl;
+	                        os_mtx->unlock();
+	                        return 1;
+	                    }
+	                    spos = std::atoi(params[2].c_str());
+	                    if(spos >= sizeOf)
+	                    {
+	                        if(!consoleLocked)
+	                            os_mtx->lock();
+	                        start_err_ml(eos, readPath, sLineNo, lineNo) << "vjoin: ";
+	                        eos << "third parameter " << params[2] << " should be a non-negative integer less than the ";
+	                        eos << "size of vector specified in first parameter" << std::endl;
+	                        os_mtx->unlock();
+	                        return 1;
+	                    }
+	                }
+	                if(params.size() > 3)
+	                {
+	                    if(!isNonNegInt(params[3]))
+	                    {
+	                        if(!consoleLocked)
+	                            os_mtx->lock();
+	                        start_err_ml(eos, readPath, sLineNo, lineNo) << "vjoin: ";
+	                        eos << "fourth parameter " << params[3] << " should be a non-negative integer less than the ";
+	                        eos << "size of vector specified in first parameter" << std::endl;
+	                        os_mtx->unlock();
+	                        return 1;
+	                    }
+	                    epos = std::atoi(params[3].c_str());
+	                    if(epos >= sizeOf)
+	                    {
+	                        if(!consoleLocked)
+	                            os_mtx->lock();
+	                        start_err_ml(eos, readPath, sLineNo, lineNo) << "vjoin: ";
+	                        eos << "fourth parameter " << params[3] << " should be a non-negative integer less than the ";
+	                        eos << "size of vector specified in first parameter" << std::endl;
+	                        os_mtx->unlock();
+	                        return 1;
+	                    }
+	                }
+
+	                if(spos <= epos)
+	                {
+	                    if(addAtStart)
+	                        output += separator;
+	                    output += v->at(spos);
+	                }
+
+	                for(int i=spos+1; i<=epos; i++)
+	                	output += separator + v->at(i);
+
+	                if(spos <= epos && addAtEnd)
+	                	output += separator;
+
+	                outStr += output;
+	                if(indent)
+	                    indentAmount += into_whitespace(output);
+            	}
+            	else if(vpos.type == "std::vector<double>")
+            	{
+            		std::vector<double>* v = &vars.layers[vpos.layer].doubVecs[params[0] ];
+
+            		int sizeOf = v->size();
+
+            		int spos = 0, epos = sizeOf-1;
+
+	                if(params.size() > 2)
+	                {
+	                    if(!isNonNegInt(params[2]))
+	                    {
+	                        if(!consoleLocked)
+	                            os_mtx->lock();
+	                        start_err_ml(eos, readPath, sLineNo, lineNo) << "vjoin: ";
+	                        eos << "third parameter " << params[2] << " should be a non-negative integer less than the ";
+	                        eos << "size of vector specified in first parameter" << std::endl;
+	                        os_mtx->unlock();
+	                        return 1;
+	                    }
+	                    spos = std::atoi(params[2].c_str());
+	                    if(spos >= sizeOf)
+	                    {
+	                        if(!consoleLocked)
+	                            os_mtx->lock();
+	                        start_err_ml(eos, readPath, sLineNo, lineNo) << "vjoin: ";
+	                        eos << "third parameter " << params[2] << " should be a non-negative integer less than the ";
+	                        eos << "size of vector specified in first parameter" << std::endl;
+	                        os_mtx->unlock();
+	                        return 1;
+	                    }
+	                }
+	                if(params.size() > 3)
+	                {
+	                    if(!isNonNegInt(params[3]))
+	                    {
+	                        if(!consoleLocked)
+	                            os_mtx->lock();
+	                        start_err_ml(eos, readPath, sLineNo, lineNo) << "vjoin: ";
+	                        eos << "fourth parameter " << params[3] << " should be a non-negative integer less than the ";
+	                        eos << "size of vector specified in first parameter" << std::endl;
+	                        os_mtx->unlock();
+	                        return 1;
+	                    }
+	                    epos = std::atoi(params[3].c_str());
+	                    if(epos >= sizeOf)
+	                    {
+	                        if(!consoleLocked)
+	                            os_mtx->lock();
+	                        start_err_ml(eos, readPath, sLineNo, lineNo) << "vjoin: ";
+	                        eos << "fourth parameter " << params[3] << " should be a non-negative integer less than the ";
+	                        eos << "size of vector specified in first parameter" << std::endl;
+	                        os_mtx->unlock();
+	                        return 1;
+	                    }
+	                }
+
+	                if(spos <= epos)
+	                {
+	                    if(addAtStart)
+	                        output += separator;
+	                    output += vars.double_to_string(v->at(spos), round);
+	                }
+
+	                for(int i=spos+1; i<=epos; i++)
+	                	output += separator + vars.double_to_string(v->at(i), round);
+
+	                if(spos <= epos && addAtEnd)
+	                	output += separator;
+
+	                outStr += output;
+	                if(indent)
+	                    indentAmount += into_whitespace(output);
+            	}
+	        	else
+	        	{
+	        		if(!consoleLocked)
+	                    os_mtx->lock();
+	                start_err_ml(eos, readPath, sLineNo, lineNo) << "vjoin: not defined for variable " << quote(params[0]) << " of type " << quote(vpos.type)<< std::endl;
+	                os_mtx->unlock();
+	                return 1;
+	        	}
+            }
+            else
+        	{
+        		if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "vjoin: no variables named " << quote(params[0]) << std::endl;
+                os_mtx->unlock();
+                return 1;
+        	}
+
+            return 0;
+        }
+        else if(funcName == "valid_type")
         {
             if(params.size() == 0)
             {
@@ -13805,6 +14236,81 @@ int Parser::read_and_process_fn(const bool& indent,
             outStr += std::to_string(valid_type(params[0], readPath, antiDepsOfReadPath, lineNo, "valid_type", sLineNo, eos));
             if(indent)
                 indentAmount += " ";
+
+            return 0;
+        }
+    }
+    else if(funcName[0] == 'a')
+    {
+    	if(funcName == "add_member_fns")
+        {
+            if(params.size() > 1)
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": expected 0-1 parameters, got " << params.size() << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+
+            if(params.size())
+            {
+            	if(isInt(params[0]))
+            		addMemberFnsGlobal = std::atoi(params[0].c_str());
+            	else if(isDouble(params[0]))
+            		addMemberFnsGlobal = std::strtod(params[0].c_str(), NULL);
+            	else
+	            {
+	                if(!consoleLocked)
+	                    os_mtx->lock();
+	                start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": cannot convert " << quote(params[0]) << " to bool" << std::endl;
+	                os_mtx->unlock();
+	                return 1;
+	            }
+            }
+            else
+            {
+            	std::string output = std::to_string(addMemberFnsGlobal);
+            	outStr += output;
+            	if(indent)
+            		indentAmount += into_whitespace(output);
+            }
+
+            return 0;
+        }
+    	else if(funcName == "add_scope")
+        {
+            if(params.size() > 1)
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": expected 0-1 parameters, got " << params.size() << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+
+            if(params.size())
+            {
+            	if(isInt(params[0]))
+            		addScopeGlobal = std::atoi(params[0].c_str());
+            	else if(isDouble(params[0]))
+            		addScopeGlobal = std::strtod(params[0].c_str(), NULL);
+            	else
+	            {
+	                if(!consoleLocked)
+	                    os_mtx->lock();
+	                start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": cannot convert " << quote(params[0]) << " to bool" << std::endl;
+	                os_mtx->unlock();
+	                return 1;
+	            }
+            }
+            else
+            {
+            	std::string output = std::to_string(addScopeGlobal);
+            	outStr += output;
+            	if(indent)
+            		indentAmount += into_whitespace(output);
+            }
 
             return 0;
         }
@@ -13827,12 +14333,13 @@ int Parser::read_and_process_fn(const bool& indent,
             }
         }
 
-        bool addScope = 1, addOut = 1;
-        std::vector<bool> optToDel, parToDel;
-        std::vector<bool> optWasConst, parWasConst;
-        std::vector<std::string> oldOptTypes, oldParTypes;
-        int old_no_options = 0, old_no_params = 0;
+        bool addScope = addScopeGlobal, addOut = 1;
+
         std::vector<std::string> oldOpts, oldPars;
+        std::string oldOptType, oldParType;
+        bool optWasConst = 0, parWasConst = 0;
+        bool optWasPrivate = 0, parWasPrivate = 0;
+        bool addMemberFns = addMemberFnsGlobal;
 
         std::string oldScope;
 
@@ -13845,7 +14352,11 @@ int Parser::read_and_process_fn(const bool& indent,
         {
             for(size_t o=0; o<options.size(); o++)
             {
-                if(options[o] == "o")
+            	if(options[o] == "mf")
+            		addMemberFns = 1;
+            	else if(options[o] == "!mf")
+            		addMemberFns = 0;
+                else if(options[o] == "o")
                     addOut = 1;
                 else if(options[o] == "!o")
                     addOut = 0;
@@ -13858,91 +14369,90 @@ int Parser::read_and_process_fn(const bool& indent,
 
         //adds scope to variables
         if(addScope)
+        {
             //vars.add_layer(vars.layers[vpos.layer].scopeOf[funcName]);
             vars.add_layer(funcName.substr(0, funcName.find_last_of('.')+1));
-        else //backs up variables already defined at this scope
+            //++layer;
+        }
+        else
         {
-            /*oldScope = vars.layers[layer].scope;
-            vars.layers[layer].scope = funcName.substr(0, funcName.find_last_of('.')+1);*/
-
-            optToDel = std::vector<bool>(options.size() + 1, 1);
-            parToDel = std::vector<bool>(params.size() + 1, 1);
-            optWasConst = std::vector<bool>(options.size() + 1, 0);
-            parWasConst = std::vector<bool>(params.size() + 1, 0);
-            oldOptTypes = std::vector<std::string>(options.size() + 1, "");
-            oldParTypes = std::vector<std::string>(params.size() + 1, "");
-            oldOpts = std::vector<std::string>(options.size() + 1, "");
-            oldPars = std::vector<std::string>(params.size() + 1, "");
-
-            if(vars.layers[layer].typeOf.count("options.size"))
-            {
-                optToDel[options.size()] = 0;
-                if(vars.layers[layer].constants.count("options.size"))
-                    optWasConst[options.size()] = 1;
-                oldOptTypes[options.size()] = vars.layers[layer].typeOf["options.size"];
-                if(oldOptTypes[options.size()] == "std::int")
-                    old_no_options = vars.layers[layer].ints["options.size"];
-            }
-
-            for(size_t o=0; o<options.size(); o++)
-            {
-                if(vars.layers[layer].typeOf.count("options[" + std::to_string(o) + "]"))
-                {
-                    optToDel[o] = 0;
-                    if(vars.layers[layer].constants.count("options[" + std::to_string(o) + "]"))
-                        optWasConst[o] = 1;
-                    oldOptTypes[o] = vars.layers[layer].typeOf["options[" + std::to_string(o) + "]"];
-                    if(oldOptTypes[o] == "string")
-                        oldOpts[o] = vars.layers[layer].strings["options[" + std::to_string(o) + "]"];
-                }
-            }
-
-            if(vars.layers[layer].typeOf.count("params.size"))
-            {
-                parToDel[params.size()] = 0;
-                if(vars.layers[layer].constants.count("params.size"))
-                    parWasConst[params.size()] = 1;
-                oldParTypes[params.size()] = vars.layers[layer].typeOf["params.size"];
-                if(oldParTypes[params.size()] == "std::int")
-                    old_no_params = vars.layers[layer].ints["params.size"];
-            }
-
-            for(size_t p=0; p<params.size(); p++)
-            {
-                if(vars.layers[layer].typeOf.count("params[" + std::to_string(p) + "]"))
-                {
-                    parToDel[p] = 0;
-                    if(vars.layers[layer].constants.count("params[" + std::to_string(p) + "]"))
-                        parWasConst[p] = 1;
-                    oldParTypes[p] = vars.layers[layer].typeOf["params[" + std::to_string(p) + "]"];
-                    if(oldParTypes[p] == "string")
-                        oldPars[p] = vars.layers[layer].strings["params[" + std::to_string(p) + "]"];
-                }
-            }
+        	oldScope = vars.layers[layer].scope;
+            vars.layers[layer].scope = funcName.substr(0, find_last_of_special(funcName)+1);
         }
 
-        //defines params/options
-        vars.layers[layer].typeOf["params.size"] = "std::int";
-        vars.layers[layer].ints["params.size"] = params.size();
-        vars.layers[layer].constants.insert("params.size");
-
-        for(size_t p=0; p<params.size(); p++)
+        //backs up options/params variables already defined at this scope
+        if(vars.layers[0].typeOf.count("options"))
         {
-            vars.layers[layer].typeOf["params[" + std::to_string(p) + "]"] = "string";
-            vars.layers[layer].strings["params[" + std::to_string(p) + "]"] = params[p];
-            vars.layers[layer].constants.insert("params[" + std::to_string(p) + "]");
+        	if(vars.layers[0].constants.count("options"))
+        		optWasConst = 1;
+        	if(vars.layers[0].privates.count("options"))
+        		optWasPrivate = 1;
+
+        	oldOptType = vars.layers[0].typeOf["options"];
+
+        	if(oldOptType == "std::vector<string>")
+        	{
+        		oldOpts = vars.layers[0].strVecs["options"];
+        		vars.layers[0].strVecs["__options"] = oldOpts;
+        	}
+
+        	vars.layers[0].typeOf.erase("options");
         }
 
-        vars.layers[layer].typeOf["options.size"] = "std::int";
-        vars.layers[layer].ints["options.size"] = options.size();
-        vars.layers[layer].constants.insert("options.size");
-
-        for(size_t o=0; o<options.size(); o++)
+        if(vars.layers[0].typeOf.count("params"))
         {
-            vars.layers[layer].typeOf["options[" + std::to_string(o) + "]"] = "string";
-            vars.layers[layer].strings["options[" + std::to_string(o) + "]"] = options[o];
-            vars.layers[layer].constants.insert("options[" + std::to_string(o) + "]");
+        	if(vars.layers[0].constants.count("params"))
+        		parWasConst = 1;
+        	if(vars.layers[0].privates.count("params"))
+        		parWasPrivate = 1;
+
+        	oldParType = vars.layers[0].typeOf["params"];
+
+        	if(oldParType == "std::vector<string>")
+        	{
+        		oldPars = vars.layers[0].strVecs["params"];
+        		vars.layers[0].strVecs["__params"] = oldPars;
+        	}
+
+        	vars.layers[0].typeOf.erase("params");
         }
+
+        //defines params/options vectors
+        if(addMemberFns && !vars.layers[0].functions.count("options.at"))
+        {
+        	std::string toParse = ":={layer=0}(std::vector<string>, options)";
+        	std::string trash;
+        	if(f_read_and_process_fast(0, toParse, lineNo, readPath, antiDepsOfReadPath, trash, eos) > 0)
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": failed to define options vector" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+        }
+        else
+        	vars.layers[0].typeOf["options"] = "std::vector<string>";
+        vars.layers[0].strVecs["options"] = options;
+        vars.layers[0].constants.insert("options");
+
+        if(addMemberFns && !vars.layers[0].functions.count("params.at"))
+        {
+        	std::string toParse = ":={layer=0}(std::vector<string>, params)";
+        	std::string trash;
+        	if(f_read_and_process_fast(0, toParse, lineNo, readPath, antiDepsOfReadPath, trash, eos) > 0)
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": failed to define params vector" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+        }
+        else
+        	vars.layers[0].typeOf["params"] = "std::vector<string>";
+        vars.layers[0].strVecs["params"] = params;
+        vars.layers[0].constants.insert("params");
 
         std::string fnOutput;
         if(lang == 'n')
@@ -13972,68 +14482,44 @@ int Parser::read_and_process_fn(const bool& indent,
         //removes added scope to variables
         if(addScope)
             vars.layers.pop_back();
-        else //reverts existing variables otherwise deletes them
+        else
+            vars.layers[layer].scope = oldScope;
+
+        //reverts existing options/params variables otherwise deletes them
+        if(!optWasConst)
+        	vars.layers[0].constants.erase("options");
+        if(!optWasPrivate)
+        	vars.layers[0].privates.erase("options");
+        if(oldOptType == "std::vector<string>")
         {
-            //vars.layers[layer].scope = oldScope;
+        	vars.layers[0].strVecs["options"] = oldOpts;
+        	vars.layers[0].strVecs.erase("__options");
+        }
+        else
+        {
+        	vars.layers[0].strVecs.erase("options");
+        	if(oldOptType == "")
+        		vars.layers[0].typeOf.erase("options");
+        	else
+        		vars.layers[0].typeOf["options"] = oldOptType;
+        }
 
-            if(!optWasConst[options.size()])
-                vars.layers[layer].constants.erase("options.size");
-            if(oldOptTypes[options.size()] == "std::int")
-                vars.layers[layer].ints["options.size"] = old_no_options;
-            else
-            {
-                vars.layers[layer].ints.erase("options.size");
-                if(oldOptTypes[options.size()].size() == 0)
-                    vars.layers[layer].typeOf.erase("options.size");
-                else
-                    vars.layers[layer].typeOf["options.size"] = oldOptTypes[options.size()];
-            }
-
-            for(size_t o=0; o<options.size(); o++)
-            {
-                if(!optWasConst[o])
-                    vars.layers[layer].constants.erase("options[" + std::to_string(o) + "]");
-                if(oldOptTypes[o] == "string")
-                    vars.layers[layer].strings["options[" + std::to_string(o) + "]"] = oldOpts[o];
-                else
-                {
-                    vars.layers[layer].strings.erase("options[" + std::to_string(o) + "]");
-                    if(oldOptTypes[o].size() == 0)
-                        vars.layers[layer].typeOf.erase("options[" + std::to_string(o) + "]");
-                    else
-                        vars.layers[layer].typeOf["options[" + std::to_string(o) + "]"] = oldOptTypes[o];
-                }
-            }
-
-
-            if(!parWasConst[params.size()])
-                vars.layers[layer].constants.erase("params.size");
-            if(oldParTypes[params.size()] == "std::int")
-                vars.layers[layer].ints["params.size"] = old_no_params;
-            else
-            {
-                vars.layers[layer].ints.erase("params.size");
-                if(oldParTypes[params.size()].size() == 0)
-                    vars.layers[layer].typeOf.erase("params.size");
-                else
-                    vars.layers[layer].typeOf["params.size"] = oldParTypes[params.size()];
-            }
-
-            for(size_t p=0; p<params.size(); p++)
-            {
-                if(!parWasConst[p])
-                    vars.layers[layer].constants.erase("params[" + std::to_string(p) + "]");
-                if(oldParTypes[p] == "string")
-                    vars.layers[layer].strings["params[" + std::to_string(p) + "]"] = oldPars[p];
-                else
-                {
-                    vars.layers[layer].strings.erase("params[" + std::to_string(p) + "]");
-                    if(oldParTypes[p].size() == 0)
-                        vars.layers[layer].typeOf.erase("params[" + std::to_string(p) + "]");
-                    else
-                        vars.layers[layer].typeOf["params[" + std::to_string(p) + "]"] = oldParTypes[p];
-                }
-            }
+        if(!parWasConst)
+        	vars.layers[0].constants.erase("params");
+        if(!parWasPrivate)
+        	vars.layers[0].privates.erase("params");
+        if(oldParType == "std::vector<string>")
+        {
+        	vars.layers[0].strVecs["params"] = oldPars;
+        	vars.layers[0].strVecs.erase("__params");
+        }
+        else
+        {
+        	vars.layers[0].strVecs.erase("params");
+        	if(oldParType == "")
+        		vars.layers[0].typeOf.erase("params");
+        	else
+        		vars.layers[0].typeOf["params"] = oldParType;
         }
     }
     else if(valid_type(funcName, readPath, antiDepsOfReadPath, lineNo, "valid_type(" + funcName + ")", sLineNo, eos))
@@ -14211,7 +14697,7 @@ int Parser::read_and_process_fn(const bool& indent,
     {
         if(!consoleLocked)
             os_mtx->lock();
-        start_err_ml(eos, readPath, sLineNo, lineNo) << c_light_blue << funcName << "()" << c_white << ": function does not exist" << std::endl;
+        start_err_ml(eos, readPath, sLineNo, lineNo) << c_light_blue << funcName << c_white << ": function does not exist" << std::endl;
         os_mtx->unlock();
         return 1;
     }
@@ -14856,7 +15342,7 @@ int Parser::add_fn(const std::string& fnName,
     {
         if(!consoleLocked)
             os_mtx->lock();
-        start_err(eos, readPath, lineNo) << callType << ": redeclaration of variable/function name " << quote(fnName) << std::endl;
+        start_err(eos, readPath, lineNo) << callType << ": redeclaration of function name " << quote(fnName) << std::endl;
         os_mtx->unlock();
         return 1;
     }

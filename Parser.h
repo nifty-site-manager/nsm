@@ -38,6 +38,7 @@ struct Parser
     int codeBlockDepth,
         htmlCommentDepth;
     std::string indentAmount;
+    bool addMemberFnsGlobal, addScopeGlobal, replaceVarsGlobal;
     bool contentAdded;
     std::string parsedText;
     int mode;

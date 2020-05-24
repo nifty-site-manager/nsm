@@ -2,6 +2,18 @@
 Nift Release Notes
 ------------------
 
+Version 2.3.10 of Nift
+* added '!round' option to console fn
+* added 'f++' and 'n++' options to exprtk and exprtk.compile fns
+* added '...' option for std::vector definitions (parameters are values)
+* added vjoin and ? (ternary operator) fns
+* changed options/parameters/types variables for user-defined structs/fns to std::vector<string>
+* added add_scope, add_member_fns and replace_vars fns
+* added 's' (add scope) option to if, for, while, do-while and fn calls
+* added 'mf' option to definitions and fn calls
+* fixed various bugs
+* made various improvements
+
 Version 2.3.9 of Nift
 * added exprtk_disable_caseinsensitivity for ExprTk
 * merged PR from Mamadou fixing support for compiling with Lua 5.2 and 5.1

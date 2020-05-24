@@ -207,7 +207,7 @@ int Variables::add_str_from_var(const VPos& vpos, std::string& str, const bool& 
         }
         else if(vpos.type == "std::double")
         {
-            std::string val = double_to_string(layers[vpos.layer].doubles[vpos.name], 0);
+            std::string val = double_to_string(layers[vpos.layer].doubles[vpos.name], round);
             str += val;
             if(indent)
                 indentAmount += into_whitespace(val);
