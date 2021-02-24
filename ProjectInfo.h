@@ -41,7 +41,7 @@ struct ProjectInfo
     Directory contentDir,
               outputDir;
     bool backupScripts;
-    int buildThreads, incrMode;
+    int buildThreads, paginateThreads, incrMode;
     std::string contentExt,
                 outputExt,
                 scriptExt,
@@ -126,6 +126,7 @@ struct ProjectInfo
     int new_script_ext(const Name& name, const std::string& newExt);
 
     int no_build_threads(int noThreads);
+    int no_paginate_threads(int noThreads);
 
     int check_watch_dirs();
 

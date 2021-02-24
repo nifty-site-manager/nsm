@@ -67,6 +67,7 @@ int create_config_file(const Path& configPath, const std::string& outputExt, boo
     project.backupScripts = 1;
 
     project.buildThreads = -1;
+    project.paginateThreads = -1;
 
     project.incrMode = INCR_MOD;
 
@@ -191,7 +192,7 @@ int ProjectInfo::open_config(const Path& configPath, const bool& global, const b
 
     contentDir = outputDir = "";
     backupScripts = 1;
-    buildThreads = 0;
+    buildThreads = paginateThreads = 0;
     incrMode = INCR_MOD;
     contentExt = outputExt = scriptExt = unixTextEditor = winTextEditor = rootBranch = outputBranch = "";
     defaultTemplate = Path("", "");
@@ -246,6 +247,8 @@ int ProjectInfo::open_config(const Path& configPath, const bool& global, const b
                 iss >> backupScripts;
             else if(inType == "buildThreads")
                 iss >> buildThreads;
+            else if(inType == "paginateThreads")
+                iss >> paginateThreads;
             else if(inType == "incrementalMode")
                 iss >> incrMode;
             else if(inType == "terminal")
@@ -340,6 +343,15 @@ int ProjectInfo::open_config(const Path& configPath, const bool& global, const b
         start_warn(std::cout, configPath) << "number of build threads not detected or invalid, set to default of -1 (number of cores)" << std::endl;
 
         buildThreads = -1;
+
+        configChanged = 1;
+    }
+
+    if(paginateThreads == 0)
+    {
+        start_warn(std::cout, configPath) << "number of paginate threads not detected or invalid, set to default of -1 (number of cores)" << std::endl;
+
+        paginateThreads = -1;
 
         configChanged = 1;
     }
@@ -527,6 +539,7 @@ int ProjectInfo::save_config(const std::string& configPathStr, const bool& globa
     ofs << "defaultTemplate " << defaultTemplate << "\n\n";
     ofs << "backupScripts " << backupScripts << "\n\n";
     ofs << "buildThreads " << buildThreads << "\n\n";
+    ofs << "paginateThreads " << paginateThreads << "\n\n";
     ofs << "incrementalMode " << incrMode << "\n\n";
     ofs << "terminal " << quote(terminal) << "\n\n";
     ofs << "unixTextEditor " << quote(unixTextEditor) << "\n";
@@ -3239,6 +3252,31 @@ int ProjectInfo::no_build_threads(int no_threads)
     return 0;
 }
 
+int ProjectInfo::no_paginate_threads(int no_threads)
+{
+    if(no_threads == 0)
+    {
+        start_err(std::cout) << "number of paginate threads must be a non-zero integer (use negative numbers for a multiple of the number of cores on the machine)" << std::endl;
+        return 1;
+    }
+
+    if(no_threads == paginateThreads)
+    {
+        start_err(std::cout) << "number of paginate threads is already " << paginateThreads << std::endl;
+        return 1;
+    }
+
+    paginateThreads = no_threads;
+    save_local_config();
+
+    if(paginateThreads < 0)
+        std::cout << "successfully changed number of paginate threads to " << no_threads << " (" << -paginateThreads*std::thread::hardware_concurrency() << " on this machine)" << std::endl;
+    else
+        std::cout << "successfully changed number of paginate threads to " << no_threads << std::endl;
+
+    return 0;
+}
+
 int ProjectInfo::check_watch_dirs()
 {
     if(file_exists(".nsm/.watchinfo/watching.list"))
@@ -3482,7 +3520,7 @@ void pagination_thread(const Pagination& pagesInfo,
 }
 
 void build_thread(std::ostream& eos,
-                  const int& no_threads,
+                  const int& no_paginate_threads,
                   std::set<TrackedInfo>* trackedAll,
                   const int& no_to_build,
                   const Directory& ContentDir,
@@ -3562,14 +3600,14 @@ void build_thread(std::ostream& eos,
 
             //pagination threads
             std::vector<std::thread> threads;
-            for(int i=0; i<no_threads; i++)
+            for(int i=0; i<no_paginate_threads; i++)
                 threads.push_back(std::thread(pagination_thread, 
                                   parser.pagesInfo,
                                   parser.pagesInfo.paginateName,
                                   parser.outputExt,
                                   outputPathBackup));
 
-            for(int i=0; i<no_threads; i++)
+            for(int i=0; i<no_paginate_threads; i++)
                 threads[i].join();
         }
 
@@ -3645,13 +3683,19 @@ int ProjectInfo::build_names(std::ostream& os, const int& addBuildStatus, const 
     else
         no_threads = buildThreads;
 
+    int no_paginate_threads;
+    if(paginateThreads < 0)
+        no_paginate_threads = -paginateThreads*std::thread::hardware_concurrency();
+    else
+        no_paginate_threads = paginateThreads;
+
     setIncrMode(incrMode);
 
     std::vector<std::thread> threads;
     for(int i=0; i<no_threads; i++)
         threads.push_back(std::thread(build_thread,  
                           std::ref(std::cout),
-                          no_threads, 
+                          no_paginate_threads, 
                           &trackedAll, 
                           trackedInfoToBuild.size(), 
                           contentDir, 
@@ -3788,13 +3832,19 @@ int ProjectInfo::build_all(std::ostream& os, const int& addBuildStatus)
     else
         no_threads = buildThreads;
 
+    int no_paginate_threads;
+    if(paginateThreads < 0)
+        no_paginate_threads = -paginateThreads*std::thread::hardware_concurrency();
+    else
+        no_paginate_threads = paginateThreads;
+
     setIncrMode(incrMode);
 
     std::vector<std::thread> threads;
     for(int i=0; i<no_threads; i++)
         threads.push_back(std::thread(build_thread, 
                                       std::ref(std::cout), 
-                                      no_threads,
+                                      no_paginate_threads,
                                       &trackedAll, 
                                       trackedAll.size(), 
                                       contentDir, 
@@ -4151,6 +4201,12 @@ int ProjectInfo::build_updated(std::ostream& os, const int& addBuildStatus, cons
     else
         no_threads = buildThreads;
 
+    int no_paginate_threads;
+    if(paginateThreads < 0)
+        no_paginate_threads = -paginateThreads*std::thread::hardware_concurrency();
+    else
+        no_paginate_threads = paginateThreads;
+
     nextInfo = trackedAll.begin();
     counter = noFinished = estNoPagesFinished = noPagesFinished = 0;
 
@@ -4295,7 +4351,7 @@ int ProjectInfo::build_updated(std::ostream& os, const int& addBuildStatus, cons
         for(int i=0; i<no_threads; i++)
             threads.push_back(std::thread(build_thread, 
                                           std::ref(os), 
-                                          no_threads, 
+                                          no_paginate_threads, 
                                           &trackedAll, 
                                           updatedInfo.size(), 
                                           contentDir, 

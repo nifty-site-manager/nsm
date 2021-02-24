@@ -1712,7 +1712,10 @@ int Parser::f_read_and_process_fast(const bool& addOutput,
             continue;
         }
         else if(inStr[linePos] == '@') //ignores @ for function calls
+        {
+            outStr += "@";
             ++linePos;
+        }
         else if(inStr[linePos] == '<')
         {
             if(inStr.substr(linePos, 4) == "<#--") //checks for raw multi-line comment
@@ -16892,7 +16895,7 @@ int Parser::read_block(std::string& block,
     block = "";
 
     //skips to next non-whitespace
-    while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
+    /*while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
     {
         if(inStr[linePos] == '@')
             linePos = inStr.find("\n", linePos);
@@ -16911,18 +16914,48 @@ int Parser::read_block(std::string& block,
             os_mtx->unlock();
             return 1;
         }
+    }*/
+
+    //skips to next non-whitespace
+    while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
+    {
+        if(inStr[linePos] == '@')
+            linePos = inStr.find("\n", linePos);
+        else
+        {
+            if(inStr[linePos] == '\n')
+            {
+                if(lineNo == sLineNo)
+                    ++bLineNo;
+                else
+                    block += "\n";
+                leadIndenting = "";
+                ++lineNo;
+                
+            }
+            else if(inStr[linePos] == ' ' || inStr[linePos] == '\t')
+                leadIndenting += inStr[linePos];
+            ++linePos;
+        }
+
+        if(linePos >= inStr.size())
+        {
+            if(!consoleLocked)
+                os_mtx->lock();
+            start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no block" << std::endl;
+            os_mtx->unlock();
+            return 1;
+        }
     }
 
-    if(inStr[linePos] != '{')  //one-liner
+    bool needsCloseBrace = 0;
+    int depth = 1;
+    sLineNo = bLineNo = lineNo;
+    if(inStr[linePos] == '{')  //bracketed block
     {
-        bLineNo = lineNo;
-        get_line(inStr, block, linePos);
-    }
-    else
-    {
+        leadIndenting = "";
+        needsCloseBrace = 1;
         ++linePos;
-        int sLineNo = bLineNo = lineNo;
-        int depth = 1;
 
         //skips to next non-whitespace
         while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
@@ -16955,11 +16988,58 @@ int Parser::read_block(std::string& block,
                 return 1;
             }
         }
+    }
 
-        //bLineNo = lineNo;
+    //bLineNo = lineNo;
 
-        //reads the first line of the block
-        for(; inStr[linePos] != '\n'; ++linePos)
+    //reads the first line of the block
+    for(; inStr[linePos] != '\n'; ++linePos)
+    {
+        if(inStr[linePos] == '{')
+            ++depth;
+        else if(inStr[linePos] == '}')
+        {
+            if(depth == 1)
+                break;
+            --depth;
+        }
+
+        block += inStr[linePos];
+    }
+
+    //reads the rest of block lines
+    while(inStr[linePos] == '\n')
+    {
+        ++linePos;
+        ++lineNo;
+
+        if(!needsCloseBrace && (linePos >= inStr.size() || inStr[linePos] == '\n' || (inStr[linePos] != ' ' && inStr[linePos] != '\t')))
+            break;
+
+        //checks lead indenting
+        for(size_t i=0; i<leadIndenting.size() && linePos < inStr.size(); ++i, ++linePos)
+        {
+            if(inStr[linePos] == '\n')
+                break;
+            else if(inStr[linePos] == '}' && depth == 1)
+                break;
+            else if(inStr[linePos] != leadIndenting[i])
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": must use the same leading indenting as the first line of block" << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
+        }
+
+        if(inStr[linePos] == '}' && depth == 1)
+            break;
+
+        block += '\n';
+
+        //reads the line of the block
+        for(; linePos < inStr.size() && inStr[linePos] != '\n'; ++linePos)
         {
             if(inStr[linePos] == '{')
                 ++depth;
@@ -16973,61 +17053,7 @@ int Parser::read_block(std::string& block,
             block += inStr[linePos];
         }
 
-        //reads the rest of block lines
-        while(inStr[linePos] == '\n')
-        {
-            ++linePos;
-            ++lineNo;
-
-            //checks lead indenting
-            for(size_t i=0; i<leadIndenting.size() && linePos < inStr.size(); ++i, ++linePos)
-            {
-                if(inStr[linePos] == '\n')
-                    break;
-                else if(inStr[linePos] == '}' && depth == 1)
-                    break;
-                else if(inStr[linePos] != leadIndenting[i])
-                {
-                    if(!consoleLocked)
-                        os_mtx->lock();
-                    start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": must use the same leading indenting as the first line of block" << std::endl;
-                    os_mtx->unlock();
-                    return 1;
-                }
-            }
-
-            if(inStr[linePos] == '}' && depth == 1)
-                break;
-
-            block += '\n';
-
-            //reads the line of the block
-            for(; linePos < inStr.size() && inStr[linePos] != '\n'; ++linePos)
-            {
-                if(inStr[linePos] == '{')
-                    ++depth;
-                else if(inStr[linePos] == '}')
-                {
-                    if(depth == 1)
-                        break;
-                    --depth;
-                }
-
-                block += inStr[linePos];
-            }
-
-            if(linePos >= inStr.size())
-            {
-                if(!consoleLocked)
-                    os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close } bracket" << std::endl;
-                os_mtx->unlock();
-                return 1;
-            }
-        }
-
-        //throws error if no closing bracket
-        if(inStr[linePos] != '}')
+        if(needsCloseBrace && linePos >= inStr.size())
         {
             if(!consoleLocked)
                 os_mtx->lock();
@@ -17035,9 +17061,19 @@ int Parser::read_block(std::string& block,
             os_mtx->unlock();
             return 1;
         }
-
-        ++linePos;
     }
+
+    //throws error if no closing bracket
+    if(needsCloseBrace && inStr[linePos] != '}')
+    {
+        if(!consoleLocked)
+            os_mtx->lock();
+        start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close } bracket" << std::endl;
+        os_mtx->unlock();
+        return 1;
+    }
+
+    ++linePos;
 
     //not sure if this will cause problems anywhere? seems to 'fix' while loops
     //this should be added now above

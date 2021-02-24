@@ -2,6 +2,11 @@
 Nift Release Notes
 ------------------
 
+Version 2.3.11 of Nift
+* added config support for number of pagination threads
+* have changed to leaving instances of '@' with functionstein (f++) (fixes using @, eg. cloning from bitbucket)
+* ran an regression on read block code (python gang assemble)
+
 Version 2.3.10 of Nift
 * added '!round' option to console fn
 * added 'f++' and 'n++' options to exprtk and exprtk.compile fns
