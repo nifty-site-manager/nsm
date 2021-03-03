@@ -118,10 +118,17 @@ std::string formatStr(std::string& str)
 
 int mod(const int& x, const int& m)
 {
+	int mod_val;
 	if(x >= 0)
 		return x%m;
 	else
-		return mod(m+x, m);
+	{
+		mod_val = (-x)%m;
+		if(mod_val)
+			return m-mod_val;
+		else
+			return 0;
+	}
 }
 
 double gradient = 999;

@@ -137,7 +137,7 @@ int Parser::lua_addnsmfns()
     return 1;
 }
 
-int Parser::lolcat_init()
+int Parser::lolcat_init(const std::string& lolcat_cmd)
 {
     //first tries finding executables in path variables (does **not** work with snaps for example)
     std::string path = getenv("PATH");
@@ -157,7 +157,11 @@ int Parser::lolcat_init()
             pathDirs.push_back(pathDir);
     }
 
-    std::vector<std::string> lolcatCmds = {"lolcat-cc", "lolcat-c", "lolcat-rs", "lolcat", "nift", "nsm"};
+    std::vector<std::string> lolcatCmds;
+    if(lolcat_cmd == "")
+        lolcatCmds = std::vector<std::string>({"lolcat-cc", "lolcat-c", "lolcat-rs", "lolcat", "nift", "nsm"});
+    else
+        lolcatCmds.push_back(lolcat_cmd);
 
     for(size_t i=0; i<lolcatCmds.size(); ++i)
     {
@@ -169,44 +173,47 @@ int Parser::lolcat_init()
                 if(exec_exists(pathDirs[p] + "/" + lolcatCmds[i]))
             #endif
             {
-                if(i == 0)
+                if(lolcatCmds.size() > 1)
                 {
-                    #if defined _WIN32 || defined _WIN64
-                        if(using_powershell_colours())
-                            lolcatCmd = "lolcat-cc -ps -f";
-                        else
+                    if(i == 0)
+                    {
+                        #if defined _WIN32 || defined _WIN64
+                            if(using_powershell_colours())
+                                lolcatCmd = "lolcat-cc -ps -f";
+                            else
+                                lolcatCmd = "lolcat-cc -f";
+                        #else
                             lolcatCmd = "lolcat-cc -f";
-                    #else
-                        lolcatCmd = "lolcat-cc -f";
-                    #endif
-                }
-                else if(i == 1)
-                    lolcatCmd = "lolcat-c";
-                else if(i == 2)
-                    lolcatCmd = "lolcat-rs";
-                else if(i == 3)
-                    lolcatCmd = "lolcat";
-                else if(i == 4)
-                {
-                    #if defined _WIN32 || defined _WIN64
-                        if(using_powershell_colours())
-                            lolcatCmd = "nift lolcat-cc -ps -f";
-                        else
+                        #endif
+                    }
+                    else if(i == 1)
+                        lolcatCmd = "lolcat-c";
+                    else if(i == 2)
+                        lolcatCmd = "lolcat-rs";
+                    else if(i == 3)
+                        lolcatCmd = "lolcat";
+                    else if(i == 4)
+                    {
+                        #if defined _WIN32 || defined _WIN64
+                            if(using_powershell_colours())
+                                lolcatCmd = "nift lolcat-cc -ps -f";
+                            else
+                                lolcatCmd = "nift lolcat-cc -f";
+                        #else
                             lolcatCmd = "nift lolcat-cc -f";
-                    #else
-                        lolcatCmd = "nift lolcat-cc -f";
-                    #endif
-                }
-                else if(i == 5)
-                {
-                    #if defined _WIN32 || defined _WIN64
-                        if(using_powershell_colours())
-                            lolcatCmd = "nsm lolcat-cc -ps -f";
-                        else
+                        #endif
+                    }
+                    else if(i == 5)
+                    {
+                        #if defined _WIN32 || defined _WIN64
+                            if(using_powershell_colours())
+                                lolcatCmd = "nsm lolcat-cc -ps -f";
+                            else
+                                lolcatCmd = "nsm lolcat-cc -f";
+                        #else
                             lolcatCmd = "nsm lolcat-cc -f";
-                    #else
-                        lolcatCmd = "nsm lolcat-cc -f";
-                    #endif
+                        #endif
+                    }
                 }
 
                 lolcatInit = 1;
@@ -230,7 +237,12 @@ int Parser::lolcat_init()
         suppressor = " > /dev/null 2>&1";
     #endif
 
-    if(!system((lsCmd + "lolcat-cc" + suppressor).c_str()))
+    if(lolcat_cmd != "")
+    {
+        if(system((lsCmd + lolcat_cmd + suppressor).c_str()))
+            return 0;
+    }
+    else if(!system((lsCmd + "lolcat-cc" + suppressor).c_str()))
     {
         #if defined _WIN32 || defined _WIN64
             if(using_powershell_colours())
@@ -4379,7 +4391,7 @@ int Parser::read_and_process_fn(const bool& indent,
             int bLineNo;
             std::string txt;
 
-            if(!lolcatInit && !lolcat_init())
+            if(!lolcatInit && !lolcat_init(""))
             {
                 if(!consoleLocked)
                     os_mtx->lock();
@@ -4452,7 +4464,7 @@ int Parser::read_and_process_fn(const bool& indent,
         }
         else if(funcName == "lolcat.on")
         {
-            if(params.size() != 0)
+            if(params.size() > 1)
             {
                 if(!consoleLocked)
                     os_mtx->lock();
@@ -4475,9 +4487,12 @@ int Parser::read_and_process_fn(const bool& indent,
                 return 0;
             }
 
+            if(params.size() == 1)
+                lolcatCmd = params[0];
+
             if(!lolcatInit)
             {
-                if(lolcat_init())
+                if(lolcat_init(lolcatCmd))
                 {
                     #if defined _WIN32 || defined _WIN64
                         if(using_powershell_colours())
@@ -4489,7 +4504,10 @@ int Parser::read_and_process_fn(const bool& indent,
                 {
                     if(!consoleLocked)
                         os_mtx->lock();
-                    start_warn(eos, readPath, sLineNo) << "could not find 'lolcat' installed on the machine" << std::endl;
+                    if(params.size() == 1)
+                        start_warn(eos, readPath, sLineNo) << "could not find " << c_blue << lolcatCmd << c_white << " installed on the machine" << std::endl;
+                    else
+                        start_warn(eos, readPath, sLineNo) << "could not find 'lolcat' installed on the machine" << std::endl;
                     if(!consoleLocked)
                         os_mtx->unlock();
                 }

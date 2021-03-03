@@ -95,7 +95,7 @@ struct Parser
            const std::string& WinTextEditor);
 
     int lua_addnsmfns();
-    int lolcat_init();
+    int lolcat_init(const std::string& lolcat_cmd);
 
     int run_script(std::ostream& os,
                    const Path& scriptPath, 

@@ -2,10 +2,15 @@
 Nift Release Notes
 ------------------
 
+Version 2.3.12 of Nift
+* one liner fix of not reading terminal config string quoted
+* added `nsm config global/project` command to open config file with configured editor
+* added improved mod fn from lolcat-cc to Lolcat.cpp
+
 Version 2.3.11 of Nift
 * added config support for number of pagination threads
 * have changed to leaving instances of '@' with functionstein (f++) (fixes using @, eg. cloning from bitbucket)
-* ran an regression on read block code (python gang assemble)
+* ran a regression on read block code (python gang assemble)
 
 Version 2.3.10 of Nift
 * added '!round' option to console fn

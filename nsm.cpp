@@ -244,7 +244,7 @@ int main(int argc, const char* argv[])
     {
         std::cout << "+--------- available commands ---------------------------------+" << std::endl;
         std::cout << "| commands          | list all commands                        |" << std::endl;
-        std::cout << "| config            | list or set git email/username           |" << std::endl;
+        std::cout << "| config            | configure Nift                           |" << std::endl;
         std::cout << "| clone             | par: clone-url                           |" << std::endl;
         std::cout << "| diff              | par: file-path                           |" << std::endl;
         std::cout << "| pull              | pull remote changes locally              |" << std::endl;
@@ -434,19 +434,55 @@ int main(int argc, const char* argv[])
     }
     else if(cmd == "config")
     {
-        //ensures correct number of parameters given
-        if(noParams != 3 && noParams != 4)
-        {
-            std::cout << "you might have meant one of:" << std::endl;
-            std::cout << "  nsm config --global user.email" << std::endl;
-            std::cout << "  nsm config --global user.name" << std::endl;
-            std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
-            std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
-            return parError(noParams, argv, "1, 3 or 4");
-        }
-
         std::string str = argv[2];
-        if(str == "--global")
+
+        //ensures correct number of parameters given
+        if(noParams == 2)
+        {
+            if(str == "global")
+            {
+                ProjectInfo project;
+                if(project.open_global_config(1) > 0)
+                    return 1;
+
+                std::string editor;
+                #if defined _WIN32 || defined _WIN64
+                    editor = project.winTextEditor;
+                #else
+                    editor = project.unixTextEditor;
+                #endif
+
+                ret_val = std::system((editor + " " + app_dir() + "/.nift/nift.config").c_str());
+
+                if(ret_val)
+                {
+                    start_err(std::cout) << "config: system('" << editor << " " << app_dir() << "/.nift/nift.config) failed" << std::endl;
+                    return ret_val;
+                }
+            }
+            else if(str == "project")
+            {
+                ProjectInfo project;
+                if(project.open_local_config(1) > 0)
+                    return 1;
+
+                std::string editor;
+                #if defined _WIN32 || defined _WIN64
+                    editor = project.winTextEditor;
+                #else
+                    editor = project.unixTextEditor;
+                #endif
+
+                ret_val = std::system((editor + " .nsm/nift.config").c_str());
+
+                if(ret_val)
+                {
+                    start_err(std::cout) << "config: system('" << editor << " .nsm/nift.config) failed" << std::endl;
+                    return ret_val;
+                }
+            }
+        }
+        else if((noParams == 3 || noParams == 4) && str == "--global")
         {
             str = argv[3];
             if(str == "user.email")
@@ -495,8 +531,12 @@ int main(int argc, const char* argv[])
             }
             else
             {
-                unrecognisedCommand(cmd + " " + argv[2] + " " + argv[3]);
-                return 1;
+                std::cout << "you might have meant one of:" << std::endl;
+                std::cout << "  nsm config --global user.email" << std::endl;
+                std::cout << "  nsm config --global user.name" << std::endl;
+                std::cout << "  nsm config --global user.email \"you@example.com\"" << std::endl;
+                std::cout << "  nsm config --global user.name \"Your Username\"" << std::endl;
+                return parError(noParams, argv, "1, 3 or 4");
             }
         }
         else

@@ -253,7 +253,7 @@ int ProjectInfo::open_config(const Path& configPath, const bool& global, const b
                 iss >> incrMode;
             else if(inType == "terminal")
             {
-                iss >> terminal;
+                read_quoted(iss, terminal);
 
                 #if defined _WIN32 || defined _WIN64
                     if(terminal == "ps" || terminal == "powershell")
