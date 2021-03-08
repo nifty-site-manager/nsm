@@ -5,27 +5,27 @@
 
 struct Pagination
 {
-    bool ftl; //first-to-last
-    size_t noItemsPerPage,
-           noPages;
-    int callLineNo,
-        separatorLineNo,
-        templateCallLineNo,
-        templateLineNo;
-    size_t cPageNo;
-    std::string indentAmount,
-                paginateName,
-                separator,
-                templateStr;
-    Path callPath;
-    std::pair<std::string, std::string> splitFile;
-    std::vector<std::string> items, pages;
-    std::vector<int> itemLineNos, itemCallLineNos;
-    std::vector<Path> itemCallPaths;
+	bool ftl; //first-to-last
+	size_t noItemsPerPage,
+	       noPages;
+	int callLineNo,
+	    separatorLineNo,
+	    templateCallLineNo,
+	    templateLineNo;
+	size_t cPageNo;
+	std::string indentAmount,
+	            paginateName,
+	            separator,
+	            templateStr;
+	Path callPath;
+	std::pair<std::string, std::string> splitFile;
+	std::vector<std::string> items, pages;
+	std::vector<int> itemLineNos, itemCallLineNos;
+	std::vector<Path> itemCallPaths;
 
-    Pagination();
+	Pagination();
 
-    void reset();
+	void reset();
 };
 
 

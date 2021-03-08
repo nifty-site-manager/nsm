@@ -4,60 +4,60 @@
 #include <sys/time.h>
 
 /*
-    Timer struct
+	Timer struct
 */
 #if defined _WIN32 || defined _WIN64 //Windows timer
-    #include <io.h>
-    #include <windows.h>
+	#include <io.h>
+	#include <windows.h>
 
-    struct Timer
-    {
-        clock_t startTime, currentTime;
+	struct Timer
+	{
+		clock_t startTime, currentTime;
 
-        Timer()
-        {
+		Timer()
+		{
 
-        };
+		};
 
-        void start()
-        {
-            startTime = clock();
-        };
+		void start()
+		{
+			startTime = clock();
+		};
 
-        //returns how long it has been since the timer was last started in seconds
-        double getTime()
-        {
-            currentTime = clock();
+		//returns how long it has been since the timer was last started in seconds
+		double getTime()
+		{
+			currentTime = clock();
 
-            return (double)(currentTime - startTime)/1000.0;
-        };
-    };
+			return (double)(currentTime - startTime)/1000.0;
+		};
+	};
 #else //Mac/Linux Timer
-    struct Timer
-    {
-        timeval timer;
-        double startTime, currentTime;
+	struct Timer
+	{
+		timeval timer;
+		double startTime, currentTime;
 
-        Timer()
-        {
+		Timer()
+		{
 
-        };
+		};
 
-        //starts the timer
-        void start()
-        {
-            gettimeofday(&timer, NULL);
-            startTime = timer.tv_sec+(timer.tv_usec/1000000.0);
-        };
+		//starts the timer
+		void start()
+		{
+			gettimeofday(&timer, NULL);
+			startTime = timer.tv_sec+(timer.tv_usec/1000000.0);
+		};
 
-        //returns how long it has been since the timer was last started in seconds
-        double getTime()
-        {
-            gettimeofday(&timer, NULL);
-            currentTime = timer.tv_sec+(timer.tv_usec/1000000.0);
-            return currentTime-startTime;
-        };
-    };
+		//returns how long it has been since the timer was last started in seconds
+		double getTime()
+		{
+			gettimeofday(&timer, NULL);
+			currentTime = timer.tv_sec+(timer.tv_usec/1000000.0);
+			return currentTime-startTime;
+		};
+	};
 #endif
 
 

@@ -13,11 +13,11 @@ Title get_title(const Name& name);
 
 struct TrackedInfo
 {
-    Title title;
-    Name name;
-    Path outputPath,
-        contentPath,
-        templatePath;
+	Title title;
+	Name name;
+	Path outputPath,
+	    contentPath,
+	    templatePath;
 };
 
 //uses name to order/compare TrackedInfo
@@ -31,16 +31,16 @@ std::string& operator<<(std::string& str, const TrackedInfo& tInfo);
 //std::unordered_set<std::string>::hasher HashFn = std::unordered_set<std::string>().hash_function();
 struct TrackedInfoIndex
 {
-    int operator()(const TrackedInfo &trackedInfo) const;
+	int operator()(const TrackedInfo &trackedInfo) const;
 };
 
 /*struct TrackedInfoIndex
 {
-    int operator()(const TrackedInfo &trackedInfo) const
-    {
-        return std::atoi(trackedInfo.name.c_str());
+	int operator()(const TrackedInfo &trackedInfo) const
+	{
+		return std::atoi(trackedInfo.name.c_str());
 		//return trackedInfo.name;
-    };
+	};
 };*/
 
 

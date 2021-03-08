@@ -2,26 +2,26 @@
 
 bool is_whitespace(const std::string& str)
 {
-    for(size_t i=0; i<str.size(); i++)
-        if(str[i] != ' ' && str[i] != '\t')
-            return 0;
+	for(size_t i=0; i<str.size(); i++)
+		if(str[i] != ' ' && str[i] != '\t')
+			return 0;
 
-    return 1;
+	return 1;
 }
 
 std::string into_whitespace(const std::string& str)
 {
-    std::string whitespace = "";
+	std::string whitespace = "";
 
-    for(size_t i=0; i<str.size(); i++)
-    {
-        if(str[i] == '\t')
-            whitespace += "\t";
-        else
-            whitespace += " ";
-    }
+	for(size_t i=0; i<str.size(); i++)
+	{
+		if(str[i] == '\t')
+			whitespace += "\t";
+		else
+			whitespace += " ";
+	}
 
-    return whitespace;
+	return whitespace;
 }
 
 void strip_leading_line(std::string& str)
@@ -46,114 +46,114 @@ void strip_trailing_line(std::string& str)
 
 void strip_leading_whitespace(std::string& str)
 {
-    size_t pos=0;
+	size_t pos=0;
 
-    for(; pos<str.size(); ++pos)
-        if(str[pos] != ' ' && str[pos] != '\t')
-            break;
+	for(; pos<str.size(); ++pos)
+		if(str[pos] != ' ' && str[pos] != '\t')
+			break;
 
-    str = str.substr(pos, str.size()-pos);
+	str = str.substr(pos, str.size()-pos);
 }
 
 void strip_leading_whitespace_multiline(std::string& str)
 {
-    size_t pos=0;
+	size_t pos=0;
 
-    for(; pos<str.size(); ++pos)
-        if(str[pos] != ' ' && str[pos] != '\t' && str[pos] != '\n')
-            break;
+	for(; pos<str.size(); ++pos)
+		if(str[pos] != ' ' && str[pos] != '\t' && str[pos] != '\n')
+			break;
 
-    str = str.substr(pos, str.size()-pos);
+	str = str.substr(pos, str.size()-pos);
 }
 
 void strip_trailing_whitespace(std::string& str)
 {
-    int pos=str.size()-1;
+	int pos=str.size()-1;
 
-    for(; pos>=0; pos--)
-        if(str[pos] != ' ' && str[pos] != '\t')
-            break;
+	for(; pos>=0; pos--)
+		if(str[pos] != ' ' && str[pos] != '\t')
+			break;
 
-    str = str.substr(0, pos+1);
+	str = str.substr(0, pos+1);
 }
 
 void strip_trailing_whitespace_multiline(std::string& str)
 {
-    int pos=str.size()-1;
+	int pos=str.size()-1;
 
-    for(; pos>=0; pos--)
-        if(str[pos] != ' ' && str[pos] != '\t' && str[pos] != '\n')
-            break;
+	for(; pos>=0; pos--)
+		if(str[pos] != ' ' && str[pos] != '\t' && str[pos] != '\n')
+			break;
 
-    str = str.substr(0, pos+1);
+	str = str.substr(0, pos+1);
 }
 
 void strip_surrounding_whitespace(std::string& str)
 {
-    size_t spos=0, epos=str.size()-1;
+	size_t spos=0, epos=str.size()-1;
 
-    for(; spos<str.size(); ++spos)
-        if(str[spos] != ' ' && str[spos] != '\t')
-            break;
+	for(; spos<str.size(); ++spos)
+		if(str[spos] != ' ' && str[spos] != '\t')
+			break;
 
-    if(spos > epos)
-        str = "";
-    else
-    {
-        for(; spos < epos; --epos)
-            if(str[epos] != ' ' && str[epos] != '\t')
-                break;
+	if(spos > epos)
+		str = "";
+	else
+	{
+		for(; spos < epos; --epos)
+			if(str[epos] != ' ' && str[epos] != '\t')
+				break;
 
-        str = str.substr(spos, 1+epos-spos);
-    }
+		str = str.substr(spos, 1+epos-spos);
+	}
 }
 
 void strip_surrounding_whitespace_multiline(std::string& str)
 {
-    size_t spos=0, epos=str.size()-1;
+	size_t spos=0, epos=str.size()-1;
 
-    for(; spos<str.size(); ++spos)
-        if(str[spos] != ' ' && str[spos] != '\t' && str[spos] != '\n')
-            break;
+	for(; spos<str.size(); ++spos)
+		if(str[spos] != ' ' && str[spos] != '\t' && str[spos] != '\n')
+			break;
 
-    if(spos > epos)
-        str = "";
-    else
-    {
-        for(; spos < epos; --epos)
-            if(str[epos] != ' ' && str[epos] != '\t' && str[epos] != '\n')
-                break;
+	if(spos > epos)
+		str = "";
+	else
+	{
+		for(; spos < epos; --epos)
+			if(str[epos] != ' ' && str[epos] != '\t' && str[epos] != '\n')
+				break;
 
-        str = str.substr(spos, 1+epos-spos);
-    }
+		str = str.substr(spos, 1+epos-spos);
+	}
 }
 
 std::string join(const std::vector<std::string>& vec, const std::string& str)
 {
-    std::string ans = "";
+	std::string ans = "";
 
-    if(vec.size())
-    {
-        ans += vec[0];
-        for(size_t v=1; v<vec.size(); v++)
-            ans += str + vec[v];
-    }
+	if(vec.size())
+	{
+		ans += vec[0];
+		for(size_t v=1; v<vec.size(); v++)
+			ans += str + vec[v];
+	}
 
-    return ans;
+	return ans;
 }
 
 std::string join(const std::vector<std::string>& vec, const std::string& str, const size_t& spos)
 {
-    std::string ans = "";
+	std::string ans = "";
 
-    if(vec.size() > spos)
-    {
-        ans += vec[spos];
-        for(size_t v=spos+1; v<vec.size(); v++)
-            ans += str + vec[v];
-    }
+	if(vec.size() > spos)
+	{
+		ans += vec[spos];
+		for(size_t v=spos+1; v<vec.size(); v++)
+			ans += str + vec[v];
+	}
 
-    return ans;
+	return ans;
 }
 
 std::string findAndReplaceAll(const std::string& orig, const std::string& toSearch, const std::string& replaceStr)

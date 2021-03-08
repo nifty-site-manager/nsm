@@ -8,12 +8,12 @@
 
 void add_colour()
 {
-    addColour = 1;
+	addColour = 1;
 }
 
 void no_colour()
 {
-    addColour = 0;
+	addColour = 0;
 }
 
 #if defined _WIN32 || defined _WIN64
@@ -47,8 +47,8 @@ void no_colour()
 	{
 		#if defined __NO_COLOUR__
 			if(cc.col){} //gets rid of warning
-	    #else
-	    	if(addColour && &os == &std::cout)
+		#else
+			if(addColour && &os == &std::cout)
 			{
 				FlushConsoleInputBuffer(hConsole);
 				if(use_ps_colours)
@@ -56,7 +56,7 @@ void no_colour()
 				else
 					SetConsoleTextAttribute(hConsole, cc.col);
 			}
-	    #endif
+		#endif
 
 		return os;
 	}
@@ -70,10 +70,10 @@ void no_colour()
 	{
 		#if defined __NO_COLOUR__
 			if(cc.col.size()){} //gets rid of warning
-	    #else
-	    	if(addColour && &os == &std::cout)
+		#else
+			if(addColour && &os == &std::cout)
 				os << cc.col.c_str();
-	    #endif
+		#endif
 
 		return os;
 	}

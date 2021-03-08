@@ -2,6 +2,10 @@
 Nift Release Notes
 ------------------
 
+Version 2.3.13 of Nift
+* added program with makefile option to clean up indenting for source code
+* patched (ie. reverted `LDFLAGS` to `LINK`) makefile for FreeBSD and Gentoo
+
 Version 2.3.12 of Nift
 * one liner fix of not reading terminal config string quoted
 * added `nsm config global/project` command to open config file with configured editor

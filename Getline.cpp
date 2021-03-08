@@ -90,25 +90,25 @@ int nsm_getch()
 
 int rnbwcout(const std::string& str)
 {
-    std::stringstream ss;
-    ss << str << std::endl;
+	std::stringstream ss;
+	ss << str << std::endl;
 
-    return lolfilter(ss);
+	return lolfilter(ss);
 }
 
 int rnbwcout(const std::set<std::string>& strs)
 {
-    std::stringstream ss;
-    if(strs.size())
-    {
-	    auto str=strs.begin();
-	    ss << *str++;
-	    for(; str!=strs.end(); ++str)
-		    ss << " " << *str;
+	std::stringstream ss;
+	if(strs.size())
+	{
+		auto str=strs.begin();
+		ss << *str++;
+		for(; str!=strs.end(); ++str)
+			ss << " " << *str;
 		ss << std::endl;
 	}
 
-    return lolfilter(ss);
+	return lolfilter(ss);
 }
 
 #if defined _WIN32 || defined _WIN64
@@ -896,10 +896,10 @@ int rnbwcout(const std::set<std::string>& strs)
 				}
 			}
 			#if defined __FreeBSD__
-		        else if(c == 127 || c == 31) //ctrl backspace or cmd [ or ctrl (shift) -
-		    #else  //unix
-		        else if(c == 8 || c == 31) //ctrl backspace or cmd [ or ctrl (shift) -
-		    #endif
+				else if(c == 127 || c == 31) //ctrl backspace or cmd [ or ctrl (shift) -
+			#else  //unix
+				else if(c == 8 || c == 31) //ctrl backspace or cmd [ or ctrl (shift) -
+			#endif
 			{
 				bool foundNonWhitespace = 0;
 				do
@@ -944,10 +944,10 @@ int rnbwcout(const std::set<std::string>& strs)
 				}
 			}
 			#if defined __FreeBSD__
-		        else if(c == 8) //backspace
-		    #else  //unix
-		        else if(c == 127) //backspace
-		    #endif
+				else if(c == 8) //backspace
+			#else  //unix
+				else if(c == 127) //backspace
+			#endif
 			{
 				if(linePos > 0)
 				{

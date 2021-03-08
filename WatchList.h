@@ -11,24 +11,24 @@ std::string replace_slashes(const std::string& source); //can delete this later
 
 struct WatchDir
 {
-    Directory watchDir;
-    std::set<std::string> contExts;
-    std::map<std::string, Path> templatePaths;
-    std::map<std::string, std::string> outputExts;
+	Directory watchDir;
+	std::set<std::string> contExts;
+	std::map<std::string, Path> templatePaths;
+	std::map<std::string, std::string> outputExts;
 
-    WatchDir();
+	WatchDir();
 };
 
 bool operator<(const WatchDir& wd1, const WatchDir& wd2);
 
 struct WatchList
 {
-    std::set<WatchDir> dirs;
+	std::set<WatchDir> dirs;
 
-    WatchList();
+	WatchList();
 
-    int open();
-    int save();
+	int open();
+	int save();
 };
 
 std::ostream& operator<<(std::ostream &os, const WatchList &wl);

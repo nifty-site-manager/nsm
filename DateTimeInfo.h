@@ -10,17 +10,17 @@
 
 //information about date and time
 /*
-    see http://en.cppreference.com/w/cpp/chrono/c/strftime for more
-    options when returning information about the time and date.
+	see http://en.cppreference.com/w/cpp/chrono/c/strftime for more
+	options when returning information about the time and date.
 */
 
 struct DateTimeInfo
 {
-    std::string cDate,
-        cTime,
-        cTimezone;
+	std::string cDate,
+	    cTime,
+	    cTimezone;
 
-    DateTimeInfo();
+	DateTimeInfo();
 
 	//returns current date
 	std::string currentDate();
@@ -44,7 +44,7 @@ struct DateTimeInfo
 	std::string currentTimezone();
 
 	//returns current operating system
-    std::string currentOS();
+	std::string currentOS();
 };
 
 #endif //DATE_TIME_INFO_H_

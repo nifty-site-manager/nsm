@@ -29,10 +29,10 @@ struct exprtk_cd : public exprtk::igeneric_function<T>
 		std::string target = replace_home_dir(inStr);
 
 		if(!dir_exists(target))
-	    	return 1;
+			return 1;
 
 		if(chdir(target.c_str()))
-	    	return 1;
+			return 1;
 
 		return 0;
 	}
@@ -58,14 +58,14 @@ struct exprtk_sys : public exprtk::igeneric_function<T>
 		std::string sys_call = std::string(param_strt.begin(), param_strt.size());
 
 		#if defined _WIN32 || defined _WIN64
-	        if(unquote(sys_call).substr(0, 2) == "./")
-	            sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
-	    #else  //*nix
-	        if(file_exists("/.flatpak-info"))
-	            sys_call = "flatpak-spawn --host bash -c " + quote(sys_call);
-	    #endif
+			if(unquote(sys_call).substr(0, 2) == "./")
+				sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
+		#else  //*nix
+			if(file_exists("/.flatpak-info"))
+				sys_call = "flatpak-spawn --host bash -c " + quote(sys_call);
+		#endif
 
-	    int result = system(sys_call.c_str());
+		int result = system(sys_call.c_str());
 
 		if(result && (*nsm_mode == MODE_INTERP || *nsm_mode == MODE_SHELL))
 			std::cout << "\a" << std::flush;

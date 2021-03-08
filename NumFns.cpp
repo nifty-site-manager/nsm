@@ -28,41 +28,41 @@ int llintLength(long long int i)
 
 bool isInt(const std::string& str)
 {
-    if(!str.size())
-        return 0;
+	if(!str.size())
+		return 0;
 
-    if(str.size() && str[0] != '-' && !std::isdigit(str[0]))
-        return 0;
+	if(str.size() && str[0] != '-' && !std::isdigit(str[0]))
+		return 0;
 
-    for(size_t i=1; i<str.size(); i++)
-        if(!std::isdigit(str[i]))
-            return 0;
+	for(size_t i=1; i<str.size(); i++)
+		if(!std::isdigit(str[i]))
+			return 0;
 
-    return 1;
+	return 1;
 }
 
 bool isPosInt(const std::string& str)
 {
-    if(str.size() == 0 || str == "0")
-        return 0;
+	if(str.size() == 0 || str == "0")
+		return 0;
 
-    for(size_t i=0; i<str.size(); i++)
-        if(!std::isdigit(str[i]))
-            return 0;
+	for(size_t i=0; i<str.size(); i++)
+		if(!std::isdigit(str[i]))
+			return 0;
 
-    return 1;
+	return 1;
 }
 
 bool isNonNegInt(const std::string& str)
 {
-    if(!str.size())
-        return 0;
+	if(!str.size())
+		return 0;
 
-    for(size_t i=0; i<str.size(); i++)
-        if(!std::isdigit(str[i]))
-            return 0;
+	for(size_t i=0; i<str.size(); i++)
+		if(!std::isdigit(str[i]))
+			return 0;
 
-    return 1;
+	return 1;
 }
 
 bool isDouble(const std::string& str)
@@ -158,8 +158,8 @@ int getTypeInt(const std::string& str)
 
 std::string int_to_timestr(int s)
 {
-    if(s < 0)
-        return "-" + int_to_timestr(-s);
+	if(s < 0)
+		return "-" + int_to_timestr(-s);
 	else if(s < 60)
 		return std::to_string(s) + "s";
 	else if(s < 3600)
@@ -188,8 +188,8 @@ std::string int_to_timestr(int s)
 
 std::string double_to_string_prec(const double& d, const int& prec)
 {
-    std::ostringstream oss;
-    oss << std::setprecision(prec) << d;
-    return oss.str();
+	std::ostringstream oss;
+	oss << std::setprecision(prec) << d;
+	return oss.str();
 }
 

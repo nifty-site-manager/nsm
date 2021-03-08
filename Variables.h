@@ -26,7 +26,7 @@ struct VLayer
 
 	std::unordered_map<std::string, std::string> functions;
 	std::unordered_set<std::string> nFns, unscopedFns, noOutput;
-    std::map<std::string, Path> paths;
+	std::map<std::string, Path> paths;
 	//std::map<std::string, int> funcDefLineNo;
 
 	std::map<std::string, bool> bools;
@@ -41,7 +41,7 @@ struct VLayer
 	std::map<std::string, std::ifstream> ifstreams;
 	std::map<std::string, std::ofstream> ofstreams;
 
-    VLayer();
+	VLayer();
 };
 
 struct VPos
@@ -61,8 +61,8 @@ struct Variables
 	std::map<std::string, Path> typeDefPath;
 	std::map<std::string, int> typeDefLineNo;
 
-    int precision;
-    bool fixedPrecision, scientificPrecision;
+	int precision;
+	bool fixedPrecision, scientificPrecision;
 
 	Variables();
 
@@ -84,8 +84,8 @@ struct Variables
 	                     const bool& indent,
 	                     std::string& indentAmount);
 
-    int set_var_from_str(const VPos& vpos, const std::string& value);
-    int set_var_from_double(const VPos& vpos, const double& value);
+	int set_var_from_str(const VPos& vpos, const std::string& value);
+	int set_var_from_double(const VPos& vpos, const double& value);
 };
 
 #endif //VARIABLES_H_

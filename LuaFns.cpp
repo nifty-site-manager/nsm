@@ -43,21 +43,21 @@ int lua_cd(lua_State* L)
 	std::string target = replace_home_dir(inStr);
 	lua_remove(L, 1);
 
-    if(!dir_exists(target))
-    {
-        lua_nsm_pusherrmsg(L, "cd: cannot change directory to " + quote(inStr) + " as it is not a directory");
-        lua_error(L);
-        return 0;
-    }
+	if(!dir_exists(target))
+	{
+		lua_nsm_pusherrmsg(L, "cd: cannot change directory to " + quote(inStr) + " as it is not a directory");
+		lua_error(L);
+		return 0;
+	}
 
-    if(chdir(target.c_str()))
-    {
-        lua_nsm_pusherrmsg(L, "cd: failed to change directory to " + quote(inStr));
-        lua_error(L);
-        return 0;
-    }
+	if(chdir(target.c_str()))
+	{
+		lua_nsm_pusherrmsg(L, "cd: failed to change directory to " + quote(inStr));
+		lua_error(L);
+		return 0;
+	}
 
-    return 0;
+	return 0;
 }
 
 int lua_sys(lua_State* L)
@@ -79,15 +79,15 @@ int lua_sys(lua_State* L)
 	lua_remove(L, 1);
 
 	#if defined _WIN32 || defined _WIN64
-        if(unquote(sys_call).substr(0, 2) == "./")
-            sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
-    #else  //*nix
-        if(file_exists("/.flatpak-info"))
-            sys_call = "flatpak-spawn --host bash -c " + quote(sys_call);
-    #endif
+		if(unquote(sys_call).substr(0, 2) == "./")
+			sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
+	#else  //*nix
+		if(file_exists("/.flatpak-info"))
+			sys_call = "flatpak-spawn --host bash -c " + quote(sys_call);
+	#endif
 
-    lua_pushnumber(L, system(sys_call.c_str()));
-    
+	lua_pushnumber(L, system(sys_call.c_str()));
+	
 	return 1;
 }
 
@@ -110,18 +110,18 @@ int lua_sys_bell(lua_State* L)
 	lua_remove(L, 1);
 
 	#if defined _WIN32 || defined _WIN64
-        if(unquote(sys_call).substr(0, 2) == "./")
-            sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
-    #else  //*nix
-        if(file_exists("/.flatpak-info"))
-            sys_call = "flatpak-spawn --host bash -c " + quote(sys_call);
-    #endif
+		if(unquote(sys_call).substr(0, 2) == "./")
+			sys_call = unquote(sys_call).substr(2, unquote(sys_call).size()-2);
+	#else  //*nix
+		if(file_exists("/.flatpak-info"))
+			sys_call = "flatpak-spawn --host bash -c " + quote(sys_call);
+	#endif
 
-    int result = system(sys_call.c_str());
+	int result = system(sys_call.c_str());
 
-    if(result) //checks mode
-    {
-    	lua_getglobal(L, "nsm_mode__");
+	if(result) //checks mode
+	{
+		lua_getglobal(L, "nsm_mode__");
 
 		if(!lua_islightuserdata(L, 1))
 		{
@@ -134,7 +134,7 @@ int lua_sys_bell(lua_State* L)
 
 		if(*modeID == MODE_INTERP || *modeID == MODE_SHELL)
 			std::cout << "\a" << std::flush;
-    }
+	}
 
 	lua_pushnumber(L, result);
 	return 1;
@@ -174,17 +174,17 @@ int lua_exprtk(lua_State* L)
 		//lua_nsm_pusherrmsg(L, "exprtk: failed to compile expression");
 
 		size_t errLineNo;
-	    for(size_t i=0; i < expr->parser.error_count(); ++i)
-	    {
-	        exprtk::parser_error::type error = expr->parser.get_error(i);
+		for(size_t i=0; i < expr->parser.error_count(); ++i)
+		{
+			exprtk::parser_error::type error = expr->parser.get_error(i);
 
-	        if(std::to_string(error.token.position) == "18446744073709551615")
-	            errLineNo = 0;
-	        else
-	            errLineNo = 0 + std::count(expr->expr_str.begin(), expr->expr_str.begin() + error.token.position, '\n');
+			if(std::to_string(error.token.position) == "18446744073709551615")
+				errLineNo = 0;
+			else
+				errLineNo = 0 + std::count(expr->expr_str.begin(), expr->expr_str.begin() + error.token.position, '\n');
 
-	        lua_nsm_pusherrmsg(L, "exprtk: " + exprtk::parser_error::to_str(error.mode) + ": " + error.diagnostic, errLineNo);
-	    }
+			lua_nsm_pusherrmsg(L, "exprtk: " + exprtk::parser_error::to_str(error.mode) + ": " + error.diagnostic, errLineNo);
+		}
 
 		lua_error(L);
 		return 0;
@@ -223,17 +223,17 @@ int lua_exprtk_compile(lua_State* L)
 		if(!expr->compile(exprStr))
 		{
 			size_t errLineNo;
-		    for(size_t i=0; i < expr->parser.error_count(); ++i)
-		    {
-		        exprtk::parser_error::type error = expr->parser.get_error(i);
+			for(size_t i=0; i < expr->parser.error_count(); ++i)
+			{
+				exprtk::parser_error::type error = expr->parser.get_error(i);
 
-		        if(std::to_string(error.token.position) == "18446744073709551615")
-		            errLineNo = 0;
-		        else
-		            errLineNo = 0 + std::count(expr->expr_str.begin(), expr->expr_str.begin() + error.token.position, '\n');
+				if(std::to_string(error.token.position) == "18446744073709551615")
+					errLineNo = 0;
+				else
+					errLineNo = 0 + std::count(expr->expr_str.begin(), expr->expr_str.begin() + error.token.position, '\n');
 
-		        lua_nsm_pusherrmsg(L, "exprtk_compile: " + exprtk::parser_error::to_str(error.mode) + ": " + error.diagnostic, errLineNo);
-		    }
+				lua_nsm_pusherrmsg(L, "exprtk_compile: " + exprtk::parser_error::to_str(error.mode) + ": " + error.diagnostic, errLineNo);
+			}
 
 			lua_error(L);
 			return 0;
@@ -274,17 +274,17 @@ int lua_exprtk_compile(lua_State* L)
 		if(!exprset->compile(name, exprStr))
 		{
 			size_t errLineNo;
-		    for(size_t i=0; i < exprset->parser.error_count(); ++i)
-		    {
-		        exprtk::parser_error::type error = exprset->parser.get_error(i);
+			for(size_t i=0; i < exprset->parser.error_count(); ++i)
+			{
+				exprtk::parser_error::type error = exprset->parser.get_error(i);
 
-		        if(std::to_string(error.token.position) == "18446744073709551615")
-		            errLineNo = 0;
-		        else
-		            errLineNo = 0 + std::count(exprStr.begin(), exprStr.begin() + error.token.position, '\n');
+				if(std::to_string(error.token.position) == "18446744073709551615")
+					errLineNo = 0;
+				else
+					errLineNo = 0 + std::count(exprStr.begin(), exprStr.begin() + error.token.position, '\n');
 
-		        lua_nsm_pusherrmsg(L, "exprtk_compile: " + exprtk::parser_error::to_str(error.mode) + ": " + error.diagnostic, errLineNo);
-		    }
+				lua_nsm_pusherrmsg(L, "exprtk_compile: " + exprtk::parser_error::to_str(error.mode) + ": " + error.diagnostic, errLineNo);
+			}
 
 			lua_error(L);
 			return 0;
@@ -395,12 +395,12 @@ int lua_exprtk_load(lua_State* L)
 		lua_remove(L, 1);
 
 		if(exprset->expressions.count(name))
-        {
-            expr->expr_str = exprset->expr_strs[name];
-            expr->expression = exprset->expressions[name];
-        }
-        else
-        {
+		{
+			expr->expr_str = exprset->expr_strs[name];
+			expr->expression = exprset->expressions[name];
+		}
+		else
+		{
 			lua_nsm_pusherrmsg(L, "exprtk_load: no expression named " + quote(name) + " has been compiled");
 			lua_error(L);
 			return 0;
@@ -936,18 +936,18 @@ int lua_nsm_tolightuserdata(lua_State* L)
 	{
 		if(vpos.type.substr(0, 5) == "std::")
 		{
-		    if(vpos.type == "std::bool")
+			if(vpos.type == "std::bool")
 				lua_pushlightuserdata(L, &vars->layers[vpos.layer].bools[varName]);
-		    else if(vpos.type == "std::int")
-		    	lua_pushlightuserdata(L, &vars->layers[vpos.layer].ints[varName]);
-		    else if(vpos.type == "std::double")
-		    	lua_pushlightuserdata(L, &vars->layers[vpos.layer].doubles[varName]);
-		    else if(vpos.type == "std::char")
-		    	lua_pushlightuserdata(L, &vars->layers[vpos.layer].chars[varName]);
-		    else if(vpos.type == "std::string")
+			else if(vpos.type == "std::int")
+				lua_pushlightuserdata(L, &vars->layers[vpos.layer].ints[varName]);
+			else if(vpos.type == "std::double")
+				lua_pushlightuserdata(L, &vars->layers[vpos.layer].doubles[varName]);
+			else if(vpos.type == "std::char")
+				lua_pushlightuserdata(L, &vars->layers[vpos.layer].chars[varName]);
+			else if(vpos.type == "std::string")
 				lua_pushlightuserdata(L, &vars->layers[vpos.layer].strings[varName]);
-		    else if(vpos.type == "std::long long int")
-		    	lua_pushlightuserdata(L, &vars->layers[vpos.layer].llints[varName]);
+			else if(vpos.type == "std::long long int")
+				lua_pushlightuserdata(L, &vars->layers[vpos.layer].llints[varName]);
 		}
 		else if(vpos.type == "bool" || vpos.type == "int" || vpos.type == "double")
 			lua_pushlightuserdata(L, &vars->layers[vpos.layer].doubles[varName]);
@@ -957,14 +957,14 @@ int lua_nsm_tolightuserdata(lua_State* L)
 			lua_pushlightuserdata(L, &vars->layers[vpos.layer].ofstreams[varName]);
 		else
 		{
-		    lua_nsm_pusherrmsg(L, "nsm_vartolightuserdata(): function not defined for variable " + quote(varName) + " of type " + quote(vpos.type));
+			lua_nsm_pusherrmsg(L, "nsm_vartolightuserdata(): function not defined for variable " + quote(varName) + " of type " + quote(vpos.type));
 			lua_error(L);
 			return 0;
 		}
 	}
 	else
 	{
-	    lua_nsm_pusherrmsg(L, "nsm_vartolightuserdata(): " + quote(varName) + ": variable not defined at this scope");
+		lua_nsm_pusherrmsg(L, "nsm_vartolightuserdata(): " + quote(varName) + ": variable not defined at this scope");
 		lua_error(L);
 		return 0;
 	}

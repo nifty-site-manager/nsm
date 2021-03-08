@@ -10,7 +10,7 @@
 #include <time.h>
 
 #ifdef _WIN32
-    #include <direct.h>
+	#include <direct.h>
 #endif
 
 #include "ConsoleColor.h"
@@ -20,29 +20,29 @@
 
 struct Path
 {
-    Directory dir;
-    Filename file;
-    std::string type;
+	Directory dir;
+	Filename file;
+	std::string type;
 
-    Path();
-    Path(const Directory& Dir, const Filename& File);
-    Path(const std::string& path);
+	Path();
+	Path(const Directory& Dir, const Filename& File);
+	Path(const std::string& path);
 
-    void set_file_path_from(const std::string& s);
-    std::istream& read_file_path_from(std::istream& is);
+	void set_file_path_from(const std::string& s);
+	std::istream& read_file_path_from(std::istream& is);
 
-    std::string str() const;
-    std::string comparableStr() const;
+	std::string str() const;
+	std::string comparableStr() const;
 
-    //returns whether first file was modified after second file
-    bool modified_after(const Path& path2) const;
+	//returns whether first file was modified after second file
+	bool modified_after(const Path& path2) const;
 
-    bool ensureDirExists() const;
+	bool ensureDirExists() const;
 	bool ensureFileExists() const;
 
-    Path getInfoPath() const;
-    Path getHashPath() const;
-    Path getPaginationPath() const;
+	Path getInfoPath() const;
+	Path getHashPath() const;
+	Path getPaginationPath() const;
 };
 
 //outputs path (quoted if it contains spaces)

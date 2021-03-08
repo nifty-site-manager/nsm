@@ -3,65 +3,65 @@
 //removes ./ from the front if it's there
 Directory comparable(const Directory &directory)
 {
-    if(directory.substr(0, 2) != "./")
-        return directory;
-    else
-        return directory.substr(2, directory.length()-2);
+	if(directory.substr(0, 2) != "./")
+		return directory;
+	else
+		return directory.substr(2, directory.length()-2);
 }
 
 //returns the leading directory if present
 Directory leadingDir(const Directory &directory)
 {
-    size_t pos = directory.find_first_of('/');
-    if(pos == std::string::npos)
-        return "";
-    else
-        return directory.substr(0, pos+1);
+	size_t pos = directory.find_first_of('/');
+	if(pos == std::string::npos)
+		return "";
+	else
+		return directory.substr(0, pos+1);
 }
 
 Directory stripLeadingDir(const Directory &directory)
 {
-    size_t pos = directory.find_first_of('/');
-    if(pos == std::string::npos)
-        return "";
-    else
-    {
-        pos++;
-        return directory.substr(pos, directory.length()-pos);
-    }
+	size_t pos = directory.find_first_of('/');
+	if(pos == std::string::npos)
+		return "";
+	else
+	{
+		pos++;
+		return directory.substr(pos, directory.length()-pos);
+	}
 }
 
 std::deque<Directory> dirDeque(const Directory &directory)
 {
-    Directory pwd = comparable(directory);
-    std::deque<std::string> dDeque;
+	Directory pwd = comparable(directory);
+	std::deque<std::string> dDeque;
 
-    while(pwd.size())
-    {
-        dDeque.push_back(leadingDir(pwd));
-        pwd = stripLeadingDir(pwd);
-    }
+	while(pwd.size())
+	{
+		dDeque.push_back(leadingDir(pwd));
+		pwd = stripLeadingDir(pwd);
+	}
 
-    return dDeque;
+	return dDeque;
 }
 
 std::string pathBetween(const Directory &sourceDir, const Directory &targetDir)
 {
-    std::deque<std::string> sourceDeque = dirDeque(sourceDir),
-        targetDeque = dirDeque(targetDir);
+	std::deque<std::string> sourceDeque = dirDeque(sourceDir),
+	    targetDeque = dirDeque(targetDir);
 
-    while(sourceDeque.size() > 0 && targetDeque.size() > 0 && sourceDeque[0] == targetDeque[0])
-    {
-        sourceDeque.pop_front();
-        targetDeque.pop_front();
-    }
+	while(sourceDeque.size() > 0 && targetDeque.size() > 0 && sourceDeque[0] == targetDeque[0])
+	{
+		sourceDeque.pop_front();
+		targetDeque.pop_front();
+	}
 
-    std::string sourceToTarget = "";
+	std::string sourceToTarget = "";
 
-    for(size_t s=0; s<sourceDeque.size(); s++)
-        sourceToTarget += "../";
-    for(size_t t=0; t<targetDeque.size(); t++)
-        sourceToTarget += targetDeque[t];
+	for(size_t s=0; s<sourceDeque.size(); s++)
+		sourceToTarget += "../";
+	for(size_t t=0; t<targetDeque.size(); t++)
+		sourceToTarget += targetDeque[t];
 
-    return sourceToTarget;
+	return sourceToTarget;
 }

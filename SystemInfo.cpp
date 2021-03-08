@@ -43,7 +43,7 @@
 		DWORD  bufCharCount = INFO_BUFFER_SIZE;
 	 
 		if(!GetComputerName(infoBuf, &bufCharCount))
-		    return "unknown";
+			return "unknown";
 	 
 		return infoBuf;
 	}
@@ -54,7 +54,7 @@
 		DWORD  bufCharCount = INFO_BUFFER_SIZE;
 	 
 		if(!GetUserName(infoBuf, &bufCharCount))
-		    return "unknown";
+			return "unknown";
 	 
 		return infoBuf;
 	}

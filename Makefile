@@ -22,7 +22,7 @@ ifeq ($(CXX),clang)
 	ifeq ($(OS),FreeBSD) 
 	else
 		CXXFLAGS+= -Qunused-arguments -lstdc++
-	    LDFLAGS+= -lm
+		LDFLAGS+= -lm
 	endif
 endif
 
@@ -215,6 +215,20 @@ endif
 
 HashTk.o: hashtk/HashTk.cpp hashtk/HashTk.h
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+###
+
+fix-indenting: 
+ifeq ($(detected_OS),Windows)       # Windows
+	g++ FixIndenting.cpp -o indent-fixer-upperer
+	./indent-fixer-upperer.exe `git ls-files -m *.cpp *.h`
+	del indent_fixer_upperer.exe
+else                                # *nix
+	g++ FixIndenting.cpp -o indent-fixer-upperer
+	./indent-fixer-upperer `git ls-files -m *.cpp *.h`
+	rm indent-fixer-upperer
+endif 
+
 
 ###
 

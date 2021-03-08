@@ -6,14 +6,14 @@
 
 struct Title
 {
-    std::string str;
+	std::string str;
 
 	Title();
 	Title(const std::string& Str);
 
-    bool read_quoted_from(std::istream &is);
+	bool read_quoted_from(std::istream &is);
 
-    Title& operator=(const std::string& Str);
+	Title& operator=(const std::string& Str);
 };
 
 //outputs title (quoted if it contains spaces)
