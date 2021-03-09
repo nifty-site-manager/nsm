@@ -251,10 +251,10 @@ struct Parser
 	  int read_str_from_stream(const VPos& spos, std::string& str);
 	  int getline_from_stream(const VPos& spos, std::string& str);
 	  int set_var_from_str(const VPos& vpos,
-	                     const std::string& value,
-	                     const Path& readPath,
-	                     const int& lineNo,
-	                     const std::string& callType,
+	                       const std::string& value,
+	                       const Path& readPath,
+	                       const int& lineNo,
+	                       const std::string& callType,
 	                     std::ostream& eos);
 	int add_fn(const std::string& fnName,
 	           const char& fnLang,

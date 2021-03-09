@@ -79,7 +79,7 @@
 	                              "\033[38;5;33m"};
 #endif
 
-bool format = 0;
+bool format = 1;
 int tabWidth = 4;
 std::string formatStr(std::string& str)
 {

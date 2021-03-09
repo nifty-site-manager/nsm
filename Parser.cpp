@@ -139,154 +139,154 @@ int Parser::lua_addnsmfns()
 
 int Parser::lolcat_init(const std::string& lolcat_cmd)
 {
-	//first tries finding executables in path variables (does **not** work with snaps for example)
-	std::string path = getenv("PATH");
-	std::string pathDir;
-	std::vector<std::string> pathDirs;
-	size_t sLinePos;
+    //first tries finding executables in path variables (does **not** work with snaps for example)
+    std::string path = getenv("PATH");
+    std::string pathDir;
+    std::vector<std::string> pathDirs;
+    size_t sLinePos;
 
-	for(size_t linePos = 0; linePos < path.size(); ++linePos)
-	{
-		sLinePos = linePos;
-		linePos = path.find_first_of(":;", sLinePos);
-		if(linePos == std::string::npos)
-			break;
-		pathDir = path.substr(sLinePos, linePos-sLinePos);
+    for(size_t linePos = 0; linePos < path.size(); ++linePos)
+    {
+        sLinePos = linePos;
+        linePos = path.find_first_of(":;", sLinePos);
+        if(linePos == std::string::npos)
+            break;
+        pathDir = path.substr(sLinePos, linePos-sLinePos);
 
-		if(dir_exists(pathDir))
-			pathDirs.push_back(pathDir);
-	}
+        if(dir_exists(pathDir))
+            pathDirs.push_back(pathDir);
+    }
 
-	std::vector<std::string> lolcatCmds;
-	if(lolcat_cmd == "")
-		lolcatCmds = std::vector<std::string>({"lolcat-cc", "lolcat-c", "lolcat-rs", "lolcat", "nift", "nsm"});
-	else
-		lolcatCmds.push_back(lolcat_cmd);
+    std::vector<std::string> lolcatCmds;
+    if(lolcat_cmd == "")
+        lolcatCmds = std::vector<std::string>({"lolcat-cc", "lolcat-c", "lolcat-rs", "lolcat", "nift", "nsm"});
+    else
+        lolcatCmds.push_back(lolcat_cmd);
 
-	for(size_t i=0; i<lolcatCmds.size(); ++i)
-	{
-		for(size_t p=0; p<pathDirs.size(); ++p)
-		{
-			#if defined _WIN32 || defined _WIN64
-				if(exec_exists(pathDirs[p] + "/" + lolcatCmds[i] + ".exe"))
-			#else
-				if(exec_exists(pathDirs[p] + "/" + lolcatCmds[i]))
-			#endif
-			{
-				if(lolcatCmds.size() > 1)
-				{
-					if(i == 0)
-					{
-						#if defined _WIN32 || defined _WIN64
-							if(using_powershell_colours())
-								lolcatCmd = "lolcat-cc -ps -f";
-							else
-								lolcatCmd = "lolcat-cc -f";
-						#else
-							lolcatCmd = "lolcat-cc -f";
-						#endif
-					}
-					else if(i == 1)
-						lolcatCmd = "lolcat-c";
-					else if(i == 2)
-						lolcatCmd = "lolcat-rs";
-					else if(i == 3)
-						lolcatCmd = "lolcat";
-					else if(i == 4)
-					{
-						#if defined _WIN32 || defined _WIN64
-							if(using_powershell_colours())
-								lolcatCmd = "nift lolcat-cc -ps -f";
-							else
-								lolcatCmd = "nift lolcat-cc -f";
-						#else
-							lolcatCmd = "nift lolcat-cc -f";
-						#endif
-					}
-					else if(i == 5)
-					{
-						#if defined _WIN32 || defined _WIN64
-							if(using_powershell_colours())
-								lolcatCmd = "nsm lolcat-cc -ps -f";
-							else
-								lolcatCmd = "nsm lolcat-cc -f";
-						#else
-							lolcatCmd = "nsm lolcat-cc -f";
-						#endif
-					}
-				}
+    for(size_t i=0; i<lolcatCmds.size(); ++i)
+    {
+        for(size_t p=0; p<pathDirs.size(); ++p)
+        {
+            #if defined _WIN32 || defined _WIN64
+                if(exec_exists(pathDirs[p] + "/" + lolcatCmds[i] + ".exe"))
+            #else
+                if(exec_exists(pathDirs[p] + "/" + lolcatCmds[i]))
+            #endif
+            {
+                if(lolcatCmds.size() > 1)
+                {
+                    if(i == 0)
+                    {
+                        #if defined _WIN32 || defined _WIN64
+                            if(using_powershell_colours())
+                                lolcatCmd = "lolcat-cc -ps -f";
+                            else
+                                lolcatCmd = "lolcat-cc -f";
+                        #else
+                            lolcatCmd = "lolcat-cc -f";
+                        #endif
+                    }
+                    else if(i == 1)
+                        lolcatCmd = "lolcat-c";
+                    else if(i == 2)
+                        lolcatCmd = "lolcat-rs";
+                    else if(i == 3)
+                        lolcatCmd = "lolcat";
+                    else if(i == 4)
+                    {
+                        #if defined _WIN32 || defined _WIN64
+                            if(using_powershell_colours())
+                                lolcatCmd = "nift lolcat-cc -ps -f";
+                            else
+                                lolcatCmd = "nift lolcat-cc -f";
+                        #else
+                            lolcatCmd = "nift lolcat-cc -f";
+                        #endif
+                    }
+                    else if(i == 5)
+                    {
+                        #if defined _WIN32 || defined _WIN64
+                            if(using_powershell_colours())
+                                lolcatCmd = "nsm lolcat-cc -ps -f";
+                            else
+                                lolcatCmd = "nsm lolcat-cc -f";
+                        #else
+                            lolcatCmd = "nsm lolcat-cc -f";
+                        #endif
+                    }
+                }
 
-				lolcatInit = 1;
-				return 1;
-			}
-		}
-	}
+                lolcatInit = 1;
+                return 1;
+            }
+        }
+    }
 
-	//tries actually running lolcat programs (eg. works with snaps)
-	std::string lsCmd;
-	#if defined _WIN32 || defined _WIN64
-		lsCmd = "dir | ";
-	#else
-		lsCmd = "ls | ";
-	#endif
+    //tries actually running lolcat programs (eg. works with snaps)
+    std::string lsCmd;
+    #if defined _WIN32 || defined _WIN64
+        lsCmd = "dir | ";
+    #else
+        lsCmd = "ls | ";
+    #endif
 
-	std::string suppressor;
-	#if defined _WIN32 || defined _WIN64
-		suppressor = " >nul 2>&1";
-	#else  //*nix
-		suppressor = " > /dev/null 2>&1";
-	#endif
+    std::string suppressor;
+    #if defined _WIN32 || defined _WIN64
+        suppressor = " >nul 2>&1";
+    #else  //*nix
+        suppressor = " > /dev/null 2>&1";
+    #endif
 
-	if(lolcat_cmd != "")
-	{
-		if(system((lsCmd + lolcat_cmd + suppressor).c_str()))
-			return 0;
-	}
-	else if(!system((lsCmd + "lolcat-cc" + suppressor).c_str()))
-	{
-		#if defined _WIN32 || defined _WIN64
-			if(using_powershell_colours())
-				lolcatCmd = "lolcat-cc -ps -f";
-			else
-				lolcatCmd = "lolcat-cc -f";
-		#else
-			lolcatCmd = "lolcat-cc -f";
-		#endif
-	}
-	else if(!system((lsCmd + "lolcat-c" + suppressor).c_str()))
-		lolcatCmd = "lolcat-c";
-	else if(!system((lsCmd + "lolcat-rs" + suppressor).c_str()))
-		lolcatCmd = "lolcat-rs";
-	else if(!system((lsCmd + "lolcat" + suppressor).c_str()))
-		lolcatCmd = "lolcat";
-	else if(!system((lsCmd + "nift lolcat" + suppressor).c_str()))
-	{
-		#if defined _WIN32 || defined _WIN64
-			if(using_powershell_colours())
-				lolcatCmd = "nift lolcat-cc -ps -f";
-			else
-				lolcatCmd = "nift lolcat-cc -f";
-		#else
-			lolcatCmd = "nift lolcat-cc -f";
-		#endif
-	}
-	else if(!system((lsCmd + "nsm lolcat" + suppressor).c_str()))
-	{
-		#if defined _WIN32 || defined _WIN64
-			if(using_powershell_colours())
-				lolcatCmd = "nsm lolcat-cc -ps -f";
-			else
-				lolcatCmd = "nsm lolcat-cc -f";
-		#else
-			lolcatCmd = "nsm lolcat-cc -f";
-		#endif
-	}
-	else
-		return 0;
+    if(lolcat_cmd != "")
+    {
+        if(system((lsCmd + lolcat_cmd + suppressor).c_str()))
+            return 0;
+    }
+    else if(!system((lsCmd + "lolcat-cc" + suppressor).c_str()))
+    {
+        #if defined _WIN32 || defined _WIN64
+            if(using_powershell_colours())
+                lolcatCmd = "lolcat-cc -ps -f";
+            else
+                lolcatCmd = "lolcat-cc -f";
+        #else
+            lolcatCmd = "lolcat-cc -f";
+        #endif
+    }
+    else if(!system((lsCmd + "lolcat-c" + suppressor).c_str()))
+        lolcatCmd = "lolcat-c";
+    else if(!system((lsCmd + "lolcat-rs" + suppressor).c_str()))
+        lolcatCmd = "lolcat-rs";
+    else if(!system((lsCmd + "lolcat" + suppressor).c_str()))
+        lolcatCmd = "lolcat";
+    else if(!system((lsCmd + "nift lolcat" + suppressor).c_str()))
+    {
+        #if defined _WIN32 || defined _WIN64
+            if(using_powershell_colours())
+                lolcatCmd = "nift lolcat-cc -ps -f";
+            else
+                lolcatCmd = "nift lolcat-cc -f";
+        #else
+            lolcatCmd = "nift lolcat-cc -f";
+        #endif
+    }
+    else if(!system((lsCmd + "nsm lolcat" + suppressor).c_str()))
+    {
+        #if defined _WIN32 || defined _WIN64
+            if(using_powershell_colours())
+                lolcatCmd = "nsm lolcat-cc -ps -f";
+            else
+                lolcatCmd = "nsm lolcat-cc -f";
+        #else
+            lolcatCmd = "nsm lolcat-cc -f";
+        #endif
+    }
+    else
+        return 0;
 
-	lolcatInit = 1;
+    lolcatInit = 1;
 
-	return 1;
+    return 1;
 }
 
 int Parser::run_script(std::ostream& os, const Path& scriptPath, const bool& makeBackup, const bool& outputWhatDoing)
@@ -1543,7 +1543,7 @@ int Parser::n_read_and_process_fast(const bool& indent,
 				else if(ret_val)
 					return ret_val;
 			}
-			else if(inStr[linePos] == '$' && (inStr[linePos+1] == '{' || inStr[linePos+1] == '['))
+			else if(inStr[linePos] == '$' && (inStr[linePos+1] == '{' || inStr[linePos+1] == '[' || inStr[linePos+1] == '`'))
 			{
 				int ret_val = read_and_process_fn(indent, baseIndentAmount, 'n', addOutput, inStr, lineNo, linePos, readPath, antiDepsOfReadPath, outStr, eos);
 
@@ -1805,12 +1805,12 @@ int Parser::read_and_process_fn(const bool& indent,
 
 	if(linePos < inStr.size())
 	{
-		if(inStr[linePos] == '`') //expression
+		if(linePos + 1 < inStr.size() && inStr[linePos + 1] == '`' && inStr[linePos] == '$') //expression
 		{
 			int sLineNo = lineNo;
 			std::string expr_str;
 			bool parseExpr = 0, doubleQuoted = 0;
-			++linePos;
+			++++linePos;
 
 			if(inStr[linePos] == '`')
 				doubleQuoted = 1;
@@ -1827,7 +1827,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				{
 					if(!consoleLocked)
 						os_mtx->lock();
-					start_err(eos, readPath, sLineNo) << c_green << "`expr`" << c_white << ": no close ` for expression" << std::endl;
+					start_err(eos, readPath, sLineNo) << c_green << "$`expr`" << c_white << ": no close ` for expression" << std::endl;
 					os_mtx->unlock();
 					return 1;
 				}
@@ -1843,13 +1843,13 @@ int Parser::read_and_process_fn(const bool& indent,
 				{
 					if(!consoleLocked)
 						os_mtx->lock();
-					start_err(eos, readPath, sLineNo) << c_green << "``expr``" << c_white << ": no close `` for expression" << std::endl;
+					start_err(eos, readPath, sLineNo) << c_green << "$``expr``" << c_white << ": no close `` for expression" << std::endl;
 					os_mtx->unlock();
 					return 1;
 				}
 			}
 
-			if(parseExpr && parse_replace(lang, expr_str, "expression", readPath, antiDepsOfReadPath, sLineNo, "`" + expr_str + "`:", sLineNo, eos))
+			if(parseExpr && parse_replace(lang, expr_str, "expression", readPath, antiDepsOfReadPath, sLineNo, "$`" + expr_str + "`:", sLineNo, eos))
 			   return 1;
 
 			std::string value;
@@ -1857,7 +1857,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			{
 				if(!consoleLocked)
 					os_mtx->lock();
-				start_err(eos, readPath, sLineNo) << c_green << "``" << c_white << ": exprtk: failed to compile expression" << std::endl;
+				start_err(eos, readPath, sLineNo) << c_green << "$``" << c_white << ": exprtk: failed to compile expression" << std::endl;
 				print_exprtk_parser_errs(eos, expr.parser, expr_str, readPath, sLineNo);
 				os_mtx->unlock();
 				return 1;
@@ -4463,96 +4463,96 @@ int Parser::read_and_process_fn(const bool& indent,
 			return 0;
 		}
 		else if(funcName == "lolcat.on")
-		{
-			if(params.size() > 1)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "lolcat.on: expected 0 parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
+        {
+            if(params.size() > 1)
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "lolcat.on: expected 0 parameters, got " << params.size() << std::endl;
+                os_mtx->unlock();
+                return 1;
+            }
 
-			if(lolcat)
-			{
-				if(mode == MODE_INTERP || mode == MODE_SHELL)
-				{
-					if(!consoleLocked)
-						os_mtx->lock();
-					rnbwcout("lolcat already activated\a");
-					if(!consoleLocked)
-						os_mtx->unlock();
-				}
+            if(lolcat)
+            {
+                if(mode == MODE_INTERP || mode == MODE_SHELL)
+                {
+                    if(!consoleLocked)
+                        os_mtx->lock();
+                    rnbwcout("lolcat already activated\a");
+                    if(!consoleLocked)
+                        os_mtx->unlock();
+                }
 
-				return 0;
-			}
+                return 0;
+            }
 
-			if(params.size() == 1)
-				lolcatCmd = params[0];
+            if(params.size() == 1)
+                lolcatCmd = params[0];
 
-			if(!lolcatInit)
-			{
-				if(lolcat_init(lolcatCmd))
-				{
-					#if defined _WIN32 || defined _WIN64
-						if(using_powershell_colours())
-							lolcat_powershell();
-					#endif
-					lolcat = 1;
-				}
-				else
-				{
-					if(!consoleLocked)
-						os_mtx->lock();
-					if(params.size() == 1)
-						start_warn(eos, readPath, sLineNo) << "could not find " << c_blue << lolcatCmd << c_white << " installed on the machine" << std::endl;
-					else
-						start_warn(eos, readPath, sLineNo) << "could not find 'lolcat' installed on the machine" << std::endl;
-					if(!consoleLocked)
-						os_mtx->unlock();
-				}
-			}
-			else
-			{
-				#if defined _WIN32 || defined _WIN64
-					if(using_powershell_colours())
-						lolcat_powershell();
-				#endif
-				lolcat = 1;
-			}
+            if(!lolcatInit)
+            {
+                if(lolcat_init(lolcatCmd))
+                {
+                    #if defined _WIN32 || defined _WIN64
+                        if(using_powershell_colours())
+                            lolcat_powershell();
+                    #endif
+                    lolcat = 1;
+                }
+                else
+                {
+                    if(!consoleLocked)
+                        os_mtx->lock();
+                    if(params.size() == 1)
+                        start_warn(eos, readPath, sLineNo) << "could not find " << c_blue << lolcatCmd << c_white << " installed on the machine" << std::endl;
+                    else
+                        start_warn(eos, readPath, sLineNo) << "could not find 'lolcat' installed on the machine" << std::endl;
+                    if(!consoleLocked)
+                        os_mtx->unlock();
+                }
+            }
+            else
+            {
+                #if defined _WIN32 || defined _WIN64
+                    if(using_powershell_colours())
+                        lolcat_powershell();
+                #endif
+                lolcat = 1;
+            }
 
-			if(lolcat && (mode == MODE_INTERP || mode == MODE_SHELL))
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				rnbwcout("lolcat activated using command " + quote(lolcatCmd));
-				if(!consoleLocked)
-					os_mtx->unlock();
-			}
+            if(lolcat && (mode == MODE_INTERP || mode == MODE_SHELL))
+            {
+                if(!consoleLocked)
+                    os_mtx->lock();
+                rnbwcout("lolcat activated using command " + quote(lolcatCmd));
+                if(!consoleLocked)
+                    os_mtx->unlock();
+            }
 
-			if(linePos < inStr.size() && inStr[linePos] == '!')
-				++linePos;
-			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
+            if(linePos < inStr.size() && inStr[linePos] == '!')
+                ++linePos;
+            else
+            {
+                //skips to next non-whitespace
+                while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
+                {
+                    if(inStr[linePos] == '@')
+                        linePos = inStr.find("\n", linePos);
+                    else
+                    {
+                        if(inStr[linePos] == '\n')
+                            ++lineNo;
+                        ++linePos;
+                    }
 
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+                    if(linePos >= inStr.size())
+                        break;
+                }
+            }
 
-			return 0;
-		}
+            return 0;
+        }
 		else if(funcName == "lolcat.off")
 		{
 			if(params.size() != 0)

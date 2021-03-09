@@ -2,24 +2,36 @@
 #include <iostream>
 #include <fstream>
 
-std::string string_from_file(const std::string& path)
+std::string f_txt, path;
+std::ifstream ifs;
+
+inline bool string_from_file()
 {
-	std::string s;
-	std::ifstream ifs(path);
-	getline(ifs, s, (char) ifs.eof());
+	ifs.open(path);
+	if(!ifs.is_open())
+		return 0;
+	getline(ifs, f_txt, (char) ifs.eof());
 	ifs.close();
-	return s;	
+	return 1;	
 }
 
 int main(int argc, const char* argv[])
 {
+	ifs.exceptions(std::ios::failbit | std::ios::badbit);
+
 	for(size_t f=1; f<argc; ++f)
 	{
 		int line_no = 1;
 		bool carryLine = 0;
 		int li_count = 0;
 		size_t c2;
-		std::string f_txt = string_from_file(argv[f]);
+
+		path = argv[f];
+		if(!string_from_file())
+		{
+			std::cout << "error: " << argv[f] << ": file does not exist" << std::endl;
+			return 0;
+		}
 		std::ofstream ofs(argv[f]);
 
 		for(size_t c=0; c<f_txt.size(); ++c, ++line_no)

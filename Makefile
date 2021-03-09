@@ -13,9 +13,9 @@ CXXFLAGS+=-std=c++11 -Wall -Wextra -pedantic -O3 -Dexprtk_disable_caseinsensitiv
 LDFLAGS+=-pthread
 
 ifeq ($(OS),Windows_NT) 
-    detected_OS := Windows
+	detected_OS := Windows
 else
-    detected_OS := $(shell sh -c 'uname 2>/dev/null || echo Unknown')
+	detected_OS := $(shell sh -c 'uname 2>/dev/null || echo Unknown')
 endif
 
 ifeq ($(CXX),clang)
@@ -70,51 +70,51 @@ ifeq ($(BUNDLED),0)
 		_BUNDLED_=1
 		WAS_UNBUNDLED=1
 		ifneq ($(LUA_VERSION),)
-    		CXXFLAGS+= -D__BUNDLED__ -D__LUA_VERSION_5_3__
-    		LDFLAGS+= -LLua-5.3/src -llua
-    	else
-    		CXXFLAGS+= -D__BUNDLED__ -D__LUAJIT_VERSION_2_1__
+			CXXFLAGS+= -D__BUNDLED__ -D__LUA_VERSION_5_3__
+			LDFLAGS+= -LLua-5.3/src -llua
+		else
+			CXXFLAGS+= -D__BUNDLED__ -D__LUAJIT_VERSION_2_1__
 			LDFLAGS+= -LLuaJIT/src -llua51
-    	endif
+		endif
 	else ifeq ($(LUA_VERSION),x) 
-	    ifeq ($(detected_OS),FreeBSD)  # FreeBSD
+		ifeq ($(detected_OS),FreeBSD)  # FreeBSD
 			CXXFLAGS+= -D__LUA_VERSION_x__
-	    	LDFLAGS+= -L/usr/local/lib -llua -lm -ldl  
+			LDFLAGS+= -L/usr/local/lib -llua -lm -ldl  
 		else                                # *nix
 			CXXFLAGS+= -D__LUA_VERSION_x__
-	    	LDFLAGS+= -L/usr/local/lib -llua -ldl
+			LDFLAGS+= -L/usr/local/lib -llua -ldl
 		endif
 	else ifeq ($(LUA_VERSION),5.4) 
-	    ifeq ($(detected_OS),FreeBSD)  # FreeBSD
+		ifeq ($(detected_OS),FreeBSD)  # FreeBSD
 			CXXFLAGS+= -D__LUA_VERSION_5_4__
-	    	LDFLAGS+= -L/usr/local/lib -llua-5.4 -lm -ldl  
+			LDFLAGS+= -L/usr/local/lib -llua-5.4 -lm -ldl  
 		else                                # *nix
 			CXXFLAGS+= -D__LUA_VERSION_5_4__
-	    	LDFLAGS+= -L/usr/local/lib -llua-5.4 -ldl
+			LDFLAGS+= -L/usr/local/lib -llua-5.4 -ldl
 		endif
 	else ifeq ($(LUA_VERSION),5.3) 
-	    ifeq ($(detected_OS),FreeBSD)  # FreeBSD
+		ifeq ($(detected_OS),FreeBSD)  # FreeBSD
 			CXXFLAGS+= -D__LUA_VERSION_5_3__
-	    	LDFLAGS+= -L/usr/local/lib -llua-5.3 -lm -ldl  
+			LDFLAGS+= -L/usr/local/lib -llua-5.3 -lm -ldl  
 		else                                # *nix
 			CXXFLAGS+= -D__LUA_VERSION_5_3__
-	    	LDFLAGS+= -L/usr/local/lib -llua-5.3 -ldl
+			LDFLAGS+= -L/usr/local/lib -llua-5.3 -ldl
 		endif
 	else ifeq ($(LUA_VERSION),5.2) 
-	    ifeq ($(detected_OS),FreeBSD)  # FreeBSD
+		ifeq ($(detected_OS),FreeBSD)  # FreeBSD
 			CXXFLAGS+= -D__LUA_VERSION_5_2__
-	    	LDFLAGS+= -L/usr/local/lib -llua-5.2 -lm -ldl  
+			LDFLAGS+= -L/usr/local/lib -llua-5.2 -lm -ldl  
 		else                                # *nix
 			CXXFLAGS+= -D__LUA_VERSION_5_2__
-	    	LDFLAGS+= -L/usr/local/lib -llua-5.2 -ldl
+			LDFLAGS+= -L/usr/local/lib -llua-5.2 -ldl
 		endif
 	else ifeq ($(LUA_VERSION),5.1) 
-	    ifeq ($(detected_OS),FreeBSD)  # FreeBSD
+		ifeq ($(detected_OS),FreeBSD)  # FreeBSD
 			CXXFLAGS+= -D__LUA_VERSION_5_1__
-	    	LDFLAGS+= -L/usr/local/lib -llua-5.1 -lm -ldl  
+			LDFLAGS+= -L/usr/local/lib -llua-5.1 -lm -ldl  
 		else                                # *nix
 			CXXFLAGS+= -D__LUA_VERSION_5_1__
-	    	LDFLAGS+= -L/usr/local/lib -llua-5.1 -ldl
+			LDFLAGS+= -L/usr/local/lib -llua-5.1 -ldl
 		endif
 	else ifeq ($(LUAJIT_VERSION),2.0)
 		ifeq ($(detected_OS),FreeBSD)  # FreeBSD
@@ -137,18 +137,18 @@ else
 	_BUNDLED_=1
 	ifeq ($(LUA_VERSION),5.3) 
 		CXXFLAGS+= -D__BUNDLED__ -D__LUA_VERSION_5_3__
-	    ifeq ($(detected_OS),Windows)  # Windows
-	    	LDFLAGS+= -LLua-5.3/src -llua
-	    	#LDFLAGS+= -LLua-5.3/src -llua
+		ifeq ($(detected_OS),Windows)  # Windows
+			LDFLAGS+= -LLua-5.3/src -llua
+			#LDFLAGS+= -LLua-5.3/src -llua
 		else ifeq ($(detected_OS),FreeBSD)  # FreeBSD
-	    	LDFLAGS+= -LLua-5.3/src -llua -ldl -lm
+			LDFLAGS+= -LLua-5.3/src -llua -ldl -lm
 		else                                # *nix/Vercel
-	    	LDFLAGS+= -LLua-5.3/src -llua -ldl
+			LDFLAGS+= -LLua-5.3/src -llua -ldl
 		endif
 	else
 		CXXFLAGS+= -D__BUNDLED__ -D__LUAJIT_VERSION_2_1__
 		ifeq ($(detected_OS),Windows)  # Windows
-	    	LDFLAGS+= -LLuaJIT/src -llua51
+			LDFLAGS+= -LLuaJIT/src -llua51
 			#LDFLAGS+= -L. -llua51
 		else ifeq ($(detected_OS),FreeBSD)  # FreeBSD
 			LDFLAGS+= ./LuaJIT/src/libluajit.a -ldl -lm
@@ -221,11 +221,11 @@ HashTk.o: hashtk/HashTk.cpp hashtk/HashTk.h
 fix-indenting: 
 ifeq ($(detected_OS),Windows)       # Windows
 	g++ FixIndenting.cpp -o indent-fixer-upperer
-	./indent-fixer-upperer.exe `git ls-files -m *.cpp *.h`
+	./indent-fixer-upperer.exe *.cpp *.h
 	del indent_fixer_upperer.exe
 else                                # *nix
 	g++ FixIndenting.cpp -o indent-fixer-upperer
-	./indent-fixer-upperer `git ls-files -m *.cpp *.h`
+	./indent-fixer-upperer *.cpp *.h
 	rm indent-fixer-upperer
 endif 
 

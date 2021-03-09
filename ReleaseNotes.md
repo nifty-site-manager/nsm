@@ -4,7 +4,11 @@ Nift Release Notes
 
 Version 2.3.13 of Nift
 * added program with makefile option to clean up indenting for source code
+* fixed indenting whitespace for the Makefile
 * patched (ie. reverted `LDFLAGS` to `LINK`) makefile for FreeBSD and Gentoo
+* [TODO] added native support for external lolcat programs using `lolcat.on(lolcat_command)`
+* (breaking change sorry) had to change to $ before grave accent ExprTk expressions so that functionstein works better as a shell extension language, especially for flashell (hopefully not an issue when using Nift with perl or anything else)
+* (breaking change sorry) no longer require @ in front of grave accent ExprTk expressions  
 
 Version 2.3.12 of Nift
 * one liner fix of not reading terminal config string quoted
