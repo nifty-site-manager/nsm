@@ -40,12 +40,13 @@ struct ProjectInfo
 {
 	Directory contentDir,
 	          outputDir;
-	bool backupScripts;
+	bool backupScripts, lolcat;
 	int buildThreads, paginateThreads, incrMode;
 	std::string contentExt,
 	            outputExt,
 	            scriptExt,
 	            terminal,
+	            lolcatCmd,
 	            unixTextEditor,
 	            winTextEditor,
 	            rootBranch,

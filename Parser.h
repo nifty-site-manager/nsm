@@ -341,6 +341,14 @@ struct Parser
 	               int& bLineNo,
 	               const std::string& callType,
 	               std::ostream& eos);
+	int read_block_del(std::string& block,
+	               size_t& linePos,
+	               const std::string& inStr,
+	               const Path& readPath,
+	               int& lineNo,
+	               int& bLineNo,
+	               const std::string& callType,
+	               std::ostream& eos);
 	int read_else_blocks(std::vector<std::string>& conditions,
 	                     std::vector<int>& cLineNos,
 	                     std::vector<std::string>& blocks,

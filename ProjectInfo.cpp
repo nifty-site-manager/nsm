@@ -66,6 +66,9 @@ int create_config_file(const Path& configPath, const std::string& outputExt, boo
 
 	project.backupScripts = 1;
 
+	project.lolcat = 0;
+	project.lolcatCmd = "lolcat-cc -f";
+
 	project.buildThreads = -1;
 	project.paginateThreads = -1;
 
@@ -73,7 +76,7 @@ int create_config_file(const Path& configPath, const std::string& outputExt, boo
 
 	project.terminal = "normal";
 
-	project.unixTextEditor = "nano";
+	project.unixTextEditor = "gedit";
 	project.winTextEditor = "notepad";
 
 	if(!global)
@@ -180,7 +183,7 @@ int ProjectInfo::open_config(const Path& configPath, const bool& global, const b
 
 	if(addMsg)
 	{
-		std::cout << "loading ";
+		std::cout << "opening ";
 		if(global)
 			std::cout << "global ";
 		else
@@ -245,6 +248,10 @@ int ProjectInfo::open_config(const Path& configPath, const bool& global, const b
 				defaultTemplate.read_file_path_from(iss);
 			else if(inType == "backupScripts")
 				iss >> backupScripts;
+			else if(inType == "lolcat")
+				iss >> lolcat;
+			else if(inType == "lolcatCmd")
+				read_quoted(iss, lolcatCmd);
 			else if(inType == "buildThreads")
 				iss >> buildThreads;
 			else if(inType == "paginateThreads")
@@ -536,8 +543,10 @@ int ProjectInfo::save_config(const std::string& configPathStr, const bool& globa
 		ofs << "outputExt " << quote(outputExt) << "\n";
 		ofs << "scriptExt " << quote(scriptExt) << "\n";
 	}
-	ofs << "defaultTemplate " << defaultTemplate << "\n\n";
+	//ofs << "defaultTemplate " << quote(defaultTemplate) << "\n\n";
 	ofs << "backupScripts " << backupScripts << "\n\n";
+	//ofs << "lolcat " << lolcat << "\n\n";
+	//ofs << "lolcatCmd " << quote(lolcatCmd) << "\n\n";
 	ofs << "buildThreads " << buildThreads << "\n\n";
 	ofs << "paginateThreads " << paginateThreads << "\n\n";
 	ofs << "incrementalMode " << incrMode << "\n\n";
@@ -3422,7 +3431,7 @@ void build_progress(const int& no_to_build, const int& addBuildStatus)
 		double cTime = timer.getTime();
 		std::string remStr = int_to_timestr(cTime*(double)total_no_to_build/(double)(cFinished+1) - cTime);
 		size_t cWidth = console_width();
-		//std::cout << "wtf " << cFinished << " " << total_no_to_build << " " << cPhase << std::endl;
+
 		if(19 + 2*no_to_build_length + remStr.size() <= cWidth)
 		{
 			if(cFinished < total_no_to_build)

@@ -192,26 +192,20 @@ int Parser::lolcat_init(const std::string& lolcat_cmd)
                         lolcatCmd = "lolcat-rs";
                     else if(i == 3)
                         lolcatCmd = "lolcat";
-                    else if(i == 4)
+                    else if(i == 4 || i == 5)
                     {
+                    	if(i == 4)
+                    		lolcatCmd = "nift";
+                    	else
+                    		lolcatCmd = "nsm";
+
                         #if defined _WIN32 || defined _WIN64
                             if(using_powershell_colours())
-                                lolcatCmd = "nift lolcat-cc -ps -f";
+                                lolcatCmd += "lolcat-cc -ps -f";
                             else
-                                lolcatCmd = "nift lolcat-cc -f";
+                                lolcatCmd += "lolcat-cc -f";
                         #else
-                            lolcatCmd = "nift lolcat-cc -f";
-                        #endif
-                    }
-                    else if(i == 5)
-                    {
-                        #if defined _WIN32 || defined _WIN64
-                            if(using_powershell_colours())
-                                lolcatCmd = "nsm lolcat-cc -ps -f";
-                            else
-                                lolcatCmd = "nsm lolcat-cc -f";
-                        #else
-                            lolcatCmd = "nsm lolcat-cc -f";
+                            lolcatCmd += "lolcat-cc -f";
                         #endif
                     }
                 }
@@ -1813,7 +1807,10 @@ int Parser::read_and_process_fn(const bool& indent,
 			++++linePos;
 
 			if(inStr[linePos] == '`')
+			{
+				++linePos;
 				doubleQuoted = 1;
+			}
 
 			while(inStr[linePos] != '`')
 			{
@@ -3272,9 +3269,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			{
 				if(b < conditions.size())
 				{
-					if(get_bool(result, conditions[b]))
-					{}
-					else
+					if(!get_bool(result, conditions[b]))
 					{
 						if(conditions[b] != "" && expr.compile(conditions[b]))
 							result = expr.evaluate();
@@ -4468,7 +4463,7 @@ int Parser::read_and_process_fn(const bool& indent,
             {
                 if(!consoleLocked)
                     os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "lolcat.on: expected 0 parameters, got " << params.size() << std::endl;
+                start_err_ml(eos, readPath, sLineNo, lineNo) << "lolcat.on: expected 0-1 parameters, got " << params.size() << std::endl;
                 os_mtx->unlock();
                 return 1;
             }
@@ -13818,17 +13813,17 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			int pos = params[0].find_first_of("nflxc", 0);
+			int pos = params[0].find_first_of("fFnNtTlLeExX", 0);
 
 			if(pos >= 0)
 			{
-				if(params[0][pos] == 'n')
-					return LANG_NPP;
-				else if(params[0][pos] == 'f')
+				if(params[0][pos] == 'f' || params[0][pos] == 'F') 
 					return LANG_FPP;
-				else if(params[0][pos] == 'l')
+				else if(params[0][pos] == 'n' || params[0][pos] == 'N' || params[0][pos] == 't' || params[0][pos] == 'T')
+					return LANG_NPP;
+				else if(params[0][pos] == 'l' || params[0][pos] == 'L')
 					return LANG_LUA;
-				else if(params[0][pos] == 'x' || params[0][pos] == 'e')
+				else if(params[0][pos] == 'e' || params[0][pos] == 'E' || params[0][pos] == 'x' || params[0][pos] == 'X')
 					return LANG_EXPRTK;
 			}
 			else
@@ -13851,13 +13846,13 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			int pos = params[0].find_first_of("si", 0);
+			int pos = params[0].find_first_of("sSiI", 0);
 
 			if(pos >= 0)
 			{
-				if(params[0][pos] == 's')
+				if(params[0][pos] == 's' || params[0][pos] == 'S')
 					return MODE_SHELL;
-				else if(params[0][pos] == 'i')
+				else if(params[0][pos] == 'i' || params[0][pos] == 'I')
 					return MODE_INTERP;
 			}
 			else
@@ -16899,7 +16894,7 @@ int Parser::read_options(std::vector<std::string>& options,
 	return 0;
 }
 
-int Parser::read_block(std::string& block,
+int Parser::read_block_del(std::string& block,
                        size_t& linePos,
                        const std::string& inStr,
                        const Path& readPath,
@@ -17058,6 +17053,199 @@ int Parser::read_block(std::string& block,
 
 		//reads the line of the block
 		for(; linePos < inStr.size() && inStr[linePos] != '\n'; ++linePos)
+		{
+			if(inStr[linePos] == '{')
+				++depth;
+			else if(inStr[linePos] == '}')
+			{
+				if(depth == 1)
+					break;
+				--depth;
+			}
+
+			block += inStr[linePos];
+		}
+
+		if(needsCloseBrace && linePos >= inStr.size())
+		{
+			if(!consoleLocked)
+				os_mtx->lock();
+			start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close } bracket" << std::endl;
+			os_mtx->unlock();
+			return 1;
+		}
+	}
+
+	//throws error if no closing bracket
+	if(needsCloseBrace && inStr[linePos] != '}')
+	{
+		if(!consoleLocked)
+			os_mtx->lock();
+		start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close } bracket" << std::endl;
+		os_mtx->unlock();
+		return 1;
+	}
+
+	++linePos;
+
+	//not sure if this will cause problems anywhere? seems to 'fix' while loops
+	//this should be added now above
+	//block += "\n";
+
+	return 0;
+}
+
+int Parser::read_block(std::string& block,
+                       size_t& linePos,
+                       const std::string& inStr,
+                       const Path& readPath,
+                       int& lineNo,
+                       int& bLineNo,
+                       const std::string& callType,
+                       std::ostream& eos)
+{
+	int sLineNo = lineNo;
+	std::string leadIndenting = "", extraLine;
+	block = "";
+
+	//skips to next non-whitespace
+	while(linePos < inStr.size() && 
+		  (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || 
+		  (inStr[linePos] == '@' && (inStr.substr(linePos, 2) == "@#" || inStr.substr(linePos, 3) == "@//"))))
+	{
+		if(inStr[linePos] == '@')
+		{
+			linePos = inStr.find("\n", linePos);
+			++lineNo;
+			++bLineNo;
+		}
+		else if(inStr[linePos] == '\n')
+		{
+			++lineNo;
+			++bLineNo;
+			block += "\n";
+			leadIndenting = "";
+		}
+		else if(inStr[linePos] == ' ' || inStr[linePos] == '\t')
+		{
+			leadIndenting += inStr[linePos];
+		}
+		
+		++linePos;
+
+		if(linePos >= inStr.size()) //might need something different for blocks without {}
+		{
+			if(!consoleLocked)
+				os_mtx->lock();
+			start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no block" << std::endl;
+			os_mtx->unlock();
+			return 1;
+		}
+	}
+
+	bool needsCloseBrace = 0;
+	int depth = 0;
+	sLineNo = bLineNo = lineNo;
+	if(inStr[linePos] == '{')  //bracketed block
+	{
+		leadIndenting = "";
+		needsCloseBrace = 1;
+		++linePos;
+		++depth;
+
+		//skips to next non-whitespace
+		while(linePos < inStr.size() && 
+			  (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || 
+			  (inStr[linePos] == '@' && (inStr.substr(linePos, 2) == "@#" || inStr.substr(linePos, 3) == "@//"))))
+		{
+			if(inStr[linePos] == '@')
+			{
+				linePos = inStr.find("\n", linePos);
+				++lineNo;
+				++bLineNo;
+			}
+			else if(inStr[linePos] == '\n')
+			{
+				++lineNo;
+				++bLineNo;
+				block += "\n";
+				leadIndenting = "";
+			}
+			else if(inStr[linePos] == ' ' || inStr[linePos] == '\t')
+			{
+				leadIndenting += inStr[linePos];
+			}
+			
+			++linePos;
+
+			if(linePos >= inStr.size()) //might need something different for blocks without {}
+			{
+				if(!consoleLocked)
+					os_mtx->lock();
+				start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no block" << std::endl;
+				os_mtx->unlock();
+				return 1;
+			}
+		}
+	}
+
+	//bLineNo = lineNo;
+
+	//reads the first line of the block
+	for(; inStr[linePos] != '\n'; ++linePos)
+	{
+		if(inStr[linePos] == '{')
+			++depth;
+		else if(inStr[linePos] == '}')
+		{
+			--depth;
+			if(!depth)
+				break;
+		}
+
+		block += inStr[linePos];
+	}
+	//++bLineNo; ++lineNo;
+
+	//reads the rest of block lines
+	while(inStr[linePos] == '\n')
+	{
+		++bLineNo; 
+		++lineNo;
+		++linePos;
+
+		//if(!needsCloseBrace && (linePos >= inStr.size() || inStr[linePos] == '\n' || (inStr[linePos] != ' ' && inStr[linePos] != '\t')))
+		//	break;
+
+		//checks lead indenting
+		for(size_t i=0; i<leadIndenting.size() && linePos < inStr.size(); ++i, ++linePos)
+		{
+			if(inStr[linePos] == '\n')
+				break;
+			else if(needsCloseBrace && inStr[linePos] == '}' && depth == 1)
+			{
+				++linePos;
+				return 0;
+			}
+			else if(inStr[linePos] != leadIndenting[i])
+			{
+				if(!needsCloseBrace)
+					return 0;
+				else
+				{
+					if(!consoleLocked)
+						os_mtx->lock();
+					start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": must use the same leading indenting as the first line of block" << std::endl;
+					os_mtx->unlock();
+					return 1;
+				}
+			}
+		}
+
+		block += '\n';
+
+		//reads the line of the block
+		for(; inStr[linePos] != '\n' && linePos < inStr.size(); ++linePos)
 		{
 			if(inStr[linePos] == '{')
 				++depth;

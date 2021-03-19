@@ -435,7 +435,7 @@ int lolmain(const int& argc, const char* argv[])
 		else if(param == "-v" || param == "-version")
 		{
 			std::stringstream ss;
-			ss << "v1.0.0" << std::endl;
+			ss << "v1.0.1" << std::endl;
 
 			return lolfilter(ss);
 		}

@@ -200,8 +200,8 @@ int main(int argc, const char* argv[])
 	while(cmd.size() && cmd[0] == '-')
 		cmd = cmd.substr(1, cmd.size()-1);
 
-	if(cmd == "lolcat-cc")
-		return lolmain(argc, argv);
+	/*if(cmd == "lolcat-cc")
+		return lolmain(argc, argv);*/ //this is broken
 
 	if(get_pwd() == "/")
 	{
@@ -240,10 +240,10 @@ int main(int argc, const char* argv[])
 
 		return 0;
 	}
-	else if(cmd == "commands")
+	else if(cmd == "commands" || cmd == "cmds")
 	{
 		std::cout << "+--------- available commands ---------------------------------+" << std::endl;
-		std::cout << "| commands          | list all commands                        |" << std::endl;
+		std::cout << "| commands (cmds)   | list all commands                        |" << std::endl;
 		std::cout << "| config            | configure Nift                           |" << std::endl;
 		std::cout << "| clone             | par: clone-url                           |" << std::endl;
 		std::cout << "| diff              | par: file-path                           |" << std::endl;
@@ -273,7 +273,7 @@ int main(int argc, const char* argv[])
 		std::cout << "| interp            | par: (lang-opt)                          |" << std::endl;
 		std::cout << "| sh                | par: (lang-opt)                          |" << std::endl;
 		std::cout << "| build-names       | par: name-1 .. name-k                    |" << std::endl;
-		std::cout << "| build-updated     | build updated output files               |" << std::endl;
+		std::cout << "| build(-updated)   | build updated output files               |" << std::endl;
 		std::cout << "| build-all         | build all tracked output files           |" << std::endl;
 		std::cout << "| serve             | serve project locally par: (sleep-sec)   |" << std::endl;
 		std::cout << "| mve-output-dir    | par: dir-path                            |" << std::endl;
@@ -288,6 +288,8 @@ int main(int argc, const char* argv[])
 		std::cout << "| incr-mode         | par: (mode)                              |" << std::endl;
 		std::cout << "| watch             | par: dir (cont-ext) (template) (out-ext) |" << std::endl;
 		std::cout << "| unwatch           | par: dir (cont-ext)                      |" << std::endl;
+		std::cout << "| lolcat            | par: (options) use when no other lolcat  |" << std::endl;
+		std::cout << "|                   |                installed on machine      |" << std::endl;
 		std::cout << "+--------------------------------------------------------------+" << std::endl;
 
 		return 0;
@@ -307,6 +309,11 @@ int main(int argc, const char* argv[])
 			sysStr += " " + std::string(argv[p]);
 
 		return system(sysStr.c_str());
+	}
+
+	if(cmd == "lolcat" || cmd == "lolcat-cc")
+	{
+		return lolmain(argc, argv);
 	}
 
 	//can delete init-html once we've updated homebrew test
@@ -480,6 +487,11 @@ int main(int argc, const char* argv[])
 					start_err(std::cout) << "config: system('" << editor << " .nsm/nift.config) failed" << std::endl;
 					return ret_val;
 				}
+			}
+			else
+			{
+				unrecognisedCommand(cmd + " " + argv[2]);
+				return 1;	
 			}
 		}
 		else if((noParams == 3 || noParams == 4) && str == "--global")
@@ -801,7 +813,7 @@ int main(int argc, const char* argv[])
 		std::set<TrackedInfo> trackedAll;
 		std::mutex os_mtx;
 
-		ProjectInfo project;
+		ProjectInfo project, globalInfo;
 		if(file_exists(".nsm/nift.config"))
 		{
 			if(project.open_local_config(1))
@@ -824,6 +836,16 @@ int main(int argc, const char* argv[])
 		              project.backupScripts,
 		              project.unixTextEditor,
 		              project.winTextEditor);
+
+		/*if(project.lolcat)
+			if(!parser.lolcat_init(project.lolcatCmd))
+				return NSM_ERR;*/
+
+		if(project.lolcat)
+		{
+			parser.lolcat = parser.lolcatInit = 1;
+			parser.lolcatCmd = project.lolcatCmd;
+		}
 
 		if(cmd == "interp")
 			return parser.interpreter(lang, std::cout);
@@ -957,6 +979,7 @@ int main(int argc, const char* argv[])
 		   cmd != "watch" &&
 		   cmd != "unwatch" &&
 		   cmd != "build-names" &&
+		   cmd != "build" &&
 		   cmd != "build-updated" &&
 		   cmd != "build-all" &&
 		   cmd != "serve")
@@ -2027,7 +2050,7 @@ int main(int argc, const char* argv[])
 
 			return result;
 		}
-		else if(cmd == "build-updated")
+		else if(cmd == "build-updated" || cmd == "build")
 		{
 			//ensures correct number of parameters given
 			if(noParams > 2)

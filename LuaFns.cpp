@@ -508,19 +508,17 @@ int lua_nsm_lang(lua_State* L)
 		std::string langStr = lua_tostring(L, 1);
 		lua_remove(L, 1);
 
-		int pos = langStr.find_first_of("nflexc", 0);
+		int pos = langStr.find_first_of("fFnNtTlLeExX", 0);
 		if(pos >= 0)
 		{
-			if(langStr[pos] == 'n')
-				*nsm_lang = "n++";
-			else if(langStr[pos] == 'f')
+			if(langStr[pos] == 'f' || langStr[pos] == 'F')
 				*nsm_lang = "f++";
-			else if(langStr[pos] == 'l')
+			else if(langStr[pos] == 'n' || langStr[pos] == 'N')
+				*nsm_lang = "n++";
+			else if(langStr[pos] == 'l' || langStr[pos] == 'L')
 				*nsm_lang = "lua";
-			else if(langStr[pos] == 'e' || langStr[pos] == 'x')
+			else if(langStr[pos] == 'e' || langStr[pos] == 'E' || langStr[pos] == 'x' || langStr[pos] == 'X')
 				*nsm_lang = "exprtk";
-			else if(langStr[pos] == 'c')
-				*nsm_lang = "chai";
 
 			lua_pushnumber(L, 1);
 			return 1;
