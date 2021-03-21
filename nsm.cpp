@@ -254,7 +254,6 @@ int main(int argc, const char* argv[])
 		std::cout << "| status            | list updated & problem files             |" << std::endl;
 		std::cout << "| info              | par: name-1 .. name-k                    |" << std::endl;
 		std::cout << "| info-all          | list watched dirs & tracked files        |" << std::endl;
-		std::cout << "| info-config       | list config settings                     |" << std::endl;
 		std::cout << "| info-names        | list tracked names                       |" << std::endl;
 		std::cout << "| info-tracking     | list tracked files                       |" << std::endl;
 		std::cout << "| info-watching     | list watched dirs                        |" << std::endl;
@@ -439,7 +438,7 @@ int main(int argc, const char* argv[])
 
 		return 0;
 	}
-	else if(cmd == "config")
+	else if(cmd == "config" && noParams > 1 && std::string(argv[2]) != "project" && std::string(argv[2]) != "local")
 	{
 		std::string str = argv[2];
 
@@ -462,33 +461,11 @@ int main(int argc, const char* argv[])
 				ret_val = std::system((editor + " " + app_dir() + "/.nift/nift.config").c_str());
 
 				if(ret_val)
-				{
 					start_err(std::cout) << "config: system('" << editor << " " << app_dir() << "/.nift/nift.config) failed" << std::endl;
-					return ret_val;
-				}
+
+				return ret_val;
 			}
-			else if(str == "project")
-			{
-				ProjectInfo project;
-				if(project.open_local_config(1) > 0)
-					return 1;
-
-				std::string editor;
-				#if defined _WIN32 || defined _WIN64
-					editor = project.winTextEditor;
-				#else
-					editor = project.unixTextEditor;
-				#endif
-
-				ret_val = std::system((editor + " .nsm/nift.config").c_str());
-
-				if(ret_val)
-				{
-					start_err(std::cout) << "config: system('" << editor << " .nsm/nift.config) failed" << std::endl;
-					return ret_val;
-				}
-			}
-			else
+			else if(str != "project")
 			{
 				unrecognisedCommand(cmd + " " + argv[2]);
 				return 1;	
@@ -946,12 +923,12 @@ int main(int argc, const char* argv[])
 	{
 		//checks that we have a valid command
 		if(cmd != "bcp" &&
+		   cmd != "config" &&
 		   cmd != "diff" &&
 		   cmd != "pull" &&
 		   cmd != "status" &&
 		   cmd != "info" &&
 		   cmd != "info-all" &&
-		   cmd != "info-config" &&
 		   cmd != "info-names" &&
 		   cmd != "info-tracking" &&
 		   cmd != "info-watching" &&
@@ -1084,34 +1061,21 @@ int main(int argc, const char* argv[])
 			return 1;
 
 		//Nift commands that need project information file open
-		if(cmd == "info-config")
+		if(cmd == "config" && std::string(argv[2]) == "project")
 		{
-			if(project.buildThreads < 0)
-				project.buildThreads = -project.buildThreads*std::thread::hardware_concurrency();
-
-			#if defined __APPLE__ || defined __linux__
-				const std::string configStr = "⚙️  ";
+			std::string editor;
+			#if defined _WIN32 || defined _WIN64
+				editor = project.winTextEditor;
 			#else
-				const std::string configStr = "=> ";
+				editor = project.unixTextEditor;
 			#endif
 
-			std::cout << c_light_blue << configStr << c_white << "project configuration:" << std::endl;
+			ret_val = std::system((editor + " .nsm/nift.config").c_str());
 
-			std::cout << " contentDir: " << quote(project.contentDir) << std::endl;
-			std::cout << " contentExt: " << quote(project.contentExt) << std::endl;
-			std::cout << " outputDir: " << quote(project.outputDir) << std::endl;
-			std::cout << " outputExt: " << quote(project.outputExt) << std::endl;
-			std::cout << " scriptExt: " << quote(project.scriptExt) << std::endl;
-			std::cout << " defaultTemplate: " << project.defaultTemplate << std::endl << std::endl;
-			std::cout << " buildThreads: " << project.buildThreads << std::endl << std::endl;
-			std::cout << " backupScripts: " << project.backupScripts << std::endl << std::endl;
-			std::cout << " incrementalMode: " << project.incrMode << std::endl << std::endl;
-			std::cout << " unixTextEditor: " << quote(project.unixTextEditor) << std::endl;
-			std::cout << " winTextEditor: " << quote(project.winTextEditor) << std::endl << std::endl;
-			std::cout << " rootBranch: " << quote(project.rootBranch) << std::endl;
-			std::cout << " outputBranch: " << quote(project.outputBranch) << std::endl;
+			if(ret_val)
+				start_err(std::cout) << "config: system('" << editor << " .nsm/nift.config) failed" << std::endl;
 
-			return 0;
+			return ret_val;
 		}
 		else if(cmd =="pull")
 		{

@@ -139,148 +139,148 @@ int Parser::lua_addnsmfns()
 
 int Parser::lolcat_init(const std::string& lolcat_cmd)
 {
-    //first tries finding executables in path variables (does **not** work with snaps for example)
-    std::string path = getenv("PATH");
-    std::string pathDir;
-    std::vector<std::string> pathDirs;
-    size_t sLinePos;
+	//first tries finding executables in path variables (does **not** work with snaps for example)
+	std::string path = getenv("PATH");
+	std::string pathDir;
+	std::vector<std::string> pathDirs;
+	size_t sLinePos;
 
-    for(size_t linePos = 0; linePos < path.size(); ++linePos)
-    {
-        sLinePos = linePos;
-        linePos = path.find_first_of(":;", sLinePos);
-        if(linePos == std::string::npos)
-            break;
-        pathDir = path.substr(sLinePos, linePos-sLinePos);
+	for(size_t linePos = 0; linePos < path.size(); ++linePos)
+	{
+		sLinePos = linePos;
+		linePos = path.find_first_of(":;", sLinePos);
+		if(linePos == std::string::npos)
+			break;
+		pathDir = path.substr(sLinePos, linePos-sLinePos);
 
-        if(dir_exists(pathDir))
-            pathDirs.push_back(pathDir);
-    }
+		if(dir_exists(pathDir))
+			pathDirs.push_back(pathDir);
+	}
 
-    std::vector<std::string> lolcatCmds;
-    if(lolcat_cmd == "")
-        lolcatCmds = std::vector<std::string>({"lolcat-cc", "lolcat-c", "lolcat-rs", "lolcat", "nift", "nsm"});
-    else
-        lolcatCmds.push_back(lolcat_cmd);
+	std::vector<std::string> lolcatCmds;
+	if(lolcat_cmd == "")
+		lolcatCmds = std::vector<std::string>({"lolcat-cc", "lolcat-c", "lolcat-rs", "lolcat", "nift", "nsm"});
+	else
+		lolcatCmds.push_back(lolcat_cmd);
 
-    for(size_t i=0; i<lolcatCmds.size(); ++i)
-    {
-        for(size_t p=0; p<pathDirs.size(); ++p)
-        {
-            #if defined _WIN32 || defined _WIN64
-                if(exec_exists(pathDirs[p] + "/" + lolcatCmds[i] + ".exe"))
-            #else
-                if(exec_exists(pathDirs[p] + "/" + lolcatCmds[i]))
-            #endif
-            {
-                if(lolcatCmds.size() > 1)
-                {
-                    if(i == 0)
-                    {
-                        #if defined _WIN32 || defined _WIN64
-                            if(using_powershell_colours())
-                                lolcatCmd = "lolcat-cc -ps -f";
-                            else
-                                lolcatCmd = "lolcat-cc -f";
-                        #else
-                            lolcatCmd = "lolcat-cc -f";
-                        #endif
-                    }
-                    else if(i == 1)
-                        lolcatCmd = "lolcat-c";
-                    else if(i == 2)
-                        lolcatCmd = "lolcat-rs";
-                    else if(i == 3)
-                        lolcatCmd = "lolcat";
-                    else if(i == 4 || i == 5)
-                    {
-                    	if(i == 4)
-                    		lolcatCmd = "nift";
-                    	else
-                    		lolcatCmd = "nsm";
+	for(size_t i=0; i<lolcatCmds.size(); ++i)
+	{
+		for(size_t p=0; p<pathDirs.size(); ++p)
+		{
+			#if defined _WIN32 || defined _WIN64
+				if(exec_exists(pathDirs[p] + "/" + lolcatCmds[i] + ".exe"))
+			#else
+				if(exec_exists(pathDirs[p] + "/" + lolcatCmds[i]))
+			#endif
+			{
+				if(lolcatCmds.size() > 1)
+				{
+					if(i == 0)
+					{
+						#if defined _WIN32 || defined _WIN64
+							if(using_powershell_colours())
+								lolcatCmd = "lolcat-cc -ps -f";
+							else
+								lolcatCmd = "lolcat-cc -f";
+						#else
+							lolcatCmd = "lolcat-cc -f";
+						#endif
+					}
+					else if(i == 1)
+						lolcatCmd = "lolcat-c";
+					else if(i == 2)
+						lolcatCmd = "lolcat-rs";
+					else if(i == 3)
+						lolcatCmd = "lolcat";
+					else if(i == 4 || i == 5)
+					{
+						if(i == 4)
+							lolcatCmd = "nift";
+						else
+							lolcatCmd = "nsm";
 
-                        #if defined _WIN32 || defined _WIN64
-                            if(using_powershell_colours())
-                                lolcatCmd += "lolcat-cc -ps -f";
-                            else
-                                lolcatCmd += "lolcat-cc -f";
-                        #else
-                            lolcatCmd += "lolcat-cc -f";
-                        #endif
-                    }
-                }
+						#if defined _WIN32 || defined _WIN64
+							if(using_powershell_colours())
+								lolcatCmd += "lolcat-cc -ps -f";
+							else
+								lolcatCmd += "lolcat-cc -f";
+						#else
+							lolcatCmd += "lolcat-cc -f";
+						#endif
+					}
+				}
 
-                lolcatInit = 1;
-                return 1;
-            }
-        }
-    }
+				lolcatInit = 1;
+				return 1;
+			}
+		}
+	}
 
-    //tries actually running lolcat programs (eg. works with snaps)
-    std::string lsCmd;
-    #if defined _WIN32 || defined _WIN64
-        lsCmd = "dir | ";
-    #else
-        lsCmd = "ls | ";
-    #endif
+	//tries actually running lolcat programs (eg. works with snaps)
+	std::string lsCmd;
+	#if defined _WIN32 || defined _WIN64
+		lsCmd = "dir | ";
+	#else
+		lsCmd = "ls | ";
+	#endif
 
-    std::string suppressor;
-    #if defined _WIN32 || defined _WIN64
-        suppressor = " >nul 2>&1";
-    #else  //*nix
-        suppressor = " > /dev/null 2>&1";
-    #endif
+	std::string suppressor;
+	#if defined _WIN32 || defined _WIN64
+		suppressor = " >nul 2>&1";
+	#else  //*nix
+		suppressor = " > /dev/null 2>&1";
+	#endif
 
-    if(lolcat_cmd != "")
-    {
-        if(system((lsCmd + lolcat_cmd + suppressor).c_str()))
-            return 0;
-    }
-    else if(!system((lsCmd + "lolcat-cc" + suppressor).c_str()))
-    {
-        #if defined _WIN32 || defined _WIN64
-            if(using_powershell_colours())
-                lolcatCmd = "lolcat-cc -ps -f";
-            else
-                lolcatCmd = "lolcat-cc -f";
-        #else
-            lolcatCmd = "lolcat-cc -f";
-        #endif
-    }
-    else if(!system((lsCmd + "lolcat-c" + suppressor).c_str()))
-        lolcatCmd = "lolcat-c";
-    else if(!system((lsCmd + "lolcat-rs" + suppressor).c_str()))
-        lolcatCmd = "lolcat-rs";
-    else if(!system((lsCmd + "lolcat" + suppressor).c_str()))
-        lolcatCmd = "lolcat";
-    else if(!system((lsCmd + "nift lolcat" + suppressor).c_str()))
-    {
-        #if defined _WIN32 || defined _WIN64
-            if(using_powershell_colours())
-                lolcatCmd = "nift lolcat-cc -ps -f";
-            else
-                lolcatCmd = "nift lolcat-cc -f";
-        #else
-            lolcatCmd = "nift lolcat-cc -f";
-        #endif
-    }
-    else if(!system((lsCmd + "nsm lolcat" + suppressor).c_str()))
-    {
-        #if defined _WIN32 || defined _WIN64
-            if(using_powershell_colours())
-                lolcatCmd = "nsm lolcat-cc -ps -f";
-            else
-                lolcatCmd = "nsm lolcat-cc -f";
-        #else
-            lolcatCmd = "nsm lolcat-cc -f";
-        #endif
-    }
-    else
-        return 0;
+	if(lolcat_cmd != "")
+	{
+		if(system((lsCmd + lolcat_cmd + suppressor).c_str()))
+			return 0;
+	}
+	else if(!system((lsCmd + "lolcat-cc" + suppressor).c_str()))
+	{
+		#if defined _WIN32 || defined _WIN64
+			if(using_powershell_colours())
+				lolcatCmd = "lolcat-cc -ps -f";
+			else
+				lolcatCmd = "lolcat-cc -f";
+		#else
+			lolcatCmd = "lolcat-cc -f";
+		#endif
+	}
+	else if(!system((lsCmd + "lolcat-c" + suppressor).c_str()))
+		lolcatCmd = "lolcat-c";
+	else if(!system((lsCmd + "lolcat-rs" + suppressor).c_str()))
+		lolcatCmd = "lolcat-rs";
+	else if(!system((lsCmd + "lolcat" + suppressor).c_str()))
+		lolcatCmd = "lolcat";
+	else if(!system((lsCmd + "nift lolcat" + suppressor).c_str()))
+	{
+		#if defined _WIN32 || defined _WIN64
+			if(using_powershell_colours())
+				lolcatCmd = "nift lolcat-cc -ps -f";
+			else
+				lolcatCmd = "nift lolcat-cc -f";
+		#else
+			lolcatCmd = "nift lolcat-cc -f";
+		#endif
+	}
+	else if(!system((lsCmd + "nsm lolcat" + suppressor).c_str()))
+	{
+		#if defined _WIN32 || defined _WIN64
+			if(using_powershell_colours())
+				lolcatCmd = "nsm lolcat-cc -ps -f";
+			else
+				lolcatCmd = "nsm lolcat-cc -f";
+		#else
+			lolcatCmd = "nsm lolcat-cc -f";
+		#endif
+	}
+	else
+		return 0;
 
-    lolcatInit = 1;
+	lolcatInit = 1;
 
-    return 1;
+	return 1;
 }
 
 int Parser::run_script(std::ostream& os, const Path& scriptPath, const bool& makeBackup, const bool& outputWhatDoing)
@@ -596,7 +596,20 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 			addPath = 0;
 
 		int netBrackets = 0;
-		result = getline(lang, addPath, '$', lolcat, inLine, 1, tabCompletionStrs);
+		try
+		{
+			result = getline(lang, addPath, '$', lolcat, inLine, 1, tabCompletionStrs);
+		}
+		catch(...)
+		{
+			if(!consoleLocked)
+				os_mtx->lock();
+			std::string modeStr = (mode == MODE_SHELL) ? "shell" : "interpreter";
+			start_err(eos, modeStr) << "getline crashed" << std::endl;
+			os_mtx->unlock();
+			return 1;
+		}
+
 		for(size_t i=0; i<inLine.size(); ++i)
 		{
 			if(inLine[i] == '(' || inLine[i] == '{' || inLine[i] == '[')
@@ -637,43 +650,55 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 
 		indentAmount = "";
 
-		if(lang[0] == 'n')
-			result = n_read_and_process_fast(1, 0, toProcess, 0, emptyPath, antiDepsOfReadPath, parsedText, eos);
-		else if(lang[0] == 'f')
-			result = f_read_and_process_fast(0, toProcess, 0, emptyPath, antiDepsOfReadPath, parsedText, eos);
-		else if(toProcess == "exit" || toProcess == "quit")
-			result = NSM_QUIT;
-		else if(lang[0] == 'e')
+		try
 		{
-			if(!expr.compile(toProcess))
+			if(lang[0] == 'n')
+				result = n_read_and_process_fast(1, 0, toProcess, 0, emptyPath, antiDepsOfReadPath, parsedText, eos);
+			else if(lang[0] == 'f')
+				result = f_read_and_process_fast(0, toProcess, 0, emptyPath, antiDepsOfReadPath, parsedText, eos);
+			else if(toProcess == "exit" || toProcess == "quit")
+				result = NSM_QUIT;
+			else if(lang[0] == 'e')
 			{
-				result = 1;
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err(eos, emptyPath, 1) << c_light_blue << "exprtk" << c_white << ": failed to compile expression" << std::endl;
-				print_exprtk_parser_errs(eos, expr.parser, toProcess, emptyPath, 1);
-				if(!consoleLocked)
+				if(!expr.compile(toProcess))
+				{
+					result = 1;
+					if(!consoleLocked)
+						os_mtx->lock();
+					start_err(eos, emptyPath, 1) << c_light_blue << "exprtk" << c_white << ": failed to compile expression" << std::endl;
+					print_exprtk_parser_errs(eos, expr.parser, toProcess, emptyPath, 1);
+					if(!consoleLocked)
+						os_mtx->unlock();
+				}
+				else
+					result = expr.evaluate();
+			}
+			else if(lang[0] == 'l')
+			{
+				result = luaL_dostring(lua.L, toProcess.c_str());
+
+				if(result)
+				{
+					std::string errStr = lua_tostring(lua.L, -1);
+					lua_remove(lua.L, 1);
+					int errLineNo = 1;
+					process_lua_error(errStr, errLineNo);
+
+					if(!consoleLocked)
+						os_mtx->lock();
+					start_err(eos, emptyPath, errLineNo) << "lua: " << errStr << std::endl;
 					os_mtx->unlock();
+				}
 			}
-			else
-				result = expr.evaluate();
 		}
-		else if(lang[0] == 'l')
+		catch(...)
 		{
-			result = luaL_dostring(lua.L, toProcess.c_str());
-
-			if(result)
-			{
-				std::string errStr = lua_tostring(lua.L, -1);
-				lua_remove(lua.L, 1);
-				int errLineNo = 1;
-				process_lua_error(errStr, errLineNo);
-
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err(eos, emptyPath, errLineNo) << "lua: " << errStr << std::endl;
-				os_mtx->unlock();
-			}
+			if(!consoleLocked)
+				os_mtx->lock();
+			std::string modeStr = (mode == MODE_SHELL) ? "shell" : "interpreter";
+			start_err(eos, modeStr) << "an unknown error occurred" << std::endl;
+			os_mtx->unlock();
+			return 1;
 		}
 
 		if(result == NSM_KILL)
@@ -828,46 +853,57 @@ int Parser::run(const Path& path, char lang, std::ostream& eos)
 	//starts read_and_process from path file
 	int result = 1;
 
-	if(lang == 'n')
-		result = n_read_and_process_fast(1, 0, scriptStr, lineNo-1, path, antiDepsOfReadPath, parsedText, eos);
-	else if(lang == 'f')
-		result = f_read_and_process_fast(0, scriptStr, lineNo-1, path, antiDepsOfReadPath, parsedText, eos);
-	else if(lang == 'l')
+	try
 	{
-		lua.init();
-
-		result = luaL_dostring(lua.L, scriptStr.c_str());
-
-		if(result)
+		if(lang == 'n')
+			result = n_read_and_process_fast(1, 0, scriptStr, lineNo-1, path, antiDepsOfReadPath, parsedText, eos);
+		else if(lang == 'f')
+			result = f_read_and_process_fast(0, scriptStr, lineNo-1, path, antiDepsOfReadPath, parsedText, eos);
+		else if(lang == 'l')
 		{
-			std::string errStr = lua_tostring(lua.L, -1);
-			int errLineNo = lineNo;
-			process_lua_error(errStr, errLineNo);
+			lua.init();
 
-			if(!consoleLocked)
-				os_mtx->lock();
-			start_err(eos, path, errLineNo) << "lua: " << errStr << std::endl;
-			os_mtx->unlock();
-		}
-	}
-	else if(lang == 'x')
-	{
-		std::string strippedScriptStr = scriptStr;
-		strip_surrounding_whitespace_multiline(strippedScriptStr);
-		if(strippedScriptStr != "")
-		{
-			if(!expr.compile(scriptStr))
+			result = luaL_dostring(lua.L, scriptStr.c_str());
+
+			if(result)
 			{
-				result = 1;
+				std::string errStr = lua_tostring(lua.L, -1);
+				int errLineNo = lineNo;
+				process_lua_error(errStr, errLineNo);
+
 				if(!consoleLocked)
 					os_mtx->lock();
-				start_err(eos, path) << "exprtk: failed to compile script" << std::endl;
-				print_exprtk_parser_errs(eos, expr.parser, scriptStr, path, lineNo);
+				start_err(eos, path, errLineNo) << "lua: " << errStr << std::endl;
 				os_mtx->unlock();
 			}
-			else
-				expr.evaluate();
 		}
+		else if(lang == 'x')
+		{
+			std::string strippedScriptStr = scriptStr;
+			strip_surrounding_whitespace_multiline(strippedScriptStr);
+			if(strippedScriptStr != "")
+			{
+				if(!expr.compile(scriptStr))
+				{
+					result = 1;
+					if(!consoleLocked)
+						os_mtx->lock();
+					start_err(eos, path) << "exprtk: failed to compile script" << std::endl;
+					print_exprtk_parser_errs(eos, expr.parser, scriptStr, path, lineNo);
+					os_mtx->unlock();
+				}
+				else
+					expr.evaluate();
+			}
+		}
+	}
+	catch(...)
+	{
+		if(!consoleLocked)
+			os_mtx->lock();
+		start_err(eos, std::string("script")) << "an unknown error occurred" << std::endl;
+		os_mtx->unlock();
+		return 1;
 	}
 
 	/*std::cout << "----" << std::endl;
@@ -1772,12 +1808,23 @@ int Parser::f_read_and_process_fast(const bool& addOutput,
 		}*/
 
 		//int ret_val = read_and_process_fn(0, "", 'f', 1, inStr, lineNo, linePos, readPath, antiDepsOfReadPath, outStr, eos);
-		int ret_val = read_and_process_fn(0, "", 'f', addOutput, inStr, lineNo, linePos, readPath, antiDepsOfReadPath, outStr, eos);
+		try
+		{
+			int ret_val = read_and_process_fn(0, "", 'f', addOutput, inStr, lineNo, linePos, readPath, antiDepsOfReadPath, outStr, eos);
 
-		if(ret_val == NSM_CONT)
-			return 0;
-		else if(ret_val)
-			return ret_val;
+			if(ret_val == NSM_CONT)
+				return 0;
+			else if(ret_val)
+				return ret_val;
+		}
+		catch(...)
+		{
+			if(!consoleLocked)
+				os_mtx->lock();
+			start_err(eos, readPath, lineNo) << "an unknown error occurred" << std::endl;
+			os_mtx->unlock();
+			return 1;
+		}
 	}
 
 	return 0;
@@ -1796,7 +1843,6 @@ int Parser::read_and_process_fn(const bool& indent,
                                 std::ostream& eos)
 {
 	int sLinePos = linePos, sLineNo = lineNo, conditionLineNo;
-
 	if(linePos < inStr.size())
 	{
 		if(linePos + 1 < inStr.size() && inStr[linePos + 1] == '`' && inStr[linePos] == '$') //expression
@@ -3252,6 +3298,15 @@ int Parser::read_and_process_fn(const bool& indent,
 				}
 			}
 
+			if(linePos < inStr.size())
+			{
+				if(!consoleLocked)
+					os_mtx->lock();
+				start_err_ml(eos, readPath, sLineNo, lineNo) << "if: no proceeding block" << std::endl;
+				os_mtx->unlock();
+				return 1;
+			}
+
 			if(read_block(block, linePos, inStr, readPath, lineNo, bLineNo, "if(" + params[0] + ")", eos))
 				return 1;
 
@@ -4458,96 +4513,96 @@ int Parser::read_and_process_fn(const bool& indent,
 			return 0;
 		}
 		else if(funcName == "lolcat.on")
-        {
-            if(params.size() > 1)
-            {
-                if(!consoleLocked)
-                    os_mtx->lock();
-                start_err_ml(eos, readPath, sLineNo, lineNo) << "lolcat.on: expected 0-1 parameters, got " << params.size() << std::endl;
-                os_mtx->unlock();
-                return 1;
-            }
+		{
+			if(params.size() > 1)
+			{
+				if(!consoleLocked)
+					os_mtx->lock();
+				start_err_ml(eos, readPath, sLineNo, lineNo) << "lolcat.on: expected 0-1 parameters, got " << params.size() << std::endl;
+				os_mtx->unlock();
+				return 1;
+			}
 
-            if(lolcat)
-            {
-                if(mode == MODE_INTERP || mode == MODE_SHELL)
-                {
-                    if(!consoleLocked)
-                        os_mtx->lock();
-                    rnbwcout("lolcat already activated\a");
-                    if(!consoleLocked)
-                        os_mtx->unlock();
-                }
+			if(lolcat)
+			{
+				if(mode == MODE_INTERP || mode == MODE_SHELL)
+				{
+					if(!consoleLocked)
+						os_mtx->lock();
+					rnbwcout("lolcat already activated\a");
+					if(!consoleLocked)
+						os_mtx->unlock();
+				}
 
-                return 0;
-            }
+				return 0;
+			}
 
-            if(params.size() == 1)
-                lolcatCmd = params[0];
+			if(params.size() == 1)
+				lolcatCmd = params[0];
 
-            if(!lolcatInit)
-            {
-                if(lolcat_init(lolcatCmd))
-                {
-                    #if defined _WIN32 || defined _WIN64
-                        if(using_powershell_colours())
-                            lolcat_powershell();
-                    #endif
-                    lolcat = 1;
-                }
-                else
-                {
-                    if(!consoleLocked)
-                        os_mtx->lock();
-                    if(params.size() == 1)
-                        start_warn(eos, readPath, sLineNo) << "could not find " << c_blue << lolcatCmd << c_white << " installed on the machine" << std::endl;
-                    else
-                        start_warn(eos, readPath, sLineNo) << "could not find 'lolcat' installed on the machine" << std::endl;
-                    if(!consoleLocked)
-                        os_mtx->unlock();
-                }
-            }
-            else
-            {
-                #if defined _WIN32 || defined _WIN64
-                    if(using_powershell_colours())
-                        lolcat_powershell();
-                #endif
-                lolcat = 1;
-            }
+			if(!lolcatInit)
+			{
+				if(lolcat_init(lolcatCmd))
+				{
+					#if defined _WIN32 || defined _WIN64
+						if(using_powershell_colours())
+							lolcat_powershell();
+					#endif
+					lolcat = 1;
+				}
+				else
+				{
+					if(!consoleLocked)
+						os_mtx->lock();
+					if(params.size() == 1)
+						start_warn(eos, readPath, sLineNo) << "could not find " << c_blue << lolcatCmd << c_white << " installed on the machine" << std::endl;
+					else
+						start_warn(eos, readPath, sLineNo) << "could not find 'lolcat' installed on the machine" << std::endl;
+					if(!consoleLocked)
+						os_mtx->unlock();
+				}
+			}
+			else
+			{
+				#if defined _WIN32 || defined _WIN64
+					if(using_powershell_colours())
+						lolcat_powershell();
+				#endif
+				lolcat = 1;
+			}
 
-            if(lolcat && (mode == MODE_INTERP || mode == MODE_SHELL))
-            {
-                if(!consoleLocked)
-                    os_mtx->lock();
-                rnbwcout("lolcat activated using command " + quote(lolcatCmd));
-                if(!consoleLocked)
-                    os_mtx->unlock();
-            }
+			if(lolcat && (mode == MODE_INTERP || mode == MODE_SHELL))
+			{
+				if(!consoleLocked)
+					os_mtx->lock();
+				rnbwcout("lolcat activated using command " + quote(lolcatCmd));
+				if(!consoleLocked)
+					os_mtx->unlock();
+			}
 
-            if(linePos < inStr.size() && inStr[linePos] == '!')
-                ++linePos;
-            else
-            {
-                //skips to next non-whitespace
-                while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-                {
-                    if(inStr[linePos] == '@')
-                        linePos = inStr.find("\n", linePos);
-                    else
-                    {
-                        if(inStr[linePos] == '\n')
-                            ++lineNo;
-                        ++linePos;
-                    }
+			if(linePos < inStr.size() && inStr[linePos] == '!')
+				++linePos;
+			else
+			{
+				//skips to next non-whitespace
+				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
+				{
+					if(inStr[linePos] == '@')
+						linePos = inStr.find("\n", linePos);
+					else
+					{
+						if(inStr[linePos] == '\n')
+							++lineNo;
+						++linePos;
+					}
 
-                    if(linePos >= inStr.size())
-                        break;
-                }
-            }
+					if(linePos >= inStr.size())
+						break;
+				}
+			}
 
-            return 0;
-        }
+			return 0;
+		}
 		else if(funcName == "lolcat.off")
 		{
 			if(params.size() != 0)
@@ -16894,207 +16949,6 @@ int Parser::read_options(std::vector<std::string>& options,
 	return 0;
 }
 
-int Parser::read_block_del(std::string& block,
-                       size_t& linePos,
-                       const std::string& inStr,
-                       const Path& readPath,
-                       int& lineNo,
-                       int& bLineNo,
-                       const std::string& callType,
-                       std::ostream& eos)
-{
-	int sLineNo = lineNo;
-	std::string leadIndenting = "", extraLine;
-	block = "";
-
-	//skips to next non-whitespace
-	/*while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-	{
-		if(inStr[linePos] == '@')
-			linePos = inStr.find("\n", linePos);
-		else
-		{
-			if(inStr[linePos] == '\n')
-				++lineNo;
-			++linePos;
-		}
-
-		if(linePos >= inStr.size())
-		{
-			if(!consoleLocked)
-				os_mtx->lock();
-			start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no block" << std::endl;
-			os_mtx->unlock();
-			return 1;
-		}
-	}*/
-
-	//skips to next non-whitespace
-	while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-	{
-		if(inStr[linePos] == '@')
-			linePos = inStr.find("\n", linePos);
-		else
-		{
-			if(inStr[linePos] == '\n')
-			{
-				if(lineNo == sLineNo)
-					++bLineNo;
-				else
-					block += "\n";
-				leadIndenting = "";
-				++lineNo;
-				
-			}
-			else if(inStr[linePos] == ' ' || inStr[linePos] == '\t')
-				leadIndenting += inStr[linePos];
-			++linePos;
-		}
-
-		if(linePos >= inStr.size())
-		{
-			if(!consoleLocked)
-				os_mtx->lock();
-			start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no block" << std::endl;
-			os_mtx->unlock();
-			return 1;
-		}
-	}
-
-	bool needsCloseBrace = 0;
-	int depth = 1;
-	sLineNo = bLineNo = lineNo;
-	if(inStr[linePos] == '{')  //bracketed block
-	{
-		leadIndenting = "";
-		needsCloseBrace = 1;
-		++linePos;
-
-		//skips to next non-whitespace
-		while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-		{
-			if(inStr[linePos] == '@')
-				linePos = inStr.find("\n", linePos);
-			else
-			{
-				if(inStr[linePos] == '\n')
-				{
-					if(lineNo == sLineNo)
-						++bLineNo;
-					else
-						block += "\n";
-					leadIndenting = "";
-					++lineNo;
-					
-				}
-				else if(inStr[linePos] == ' ' || inStr[linePos] == '\t')
-					leadIndenting += inStr[linePos];
-				++linePos;
-			}
-
-			if(linePos >= inStr.size())
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no block" << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-		}
-	}
-
-	//bLineNo = lineNo;
-
-	//reads the first line of the block
-	for(; inStr[linePos] != '\n'; ++linePos)
-	{
-		if(inStr[linePos] == '{')
-			++depth;
-		else if(inStr[linePos] == '}')
-		{
-			if(depth == 1)
-				break;
-			--depth;
-		}
-
-		block += inStr[linePos];
-	}
-
-	//reads the rest of block lines
-	while(inStr[linePos] == '\n')
-	{
-		++linePos;
-		++lineNo;
-
-		if(!needsCloseBrace && (linePos >= inStr.size() || inStr[linePos] == '\n' || (inStr[linePos] != ' ' && inStr[linePos] != '\t')))
-			break;
-
-		//checks lead indenting
-		for(size_t i=0; i<leadIndenting.size() && linePos < inStr.size(); ++i, ++linePos)
-		{
-			if(inStr[linePos] == '\n')
-				break;
-			else if(inStr[linePos] == '}' && depth == 1)
-				break;
-			else if(inStr[linePos] != leadIndenting[i])
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": must use the same leading indenting as the first line of block" << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-		}
-
-		if(inStr[linePos] == '}' && depth == 1)
-			break;
-
-		block += '\n';
-
-		//reads the line of the block
-		for(; linePos < inStr.size() && inStr[linePos] != '\n'; ++linePos)
-		{
-			if(inStr[linePos] == '{')
-				++depth;
-			else if(inStr[linePos] == '}')
-			{
-				if(depth == 1)
-					break;
-				--depth;
-			}
-
-			block += inStr[linePos];
-		}
-
-		if(needsCloseBrace && linePos >= inStr.size())
-		{
-			if(!consoleLocked)
-				os_mtx->lock();
-			start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close } bracket" << std::endl;
-			os_mtx->unlock();
-			return 1;
-		}
-	}
-
-	//throws error if no closing bracket
-	if(needsCloseBrace && inStr[linePos] != '}')
-	{
-		if(!consoleLocked)
-			os_mtx->lock();
-		start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close } bracket" << std::endl;
-		os_mtx->unlock();
-		return 1;
-	}
-
-	++linePos;
-
-	//not sure if this will cause problems anywhere? seems to 'fix' while loops
-	//this should be added now above
-	//block += "\n";
-
-	return 0;
-}
-
 int Parser::read_block(std::string& block,
                        size_t& linePos,
                        const std::string& inStr,
@@ -17107,6 +16961,15 @@ int Parser::read_block(std::string& block,
 	int sLineNo = lineNo;
 	std::string leadIndenting = "", extraLine;
 	block = "";
+
+	if(linePos >= inStr.size())
+	{
+		if(!consoleLocked)
+			os_mtx->lock();
+		start_err(eos, readPath, lineNo) << "no block to read" << std::endl;
+		os_mtx->unlock();
+		return 1;
+	}
 
 	//skips to next non-whitespace
 	while(linePos < inStr.size() && 
@@ -17303,6 +17166,15 @@ int Parser::read_else_blocks(std::vector<std::string>& conditions,
 	std::string block, condition, extraLine;
 	std::vector<std::string> params;
 	int bLineNo;
+
+	if(linePos >= inStr.size())
+	{
+		if(!consoleLocked)
+			os_mtx->lock();
+		start_err(eos, readPath, lineNo) << "no else blocks to read" << std::endl;
+		os_mtx->unlock();
+		return 1;
+	}
 
 	while(1)
 	{

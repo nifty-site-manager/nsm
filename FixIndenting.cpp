@@ -1,3 +1,21 @@
+/*
+	Program to ensure leading indenting is tabs when an editor messes that up
+
+	WARNING: make a copy of your codebase before using this code to clean up the
+	         leading indenting in case it wreaks havoc on your codebase.
+
+	         ---> USE AT YOUR OWN RISK! <---
+
+	example usage: 
+		g++ FixIndenting.cpp -o FixIndenting; ./FixIndenting *.cc *.cpp *.h
+
+	You can also set up `make fix-indenting` as is done in the Nift Makefile
+
+	Copyright (c) 2015-present
+	Creator: Nicholas Ham
+	https://n-ham.com
+*/
+
 #include <cstdio>
 #include <iostream>
 #include <fstream>
@@ -74,7 +92,7 @@ int main(int argc, const char* argv[])
 			c = c2;
 			if(c > 0 && f_txt[c-1] == ' ')
 				--c2;
-			carryLine = ((c2 > 0 && f_txt[c2-1] == ',') || 
+			carryLine = ((c2 > 0 && (f_txt[c2-1] == ',' || f_txt[c2-1] == '\\')) || 
 			             (c2 > 1 && (f_txt.substr(c2-2, 2) == "&&" || f_txt.substr(c2-2, 2) == "||")));
 		}
 

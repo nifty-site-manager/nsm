@@ -183,7 +183,7 @@ int ProjectInfo::open_config(const Path& configPath, const bool& global, const b
 
 	if(addMsg)
 	{
-		std::cout << "opening ";
+		std::cout << "loading ";
 		if(global)
 			std::cout << "global ";
 		else
@@ -359,6 +359,17 @@ int ProjectInfo::open_config(const Path& configPath, const bool& global, const b
 		start_warn(std::cout, configPath) << "number of paginate threads not detected or invalid, set to default of -1 (number of cores)" << std::endl;
 
 		paginateThreads = -1;
+
+		configChanged = 1;
+	}
+
+	if(lolcatCmd.size() == 0)
+	{
+		start_warn(std::cout, configPath) << "no config detected for whether to use lolcat output by default" << std::endl;
+
+		lolcat = 0;
+		
+		lolcatCmd = "nift lolcat -f";
 
 		configChanged = 1;
 	}
@@ -545,8 +556,8 @@ int ProjectInfo::save_config(const std::string& configPathStr, const bool& globa
 	}
 	//ofs << "defaultTemplate " << quote(defaultTemplate) << "\n\n";
 	ofs << "backupScripts " << backupScripts << "\n\n";
-	//ofs << "lolcat " << lolcat << "\n\n";
-	//ofs << "lolcatCmd " << quote(lolcatCmd) << "\n\n";
+	ofs << "lolcat " << lolcat << "\n\n";
+	ofs << "lolcatCmd " << quote(lolcatCmd) << "\n\n";
 	ofs << "buildThreads " << buildThreads << "\n\n";
 	ofs << "paginateThreads " << paginateThreads << "\n\n";
 	ofs << "incrementalMode " << incrMode << "\n\n";

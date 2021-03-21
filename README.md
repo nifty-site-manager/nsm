@@ -1,4 +1,4 @@
-# Nift
+# Nift 🐰⚡🦡
 
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](/LICENSE)
 [![source code](https://img.shields.io/github/languages/code-size/nifty-site-manager/nsm.svg?label=Source%20Code)](https://www.github.com/nifty-site-manager/nsm)
