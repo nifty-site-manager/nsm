@@ -389,16 +389,6 @@ int main(int argc, const char* argv[])
 		}
 
 		//sets up
-		Path trackingListPath(".nsm/", "tracking.list");
-		//ensures tracking list file exists
-		trackingListPath.ensureFileExists();
-
-		#if defined _WIN32 || defined _WIN64
-			ret_val = system("attrib +h .nsm");
-
-			//if handling error here need to check what happens in all of cmd prompt/power shell/git bash/cygwin/etc.
-		#endif
-
 		std::string outputExt;
 
 		if(noParams == 1)
@@ -412,7 +402,17 @@ int main(int argc, const char* argv[])
 			}
 
 			outputExt = argv[2];
-		}            
+		}
+
+		Path trackingListPath(".nsm/", "tracking.list");
+		//ensures tracking list file exists
+		trackingListPath.ensureFileExists();
+
+		#if defined _WIN32 || defined _WIN64
+			ret_val = system("attrib +h .nsm");
+
+			//if handling error here need to check what happens in all of cmd prompt/power shell/git bash/cygwin/etc.
+		#endif
 
 		Path configPath(".nsm/", "nift.config");
 		create_config_file(configPath, outputExt, 0);
@@ -428,7 +428,7 @@ int main(int argc, const char* argv[])
 
 			Name name = "index";
 			Title title = get_title(name);
-			project.track(name, title, project.defaultTemplate);
+			project.track(name, title, templatePath);
 			project.build_all(std::cout, 0);
 		}
 		else
@@ -2172,7 +2172,7 @@ int main(int argc, const char* argv[])
 					result = project.status(std::cout, 0, 0, 0);
 				else
 				{
-					start_err(std::cout) << "do not recognise build-updated option " << quote(argv[2]) << std::endl;
+					start_err(std::cout) << "do not recognise status option " << quote(argv[2]) << std::endl;
 					return 1;
 				}
 			}
@@ -2182,7 +2182,7 @@ int main(int argc, const char* argv[])
 
 			return result;
 		}
-		else if(cmd == "build-updated" || (cmd == "build" && !noParams))
+		else if(cmd == "build-updated" || cmd == "build")
 		{
 			//ensures correct number of parameters given
 			if(noParams > 2)

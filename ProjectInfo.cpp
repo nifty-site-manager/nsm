@@ -554,7 +554,7 @@ int ProjectInfo::save_config(const std::string& configPathStr, const bool& globa
 		ofs << "outputExt " << quote(outputExt) << "\n";
 		ofs << "scriptExt " << quote(scriptExt) << "\n";
 	}
-	//ofs << "defaultTemplate " << quote(defaultTemplate) << "\n\n";
+	ofs << "defaultTemplate " << quote(defaultTemplate.str()) << "\n\n";
 	ofs << "backupScripts " << backupScripts << "\n\n";
 	ofs << "lolcat " << lolcat << "\n\n";
 	ofs << "lolcatCmd " << quote(lolcatCmd) << "\n\n";
@@ -1031,18 +1031,18 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
 {
 	if(name.find('.') != std::string::npos)
 	{
-		start_err(std::cout) << "names cannot contain '.'" << std::endl;
+		start_err(std::cout, std::string("track")) << "names cannot contain '.'" << std::endl;
 		std::cout << c_light_blue << "note: " << c_white << "you can add post-build scripts to move built/output files to paths containing . other than for extensions if you want" << std::endl;
 		return 1;
 	}
-	else if(name == "" || title.str == "")
+	else if(name == "" || title.str == "" || templatePath.str() == "")
 	{
-		start_err(std::cout) << "name and title must all be non-empty strings" << std::endl;
+		start_err(std::cout, std::string("track")) << "name, title and template path must all be non-empty strings" << std::endl;
 		return 1;
 	}
 	if(unquote(name)[unquote(name).size()-1] == '/' || unquote(name)[unquote(name).size()-1] == '\\')
 	{
-		start_err(std::cout) << "name " << quote(name) << " cannot end in '/' or '\\'" << std::endl;
+		start_err(std::cout, std::string("track")) << "name " << quote(name) << " cannot end in '/' or '\\'" << std::endl;
 		return 1;
 	}
 	else if(
@@ -1051,7 +1051,7 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
 				(unquote(templatePath.str()).find('"') != std::string::npos && unquote(templatePath.str()).find('\'') != std::string::npos)
 			)
 	{
-		start_err(std::cout) << "name, title and template path cannot contain both single and double quotes" << std::endl;
+		start_err(std::cout, std::string("track")) << "name, title and template path cannot contain both single and double quotes" << std::endl;
 		return 1;
 	}
 
@@ -1059,7 +1059,7 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
 
 	if(newInfo.contentPath == newInfo.templatePath)
 	{
-		start_err(std::cout) << "content and template paths cannot be the same, not tracked" << std::endl;
+		start_err(std::cout, std::string("track")) << "content and template paths cannot be the same, not tracked" << std::endl;
 		return 1;
 	}
 
@@ -1067,7 +1067,7 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
 	{
 		TrackedInfo cInfo = *(trackedAll.find(newInfo));
 
-		start_err(std::cout) << "Nift is already tracking " << newInfo.outputPath << std::endl;
+		start_err(std::cout, std::string("track")) << "Nift is already tracking " << newInfo.outputPath << std::endl;
 		std::cout << c_light_blue << promptStr << c_white << "current tracked details:" << std::endl;
 		std::cout << "        title: " << cInfo.title << std::endl;
 		std::cout << "  output path: " << cInfo.outputPath << std::endl;
@@ -1077,12 +1077,8 @@ int ProjectInfo::track(const Name& name, const Title& title, const Path& templat
 		return 1;
 	}
 
-	bool blankTemplate = 0;
-	if(newInfo.templatePath.str() == "")
-		blankTemplate = 1;
-
 	//throws error if template path doesn't exist
-	if(!blankTemplate && !file_exists(newInfo.templatePath.str()))
+	if(!file_exists(newInfo.templatePath.str()))
 	{
 		start_err(std::cout) << "template path " << newInfo.templatePath << " does not exist" << std::endl;
 		return 1;
@@ -4220,6 +4216,8 @@ int ProjectInfo::build_updated(std::ostream& os, const int& addBuildStatus, cons
 		no_threads = -buildThreads*std::thread::hardware_concurrency();
 	else
 		no_threads = buildThreads;
+
+	//no_threads = std::min(no_threads, int(trackedAll.size()));
 
 	int no_paginate_threads;
 	if(paginateThreads < 0)

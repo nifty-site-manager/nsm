@@ -2,6 +2,9 @@
 Nift Release Notes
 ------------------
 
+Version 2.4.2 of Nift
+* fixed some rather embarrassing bugs for initialising projects
+
 Version 2.4.1 of Nift
 * added duplicate Nift commands edit/open for opening files from page names
 * added duplicate Nift commands medit/mopen for opening files for a specific page name from mirror directories
