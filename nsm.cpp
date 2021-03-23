@@ -243,12 +243,13 @@ int main(int argc, const char* argv[])
 	else if(cmd == "commands" || cmd == "cmds")
 	{
 		std::cout << "+--------- available commands ---------------------------------+" << std::endl;
-		std::cout << "| commands (cmds)   | list all commands                        |" << std::endl;
+		std::cout << "| commands or cmds  | list all commands                        |" << std::endl;
 		std::cout << "| config            | configure Nift                           |" << std::endl;
 		std::cout << "| clone             | par: clone-url                           |" << std::endl;
 		std::cout << "| diff              | par: file-path                           |" << std::endl;
 		std::cout << "| pull              | pull remote changes locally              |" << std::endl;
 		std::cout << "| bcp               | par: commit-message                      |" << std::endl;
+		std::cout << "| mbcp              | par: dir-1 .. dir-k commit-message       |" << std::endl;
 		std::cout << "| init              | start managing project - par: (out-ext)  |" << std::endl;
 		std::cout << "| init-html         | start managing html website              |" << std::endl;
 		std::cout << "| status            | list updated & problem files             |" << std::endl;
@@ -287,8 +288,10 @@ int main(int argc, const char* argv[])
 		std::cout << "| incr-mode         | par: (mode)                              |" << std::endl;
 		std::cout << "| watch             | par: dir (cont-ext) (template) (out-ext) |" << std::endl;
 		std::cout << "| unwatch           | par: dir (cont-ext)                      |" << std::endl;
-		std::cout << "| lolcat            | par: (options) use when no other lolcat  |" << std::endl;
-		std::cout << "|                   |                installed on machine      |" << std::endl;
+		std::cout << "| edit or open      | par: name-1 .. name-k                    |" << std::endl;
+		std::cout << "| medit or mopen    | par: dir-1 .. dir-k name                 |" << std::endl;
+		std::cout << "| lolcat            | par: (options) used when no other lolcat |" << std::endl;
+		std::cout << "|                   |                versions are installed    |" << std::endl;
 		std::cout << "+--------------------------------------------------------------+" << std::endl;
 
 		return 0;
@@ -438,7 +441,7 @@ int main(int argc, const char* argv[])
 
 		return 0;
 	}
-	else if(cmd == "config" && noParams > 1 && std::string(argv[2]) != "project" && std::string(argv[2]) != "local")
+	else if(cmd == "config" && noParams > 1 && std::string(argv[2]) != "project")
 	{
 		std::string str = argv[2];
 
@@ -829,7 +832,128 @@ int main(int argc, const char* argv[])
 		else
 			return parser.shell(lang, std::cout);
 	}
-	else if(cmd.substr(0, 3) == "run")
+	else if(cmd == "medit" || cmd == "mopen")
+	{
+		//ensures correct number of parameters given
+		if(noParams < 3)
+			return parError(noParams, argv, "3");
+
+		ProjectInfo project;
+		std::string editor, 
+		            c_path,
+		            name = argv[noParams],
+		            paths_str;
+
+		for(int p=2; p<noParams; ++p)
+		{
+			if(!dir_exists(argv[p]))
+			{
+				start_err(std::cout, std::string(argv[p])) << "directory does not exist" << std::endl;
+				return 1;
+			}
+
+			if(chdir(argv[p]))
+			{
+				start_err(std::cout) << "failed to change directory from " << get_pwd() << " to " << argv[p] << std::endl;
+				return 1;
+			}
+
+			if(project.open_local_config(0) || project.open_tracking(0))
+				return 1;
+
+			if(p == 2)
+			{
+				#if defined _WIN32 || defined _WIN64
+					editor = project.winTextEditor;
+				#else
+					editor = project.unixTextEditor;
+				#endif
+			}
+
+			if(!project.tracking(name))
+			{
+				start_err(std::cout) << "pagename " << name << " not tracked by project in " << argv[p] << std::endl;
+				return 1;
+			}
+			
+			paths_str += " " + std::string(argv[p]) + "/" + project.contentDir + name + project.contentExt;
+
+			project.trackedAll.clear();
+
+			if(chdir("../"))
+			{
+				start_err(std::cout) << "failed to change to parent directory from " << get_pwd() << std::endl;
+				return 1;
+			}
+		}
+
+		ret_val = std::system((editor + paths_str).c_str());
+
+		if(ret_val)
+			start_err(std::cout, std::string(argv[1])) << "system(\"" << editor << paths_str << "\") failed" << std::endl;
+
+		return ret_val;
+	}
+	else if(cmd == "mbcp")
+	{
+		//ensures correct number of parameters given
+		if(noParams < 3)
+			return parError(noParams, argv, "3");
+
+		ProjectInfo project;
+
+		for(int p=2; p<noParams; ++p)
+		{
+			if(!dir_exists(argv[p]))
+			{
+				start_err(std::cout, std::string(argv[p])) << "directory does not exist" << std::endl;
+				return 1;
+			}
+
+			if(chdir(argv[p]))
+			{
+				start_err(std::cout) << "failed to change directory from " << get_pwd() << " to " << argv[p] << std::endl;
+				return 1;
+			}
+
+			project.trackedAll.clear();
+
+			if(project.open_local_config(0) || project.open_tracking(0))
+				return 1;
+
+			if(chdir("../"))
+			{
+				start_err(std::cout) << "failed to change to parent directory from " << get_pwd() << std::endl;
+				return 1;
+			}
+		}
+
+		for(int p=2; p<noParams; ++p)
+		{
+			if(chdir(argv[p]))
+			{
+				start_err(std::cout) << "failed to change directory from " << get_pwd() << " to " << argv[p] << std::endl;
+				return 1;
+			}
+
+			ret_val = std::system((std::string(argv[0]) + " bcp " + quote(std::string(argv[noParams]))).c_str());
+
+			if(ret_val)
+			{
+				start_err(std::cout, std::string(argv[1])) << " system(\"" << argv[0] << " bcp " << quote(std::string(argv[noParams])) << "\") failed" << std::endl; 
+				return ret_val;
+			}
+
+			if(chdir("../"))
+			{
+				start_err(std::cout) << "failed to change to parent directory from " << get_pwd() << std::endl;
+				return 1;
+			}
+		}
+
+		return ret_val;
+	}
+	else if(cmd == "run")
 	{
 		//ensures correct number of parameters given
 		if(noParams != 2 && noParams != 3)
@@ -925,6 +1049,7 @@ int main(int argc, const char* argv[])
 		if(cmd != "bcp" &&
 		   cmd != "config" &&
 		   cmd != "diff" &&
+		   cmd != "edit" &&
 		   cmd != "pull" &&
 		   cmd != "status" &&
 		   cmd != "info" &&
@@ -933,6 +1058,7 @@ int main(int argc, const char* argv[])
 		   cmd != "info-tracking" &&
 		   cmd != "info-watching" &&
 		   cmd != "incr-mode" &&
+		   cmd != "open" &&
 		   cmd != "track" &&
 		   cmd != "track-from-file" &&
 		   cmd != "track-dir" &&
@@ -1061,8 +1187,19 @@ int main(int argc, const char* argv[])
 			return 1;
 
 		//Nift commands that need project information file open
-		if(cmd == "config" && std::string(argv[2]) == "project")
+		if(cmd == "config")
 		{
+			if(noParams != 2)
+			{
+				return parError(noParams, argv, "2");
+				return 1;
+			}
+			else if(std::string(argv[2]) != "project")
+			{
+				start_err(std::cout) << "do not have a config file for " << c_blue << argv[2] << c_white << std::endl;
+				return 1;
+			}
+
 			std::string editor;
 			#if defined _WIN32 || defined _WIN64
 				editor = project.winTextEditor;
@@ -1073,7 +1210,7 @@ int main(int argc, const char* argv[])
 			ret_val = std::system((editor + " .nsm/nift.config").c_str());
 
 			if(ret_val)
-				start_err(std::cout) << "config: system('" << editor << " .nsm/nift.config) failed" << std::endl;
+				start_err(std::cout) << "config: system(\"" << editor << " .nsm/nift.config\") failed" << std::endl;
 
 			return ret_val;
 		}
@@ -1594,6 +1731,37 @@ int main(int argc, const char* argv[])
 
 			return 0;
 		}
+		if(cmd == "edit" || cmd == "open")
+		{
+			//ensures correct number of parameters given
+			if(noParams < 2)
+				return parError(noParams, argv, ">1");
+
+			std::string editor, paths_str;
+			#if defined _WIN32 || defined _WIN64
+				editor = project.winTextEditor;
+			#else
+				editor = project.unixTextEditor;
+			#endif
+
+			for(int p=2; p<argc; ++p)
+			{
+				if(!project.tracking(argv[p]))
+				{
+					start_err(std::cout, std::string(argv[p])) << "is not tracked by the current project" << std::endl;
+					return 1;
+				}
+				else
+					paths_str += " " + project.contentDir + argv[p] + project.contentExt;
+			}
+
+			ret_val = std::system((editor + paths_str).c_str());
+
+			if(ret_val)
+				start_err(std::cout, std::string(argv[1])) << "system(\"" << editor << paths_str << "\") failed" << std::endl;
+
+			return ret_val;
+		}
 		else if(cmd == "info")
 		{
 			//ensures correct number of parameters given
@@ -1601,7 +1769,7 @@ int main(int argc, const char* argv[])
 				return parError(noParams, argv, ">1");
 
 			std::vector<Name> names;
-			for(int p=2; p<argc; p++)
+			for(int p=2; p<argc; ++p)
 				names.push_back(argv[p]);
 			return project.info(names);
 		}
@@ -2014,7 +2182,7 @@ int main(int argc, const char* argv[])
 
 			return result;
 		}
-		else if(cmd == "build-updated" || cmd == "build")
+		else if(cmd == "build-updated" || (cmd == "build" && !noParams))
 		{
 			//ensures correct number of parameters given
 			if(noParams > 2)

@@ -2,12 +2,16 @@
 Nift Release Notes
 ------------------
 
+Version 2.4.1 of Nift
+* added duplicate Nift commands edit/open for opening files from page names
+* added duplicate Nift commands medit/mopen for opening files for a specific page name from mirror directories
+* added Nift command mbcp for running build-commit-push on multiple mirrors
+
 Version 2.4.0 of Nift
 * added some general 'unknown error' try-catch blocks to help avoid REPL sessions fully crashing
-* made a few alterations to `FixIndenting.cpp` including a sterm "use at your own risk" warning.
+* made a few alterations to `FixIndenting.cpp` including a stern "use at your own risk" warning
 * fixed a bunch of bugs and added a few try-catch blocks to catch unknown bugs without crashing
 * removed `info-config` command (can now use Nift to open the config files!)
-
 
 Version 2.3.13 of Nift
 * added program with makefile option to clean up indenting for source code
