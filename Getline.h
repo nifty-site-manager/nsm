@@ -35,7 +35,7 @@ int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd);
 int getline(const std::string& lang,
             const bool& addPwd, 
             const char& promptCh, 
-	        const int& lolcat,
+	        const int& lolcatActive,
             std::string& str, 
             bool trackLines, 
             const std::vector<std::string>& tabCompletionStrs);

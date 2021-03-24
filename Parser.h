@@ -42,7 +42,7 @@ struct Parser
 	bool contentAdded;
 	std::string parsedText;
 	int mode;
-	bool lolcat, lolcatInit;
+	bool lolcatActive, lolcatInit;
 	std::string lolcatCmd;
 	std::set<Path> depFiles, includedFiles;
 	std::istringstream dummy_iss;

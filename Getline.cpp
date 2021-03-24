@@ -115,7 +115,7 @@ int rnbwcout(const std::set<std::string>& strs)
 	int getline(const std::string& lang,
 	            const bool& addPwd, 
 	            const char& promptCh, 
-	            const int& lolcat,
+	            const int& lolcatActive,
 	            std::string& str, 
 	            bool trackLines, 
 	            const std::vector<std::string>& tabCompletionStrs)
@@ -266,7 +266,7 @@ int rnbwcout(const std::set<std::string>& strs)
 						if(foundStr == "" && paths.size() != 1)
 						{
 							std::cout << "\n";
-							if(lolcat)
+							if(lolcatActive)
 								rnbwcout(paths);
 							else
 							{
@@ -324,7 +324,7 @@ int rnbwcout(const std::set<std::string>& strs)
 						if(programs.size() != 1)
 						{
 							std::cout << "\n";
-							if(lolcat)
+							if(lolcatActive)
 								rnbwcout(programs);
 							else
 							{
@@ -598,7 +598,7 @@ int rnbwcout(const std::set<std::string>& strs)
 	int getline(const std::string& lang, 
 	            const bool& addPwd, 
 	            const char& promptCh, 
-	            const int& lolcat,
+	            const int& lolcatActive,
 	            std::string& str, 
 	            bool trackLines, 
 	            const std::vector<std::string>& tabCompletionStrs)
@@ -755,7 +755,7 @@ int rnbwcout(const std::set<std::string>& strs)
 						if(foundStr == "" && paths.size() != 1)
 						{
 							std::cout << "\n";
-							if(lolcat)
+							if(lolcatActive)
 								rnbwcout(paths);
 							else
 							{
@@ -813,7 +813,7 @@ int rnbwcout(const std::set<std::string>& strs)
 						if(programs.size() != 1)
 						{
 							std::cout << "\n";
-							if(lolcat)
+							if(lolcatActive)
 								rnbwcout(programs);
 							else
 							{

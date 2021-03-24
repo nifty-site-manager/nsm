@@ -40,7 +40,7 @@ struct ProjectInfo
 {
 	Directory contentDir,
 	          outputDir;
-	bool backupScripts, lolcat;
+	bool backupScripts, lolcatDefault;
 	int buildThreads, paginateThreads, incrMode;
 	std::string contentExt,
 	            outputExt,

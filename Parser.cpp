@@ -52,7 +52,7 @@ Parser::Parser(std::set<TrackedInfo>* TrackedAll,
 	winTextEditor = WinTextEditor;
 
 	mode = -1;
-	lolcat = lolcatInit = 0;
+	lolcatActive = lolcatInit = 0;
 
 	//lua.init(); //don't want this done always
 
@@ -159,7 +159,7 @@ int Parser::lolcat_init(const std::string& lolcat_cmd)
 
 	std::vector<std::string> lolcatCmds;
 	if(lolcat_cmd == "")
-		lolcatCmds = std::vector<std::string>({"lolcat-cc", "lolcat-c", "lolcat-rs", "lolcat", "nift", "nsm"});
+		lolcatCmds = std::vector<std::string>({"lolcat-cc", "lolcat-c", "lolcat-rs", "lolcat", "nift lolcat-cc", "nsm lolcat-cc"});
 	else
 		lolcatCmds.push_back(lolcat_cmd);
 
@@ -175,37 +175,28 @@ int Parser::lolcat_init(const std::string& lolcat_cmd)
 			{
 				if(lolcatCmds.size() > 1)
 				{
+					lolcatCmd = lolcatCmds[i];
+
 					if(i == 0)
 					{
 						#if defined _WIN32 || defined _WIN64
 							if(using_powershell_colours())
-								lolcatCmd = "lolcat-cc -ps -f";
+								lolcatCmd += " -ps -f";
 							else
-								lolcatCmd = "lolcat-cc -f";
+								lolcatCmd += " -f";
 						#else
-							lolcatCmd = "lolcat-cc -f";
+							lolcatCmd += " -f";
 						#endif
 					}
-					else if(i == 1)
-						lolcatCmd = "lolcat-c";
-					else if(i == 2)
-						lolcatCmd = "lolcat-rs";
-					else if(i == 3)
-						lolcatCmd = "lolcat";
 					else if(i == 4 || i == 5)
 					{
-						if(i == 4)
-							lolcatCmd = "nift";
-						else
-							lolcatCmd = "nsm";
-
 						#if defined _WIN32 || defined _WIN64
 							if(using_powershell_colours())
-								lolcatCmd += "lolcat-cc -ps -f";
+								lolcatCmd += " -ps -f";
 							else
-								lolcatCmd += "lolcat-cc -f";
+								lolcatCmd += " -f";
 						#else
-							lolcatCmd += "lolcat-cc -f";
+							lolcatCmd += " -f";
 						#endif
 					}
 				}
@@ -598,7 +589,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 		int netBrackets = 0;
 		try
 		{
-			result = getline(lang, addPath, '$', lolcat, inLine, 1, tabCompletionStrs);
+			result = getline(lang, addPath, '$', lolcatActive, inLine, 1, tabCompletionStrs);
 		}
 		catch(...)
 		{
@@ -635,7 +626,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 				toProcess += inLine + "\n";
 
 			inLine = "";
-			result = getline(lang, addPath, '>', lolcat, inLine, 1, tabCompletionStrs);
+			result = getline(lang, addPath, '>', lolcatActive, inLine, 1, tabCompletionStrs);
 			for(size_t i=0; i<inLine.size(); ++i)
 			{
 				if(inLine[i] == '(' || inLine[i] == '{' || inLine[i] == '[' || inLine[i] == '<')
@@ -725,7 +716,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 		}
 		else if(parsedText != "")
 		{
-			if(lolcat)
+			if(lolcatActive)
 				rnbwcout(parsedText);
 			else
 				std::cout << parsedText << std::endl;
@@ -811,9 +802,12 @@ int Parser::run(const Path& path, char lang, std::ostream& eos)
 	contentAdded = 0;
 	parsedText = "";
 	contentAdded = 0;
-
-	//adds script path to dependencies
-	if(incrMode != INCR_MOD)
+	
+	/*
+		cannot rememeber what the below code is for, it leaves hash files wherever
+		Nift runs scripts which is quite unideal.
+	*/
+	/*if(incrMode != INCR_MOD) 
 	{
 		checked_hash_mtx.lock();
 		if(!checkedHashFile.count(path))
@@ -834,7 +828,9 @@ int Parser::run(const Path& path, char lang, std::ostream& eos)
 		}
 		else
 			checked_hash_mtx.unlock();
-	}
+	}*/
+
+	//adds script path to dependencies
 	depFiles.insert(path);
 
 	//opens up path file to start parsing from
@@ -4214,7 +4210,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			bool incHidden = 0;
 			bool fullPath = 0;
 
-			if(lolcat)
+			if(lolcatActive)
 				toConsole = 0;
 			else if((mode == MODE_INTERP || mode == MODE_SHELL) && (&outStr == &parsedText))
 				toConsole = 1;
@@ -4523,7 +4519,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			if(lolcat)
+			if(lolcatActive)
 			{
 				if(mode == MODE_INTERP || mode == MODE_SHELL)
 				{
@@ -4548,7 +4544,7 @@ int Parser::read_and_process_fn(const bool& indent,
 						if(using_powershell_colours())
 							lolcat_powershell();
 					#endif
-					lolcat = 1;
+					lolcatActive = 1;
 				}
 				else
 				{
@@ -4568,10 +4564,10 @@ int Parser::read_and_process_fn(const bool& indent,
 					if(using_powershell_colours())
 						lolcat_powershell();
 				#endif
-				lolcat = 1;
+				lolcatActive = 1;
 			}
 
-			if(lolcat && (mode == MODE_INTERP || mode == MODE_SHELL))
+			if(lolcatActive && (mode == MODE_INTERP || mode == MODE_SHELL))
 			{
 				if(!consoleLocked)
 					os_mtx->lock();
@@ -4618,7 +4614,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			{
 				if(!consoleLocked)
 					os_mtx->lock();
-				if(lolcat)
+				if(lolcatActive)
 					std::cout << "lolcat deactivated" << std::endl;
 				else
 					std::cout << "lolcat not activated\a" << std::endl;
@@ -4626,7 +4622,7 @@ int Parser::read_and_process_fn(const bool& indent,
 					os_mtx->unlock();
 			}
 
-			lolcat = 0;
+			lolcatActive = 0;
 
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
@@ -5874,7 +5870,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			if(!consoleLocked)
 				os_mtx->lock();
-			if(lolcat)
+			if(lolcatActive)
 				rnbwcout(txt);
 			else
 				eos << txt << std::endl;
@@ -9576,7 +9572,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			{
 				if(!consoleLocked)
 					os_mtx->lock();
-				if(lolcat)
+				if(lolcatActive)
 					rnbwcout(txt);
 				else
 					eos << txt;
@@ -13245,7 +13241,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				if(!consoleLocked)
 					os_mtx->lock();
 
-				if(lolcat)
+				if(lolcatActive)
 					exec_str += " | " + lolcatCmd;
 			}
 			else

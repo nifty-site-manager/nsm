@@ -2,6 +2,11 @@
 Nift Release Notes
 ------------------
 
+Version 2.4.3 of Nift
+* Fixed lolcat bug - it was a missing a space between `nift/nsm` and adding `lolcat-cc` in `lolcat_init`
+* Improved escape code handling for `lolcat-cc`, now seems to work for most animations
+* Stopped Nift from creating hash info files wherever it runs a script (anyone remember what that code is for?)
+
 Version 2.4.2 of Nift
 * fixed some rather embarrassing bugs for initialising projects
 

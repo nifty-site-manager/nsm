@@ -66,8 +66,8 @@ int create_config_file(const Path& configPath, const std::string& outputExt, boo
 
 	project.backupScripts = 1;
 
-	project.lolcat = 0;
-	project.lolcatCmd = "lolcat-cc -f";
+	project.lolcatDefault = 0;
+	project.lolcatCmd = "nift lolcat-cc -f";
 
 	project.buildThreads = -1;
 	project.paginateThreads = -1;
@@ -248,8 +248,8 @@ int ProjectInfo::open_config(const Path& configPath, const bool& global, const b
 				defaultTemplate.read_file_path_from(iss);
 			else if(inType == "backupScripts")
 				iss >> backupScripts;
-			else if(inType == "lolcat")
-				iss >> lolcat;
+			else if(inType == "lolcatDefault" || inType == "lolcat") //carry over from poor naming choices
+				iss >> lolcatDefault;
 			else if(inType == "lolcatCmd")
 				read_quoted(iss, lolcatCmd);
 			else if(inType == "buildThreads")
@@ -365,11 +365,11 @@ int ProjectInfo::open_config(const Path& configPath, const bool& global, const b
 
 	if(lolcatCmd.size() == 0)
 	{
-		start_warn(std::cout, configPath) << "no config detected for whether to use lolcat output by default" << std::endl;
+		start_warn(std::cout, configPath) << "no config detected for whether to use lolcat by default for REPL sessions" << std::endl;
 
-		lolcat = 0;
+		lolcatDefault = 0;
 		
-		lolcatCmd = "nift lolcat -f";
+		lolcatCmd = "nift lolcat-cc -f";
 
 		configChanged = 1;
 	}
@@ -556,7 +556,7 @@ int ProjectInfo::save_config(const std::string& configPathStr, const bool& globa
 	}
 	ofs << "defaultTemplate " << quote(defaultTemplate.str()) << "\n\n";
 	ofs << "backupScripts " << backupScripts << "\n\n";
-	ofs << "lolcat " << lolcat << "\n\n";
+	ofs << "lolcatDefault " << lolcatDefault << "\n\n";
 	ofs << "lolcatCmd " << quote(lolcatCmd) << "\n\n";
 	ofs << "buildThreads " << buildThreads << "\n\n";
 	ofs << "paginateThreads " << paginateThreads << "\n\n";

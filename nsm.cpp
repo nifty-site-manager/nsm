@@ -197,11 +197,17 @@ int main(int argc, const char* argv[])
 	}
 
 	std::string cmd = argv[1];
-	while(cmd.size() && cmd[0] == '-')
-		cmd = cmd.substr(1, cmd.size()-1);
-
-	/*if(cmd == "lolcat-cc")
-		return lolmain(argc, argv);*/ //this is broken
+	if(cmd.size() && cmd[0] == '-')
+	{
+		for(size_t i=1; i<cmd.size(); ++i)
+		{
+			if(cmd[i] != '-')
+			{
+				cmd = cmd.substr(i, cmd.size()-i);
+				break;
+			}
+		}
+	}
 
 	if(get_pwd() == "/")
 	{
@@ -295,12 +301,6 @@ int main(int argc, const char* argv[])
 		std::cout << "+--------------------------------------------------------------+" << std::endl;
 
 		return 0;
-	}
-	else if(cmd == "interp" || cmd == "sh")
-	{
-		std::cout << "Nift (aka nsm) " << c_gold << "v" << NSM_VERSION << c_white;
-		std::cout << " (c)" << DateTimeInfo().currentYYYY();
-		std::cout << " (" << c_blue << "https://nift.dev" << c_white << ")" << std::endl;
 	}
 
 	if(cmd == "git" || cmd == "luarocks")
@@ -760,6 +760,10 @@ int main(int argc, const char* argv[])
 	}
 	else if(cmd == "interp" || cmd == "sh")
 	{
+		std::cout << "Nift (aka nsm) " << c_gold << "v" << NSM_VERSION << c_white;
+		std::cout << " (c)" << DateTimeInfo().currentYYYY();
+		std::cout << " (" << c_blue << "https://nift.dev" << c_white << ")" << std::endl;
+
 		//ensures correct number of parameters given
 		if(noParams != 1 && noParams != 2 && noParams != 3)
 			return parError(noParams, argv, "1-3");
@@ -817,13 +821,13 @@ int main(int argc, const char* argv[])
 		              project.unixTextEditor,
 		              project.winTextEditor);
 
-		/*if(project.lolcat)
+		/*if(project.lolcatDefault)
 			if(!parser.lolcat_init(project.lolcatCmd))
 				return NSM_ERR;*/
 
-		if(project.lolcat)
+		if(project.lolcatDefault)
 		{
-			parser.lolcat = parser.lolcatInit = 1;
+			parser.lolcatActive = parser.lolcatInit = 1;
 			parser.lolcatCmd = project.lolcatCmd;
 		}
 

@@ -80,41 +80,7 @@
 #endif
 
 bool format = 1;
-int tabWidth = 4;
-std::string formatStr(std::string& str)
-{
-	std::string formatted;
-	size_t j;
-	for(size_t i=0; i<str.size(); ++i)
-	{
-		if(str[i] == '\t')
-			formatted += std::string(tabWidth, ' ');
-		else if((str[i] == '\033' || str[i] == 0x1b) && str.substr(i+1, 1) == "[")
-		{
-			if(str.substr(i+1, 4) == "[2K\r") //strips cleared lines
-			{
-				size_t pos = formatted.find_last_of('\n');
-				if(pos == std::string::npos)
-					pos = 0;
-				else
-					++pos;
-				formatted.replace(pos, formatted.size()-pos, "");
-				i += 4;
-			}
-			else //skips unix colour codes
-			{
-				j = str.find_first_of('m', i);
-				if(j != std::string::npos)
-					i = j;
-				else
-					formatted += str[i];
-			}
-		}
-		else
-			formatted += str[i];
-	}
-	return formatted;
-}
+int tabWidth = 2;
 
 int mod(const int& x, const int& m)
 {
@@ -132,12 +98,10 @@ int mod(const int& x, const int& m)
 }
 
 double gradient = 999;
-int width = 0;
+size_t width, sWidth;
 
 bool addLineNo = 0, zigzag = 0;
 int posGrad = 1;
-
-const std::string arr = "⥤";
 
 int zigzagcat(std::istream& is)
 {
@@ -145,13 +109,11 @@ int zigzagcat(std::istream& is)
 	int color,
 	    lineNo = 0,
 	    sColor = rand()%noColors;
+
 	while(!is.eof())
 	{
 		if(!getline(is, inLine))
 			break;
-
-		if(format)
-			inLine = formatStr(inLine);
 
 		if(addLineNo)
 			inLine = std::to_string(lineNo) + ": " + inLine;
@@ -160,49 +122,59 @@ int zigzagcat(std::istream& is)
 		else
 			color = sColor = mod(sColor-1, noColors);
 
-		for(size_t i=0; i<inLine.size(); color=(color+1)%noColors)
+		size_t i = 0;
+		std::cout << colors[color];
+		for(size_t I=0; I<sWidth && i<inLine.size(); ++I)
 		{
 			if(format)
-			{
-				//checks for multi-char utf characters
-				if(i+width-1 < inLine.size() && inLine[i+width-1] == arr[0])
+			{   // https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
+				while(i < inLine.size() && (inLine[i] == '\\' || 
+						                    inLine[i] == '\x0' || 
+						                    //inLine[i] == '\e' ||
+						                    inLine[i] == '\033' ||         // octal
+						                    inLine.substr(i, 2) == "^[" || // ctrl key
+						                    inLine[i] == '\x1b' ||         //hexadecimal
+						                    inLine[i] == '\u001b'))        //unicode
 				{
-					std::cout << colors[color] << inLine.substr(i, width+2);
-					i += width+2;
+					int start = i++;
+					while(i < inLine.size() && inLine[i] != ' ' && inLine[i] != '\n' && inLine[i] != '\t')
+						++i;
+					std::cout << inLine.substr(start, i-start);
 				}
-				else if(i+width-2 < inLine.size() && inLine[i+width-2] == arr[0])
-				{
-					std::cout << colors[color] << inLine.substr(i, width+1);
-					i += width+1;
-				}
-				//checks for emojis
-				else if(i+width-1 < inLine.size() && inLine[i+width-1] == '\xF0')
-				{
-					std::cout << colors[color] << inLine.substr(i, width+3);
-					i += width+3;
-				}
-				else if(i+width-2 < inLine.size() && inLine[i+width-2] == '\xF0')
-				{
-					std::cout << colors[color] << inLine.substr(i, width+2);
-					i += width+2;
-				}
-				else if(i+width-3 < inLine.size() && inLine[i+width-3] == '\xF0')
-				{
-					std::cout << colors[color] << inLine.substr(i, width+1);
-					i += width+1;
-				}
-				else
-				{
-					std::cout << colors[color] << inLine.substr(i, width);
-					i += width;
-				}
-			}
-			else
-			{
-				std::cout << colors[color] << inLine.substr(i, width);
-				i += width;
+
+				if(i < inLine.size())
+					std::cout << inLine[i++];
 			}
 		}
+
+		while(i < inLine.size())
+		{
+			color=(color+1)%noColors;
+			std::cout << colors[color];
+			for(size_t I=0; I<width && i<inLine.size(); ++I)
+			{
+				if(format)
+				{   //https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
+					while(i < inLine.size() && (inLine[i] == '\\' || 
+						                        inLine[i] == '\x0' || 
+						                        //inLine[i] == "\e" ||
+						                        inLine[i] == '\033' ||         // octag
+						                        inLine.substr(i, 2) == "^[" || // ctrl key
+						                        inLine[i] == '\x1b' ||         // hexadecimal
+						                        inLine[i] == '\u001b'))        // unicode
+					{
+						int start = i++;
+						while(i < inLine.size() && inLine[i] != ' ' && inLine[i] != '\n' && inLine[i] != '\t')
+							++i;
+						std::cout << inLine.substr(start, i-start);
+					}
+				}
+
+				if(i < inLine.size())
+					std::cout << inLine[i++];
+			}
+		}
+
 		std::cout << std::endl;
 
 		++lineNo;
@@ -225,9 +197,6 @@ int lolcat(std::istream& is)
 		if(!getline(is, inLine))
 			break;
 
-		if(format)
-			inLine = formatStr(inLine);
-
 		if(addLineNo)
 			inLine = std::to_string(lineNo) + ": " + inLine;
 		if(posGrad)
@@ -242,91 +211,58 @@ int lolcat(std::istream& is)
 		else
 			sWidth = (((lineNo+r)*gradient - std::floor((lineNo+r)*gradient))/1.0)*width;
 
-		if(format)
-		{
-			// checks for multi-char characters
-			if(sWidth-1 < inLine.size() && inLine[sWidth-1] == arr[0])
-			{
-				std::cout << colors[color] << inLine.substr(i, sWidth+2);
-				i += sWidth+2;
-			}
-			else if(sWidth-2 < inLine.size() && inLine[sWidth-2] == arr[0])
-			{
-				std::cout << colors[color] << inLine.substr(i, sWidth+1);
-				i += sWidth+1;
-			}
-			// checks for emojis
-			else if(sWidth-1 < inLine.size() && inLine[sWidth-1] == '\xF0')
-			{
-				std::cout << colors[color] << inLine.substr(i, sWidth+3);
-				i += sWidth+3;
-			}
-			else if(sWidth-2 < inLine.size() && inLine[sWidth-2] == '\xF0')
-			{
-				std::cout << colors[color] << inLine.substr(i, sWidth+2);
-				i += sWidth+2;
-			}
-			else if(sWidth-3 < inLine.size() && inLine[sWidth-3] == '\xF0')
-			{
-				std::cout << colors[color] << inLine.substr(i, sWidth+1);
-				i += sWidth+1;
-			}
-			else
-			{
-				std::cout << colors[color] << inLine.substr(i, sWidth);
-				i += sWidth;
-			}
-		}
-		else
-		{
-			std::cout << colors[color] << inLine.substr(i, sWidth);
-			i += sWidth;
-		}
-		color=(color+1)%noColors;
-
-		for(; i<inLine.size(); color=(color+1)%noColors)
+		std::cout << colors[color];
+		for(size_t I=0; I<sWidth && i<inLine.size(); ++I)
 		{
 			if(format)
-			{
-				// checks for multi-char characters
-				if(i+width-1 < inLine.size() && inLine[i+width-1] == arr[0])
+			{   // https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
+				while(i < inLine.size() && (inLine[i] == '\\' || 
+						                    inLine[i] == '\x0' || 
+						                    //inLine[i] == '\e' ||
+						                    inLine[i] == '\033' ||         // octal
+						                    inLine.substr(i, 2) == "^[" || // ctrl key
+						                    inLine[i] == '\x1b' ||         //hexadecimal
+						                    inLine[i] == '\u001b'))        //unicode
 				{
-					std::cout << colors[color] << inLine.substr(i, width+2);
-					i += width+2;
-				}
-				else if(i+width-2 < inLine.size() && inLine[i+width-2] == arr[0])
-				{
-					std::cout << colors[color] << inLine.substr(i, width+1);
-					i += width+1;
-				}
-				// checks for emojis
-				if(i+width-1 < inLine.size() && inLine[i+width-1] == '\xF0')
-				{
-					std::cout << colors[color] << inLine.substr(i, width+3);
-					i += width+3;
-				}
-				else if(i+width-2 < inLine.size() && inLine[i+width-2] == '\xF0')
-				{
-					std::cout << colors[color] << inLine.substr(i, width+2);
-					i += width+2;
-				}
-				else if(i+width-3 < inLine.size() && inLine[i+width-3] == '\xF0')
-				{
-					std::cout << colors[color] << inLine.substr(i, width+1);
-					i += width+1;
-				}
-				else
-				{
-					std::cout << colors[color] << inLine.substr(i, width);
-					i += width;
+					int start = i++;
+					while(i < inLine.size() && inLine[i] != ' ' && inLine[i] != '\n' && inLine[i] != '\t')
+						++i;
+					std::cout << inLine.substr(start, i-start);
 				}
 			}
-			else
+
+			if(i < inLine.size())
+				std::cout << inLine[i++];
+		}
+
+		while(i < inLine.size())
+		{
+			color=(color+1)%noColors;
+			std::cout << colors[color];
+			for(size_t I=0; I<width && i<inLine.size(); ++I)
 			{
-				std::cout << colors[color] << inLine.substr(i, width);
-				i += width;
+				if(format)
+				{   //https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
+					while(i < inLine.size() && (inLine[i] == '\\' || 
+						                        inLine[i] == '\x0' || 
+						                        //inLine[i] == "\e" ||
+						                        inLine[i] == '\033' ||         // octag
+						                        inLine.substr(i, 2) == "^[" || // ctrl key
+						                        inLine[i] == '\x1b' ||         // hexadecimal
+						                        inLine[i] == '\u001b'))        // unicode
+					{
+						int start = i++;
+						while(i < inLine.size() && inLine[i] != ' ' && inLine[i] != '\n' && inLine[i] != '\t')
+							++i;
+						std::cout << inLine.substr(start, i-start);
+					}
+				}
+
+				if(i < inLine.size())
+					std::cout << inLine[i++];
 			}
 		}
+
 		std::cout << std::endl;
 
 		++lineNo;
