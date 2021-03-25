@@ -25,25 +25,25 @@
 
 	int noColors = 9;
 	std::vector<WinLolcatColor> colors = {WinLolcatColor(4),
-	                                       WinLolcatColor(12),
-	                                       WinLolcatColor(6),
-	                                       WinLolcatColor(10),
-	                                       WinLolcatColor(2),
-	                                       WinLolcatColor(3),
-	                                       WinLolcatColor(1),
-	                                       WinLolcatColor(5),
-	                                       WinLolcatColor(13)};
+	                                      WinLolcatColor(12),
+	                                      WinLolcatColor(6),
+	                                      WinLolcatColor(10),
+	                                      WinLolcatColor(2),
+	                                      WinLolcatColor(3),
+	                                      WinLolcatColor(1),
+	                                      WinLolcatColor(5),
+	                                      WinLolcatColor(13)};
 									  
 	void lolcat_powershell()
 	{
 		noColors = 7;
 		colors = std::vector<WinLolcatColor>{WinLolcatColor(12, 5),
-											  WinLolcatColor(14, 5),
-											  WinLolcatColor(10, 5),
-											  WinLolcatColor(2, 5),
-											  WinLolcatColor(3, 5),
-											  WinLolcatColor(9, 5),
-											  WinLolcatColor(13, 5)};
+											 WinLolcatColor(14, 5),
+											 WinLolcatColor(10, 5),
+											 WinLolcatColor(2, 5),
+											 WinLolcatColor(3, 5),
+											 WinLolcatColor(9, 5),
+											 WinLolcatColor(13, 5)};
 	}
 #else
 	const int noColors = 30;
@@ -98,92 +98,10 @@ int mod(const int& x, const int& m)
 }
 
 double gradient = 999;
-size_t width, sWidth;
+size_t width, cWidth;
 
 bool addLineNo = 0, zigzag = 0;
 int posGrad = 1;
-
-int zigzagcat(std::istream& is)
-{
-	std::string inLine;
-	int color,
-	    lineNo = 0,
-	    sColor = rand()%noColors;
-
-	while(!is.eof())
-	{
-		if(!getline(is, inLine))
-			break;
-
-		if(addLineNo)
-			inLine = std::to_string(lineNo) + ": " + inLine;
-		if(int(std::floor(lineNo/noColors))%2)
-			color = sColor = (sColor+1)%noColors;
-		else
-			color = sColor = mod(sColor-1, noColors);
-
-		size_t i = 0;
-		std::cout << colors[color];
-		for(size_t I=0; I<sWidth && i<inLine.size(); ++I)
-		{
-			if(format)
-			{   // https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
-				while(i < inLine.size() && (inLine[i] == '\\' || 
-						                    inLine[i] == '\x0' || 
-						                    //inLine[i] == '\e' ||
-						                    inLine[i] == '\033' ||         // octal
-						                    inLine.substr(i, 2) == "^[" || // ctrl key
-						                    inLine[i] == '\x1b' ||         //hexadecimal
-						                    inLine[i] == '\u001b'))        //unicode
-				{
-					int start = i++;
-					while(i < inLine.size() && inLine[i] != ' ' && inLine[i] != '\n' && inLine[i] != '\t')
-						++i;
-					std::cout << inLine.substr(start, i-start);
-				}
-
-				if(i < inLine.size())
-					std::cout << inLine[i++];
-			}
-		}
-
-		while(i < inLine.size())
-		{
-			color=(color+1)%noColors;
-			std::cout << colors[color];
-			for(size_t I=0; I<width && i<inLine.size(); ++I)
-			{
-				if(format)
-				{   //https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
-					while(i < inLine.size() && (inLine[i] == '\\' || 
-						                        inLine[i] == '\x0' || 
-						                        //inLine[i] == "\e" ||
-						                        inLine[i] == '\033' ||         // octag
-						                        inLine.substr(i, 2) == "^[" || // ctrl key
-						                        inLine[i] == '\x1b' ||         // hexadecimal
-						                        inLine[i] == '\u001b'))        // unicode
-					{
-						int start = i++;
-						while(i < inLine.size() && inLine[i] != ' ' && inLine[i] != '\n' && inLine[i] != '\t')
-							++i;
-						std::cout << inLine.substr(start, i-start);
-					}
-				}
-
-				if(i < inLine.size())
-					std::cout << inLine[i++];
-			}
-		}
-
-		std::cout << std::endl;
-
-		++lineNo;
-	}
-
-	std::cout << c_white << std::flush;
-
-	return 0;
-}
 
 int lolcat(std::istream& is)
 {
@@ -191,7 +109,10 @@ int lolcat(std::istream& is)
 	int color,
 	    lineNo = 0,
 	    r = rand()%noColors;
-	size_t sWidth;
+
+	if(gradient < 0)
+		gradient = -gradient;
+
 	while(!is.eof())
 	{
 		if(!getline(is, inLine))
@@ -199,57 +120,46 @@ int lolcat(std::istream& is)
 
 		if(addLineNo)
 			inLine = std::to_string(lineNo) + ": " + inLine;
-		if(posGrad)
-			color = int((lineNo+r)*gradient)%noColors;
+
+		if(zigzag)
+		{
+			if(int(std::floor(lineNo/noColors))%2)
+				color = r = (r+1)%noColors;
+			else
+				color = r = mod(r-1, noColors);
+		}
 		else
-			//color = mod(-int((lineNo+r)*gradient), noColors); //this is too slow
-			color = mod(noColors-int((lineNo+r)*gradient)%noColors, noColors);
+		{
+			if(posGrad)
+			{
+				cWidth = (1-((lineNo+r)*gradient - std::floor((lineNo+r)*gradient))/1.0)*width;
+				color = int((lineNo+r)*gradient)%noColors;
+			}
+			else
+			{
+				cWidth = (((lineNo+r)*gradient - std::floor((lineNo+r)*gradient))/1.0)*width;
+				color = mod(-int((lineNo+r)*gradient), noColors); 
+				//color = mod(noColors-int((lineNo+r)*gradient)%noColors, noColors); //alternative to above
+			}
+		}
+			
 
 		size_t i=0;
-		if(posGrad)
-			sWidth = (1-((lineNo+r)*gradient - std::floor((lineNo+r)*gradient))/1.0)*width;
-		else
-			sWidth = (((lineNo+r)*gradient - std::floor((lineNo+r)*gradient))/1.0)*width;
-
 		std::cout << colors[color];
-		for(size_t I=0; I<sWidth && i<inLine.size(); ++I)
-		{
-			if(format)
-			{   // https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
-				while(i < inLine.size() && (inLine[i] == '\\' || 
-						                    inLine[i] == '\x0' || 
-						                    //inLine[i] == '\e' ||
-						                    inLine[i] == '\033' ||         // octal
-						                    inLine.substr(i, 2) == "^[" || // ctrl key
-						                    inLine[i] == '\x1b' ||         //hexadecimal
-						                    inLine[i] == '\u001b'))        //unicode
-				{
-					int start = i++;
-					while(i < inLine.size() && inLine[i] != ' ' && inLine[i] != '\n' && inLine[i] != '\t')
-						++i;
-					std::cout << inLine.substr(start, i-start);
-				}
-			}
-
-			if(i < inLine.size())
-				std::cout << inLine[i++];
-		}
 
 		while(i < inLine.size())
 		{
-			color=(color+1)%noColors;
-			std::cout << colors[color];
 			for(size_t I=0; I<width && i<inLine.size(); ++I)
 			{
 				if(format)
 				{   //https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
 					while(i < inLine.size() && (inLine[i] == '\\' || 
-						                        inLine[i] == '\x0' || 
-						                        //inLine[i] == "\e" ||
-						                        inLine[i] == '\033' ||         // octag
-						                        inLine.substr(i, 2) == "^[" || // ctrl key
-						                        inLine[i] == '\x1b' ||         // hexadecimal
-						                        inLine[i] == '\u001b'))        // unicode
+					                            inLine[i] == '\x0' || 
+					                            //inLine[i] == "\e" ||
+					                            inLine[i] == '\033' ||         // octag
+					                            inLine.substr(i, 2) == "^[" || // ctrl key
+					                            inLine[i] == '\x1b' ||         // hexadecimal
+					                            inLine[i] == '\u001b'))        // unicode
 					{
 						int start = i++;
 						while(i < inLine.size() && inLine[i] != ' ' && inLine[i] != '\n' && inLine[i] != '\t')
@@ -261,10 +171,14 @@ int lolcat(std::istream& is)
 				if(i < inLine.size())
 					std::cout << inLine[i++];
 			}
+
+			if(width != cWidth)
+				cWidth = width;
+			color=(color+1)%noColors;
+			std::cout << colors[color];
 		}
 
 		std::cout << std::endl;
-
 		++lineNo;
 	}
 	
@@ -287,32 +201,33 @@ int lolfilter(std::istream &is)
 	if(gradient != 999)
 		return lolcat(is);
 	else if(zigzag)
-		return zigzagcat(is);
+		return lolcat(is);
 	#if defined _WIN32 || defined _WIN64
 	#else
 		else if(!(rand()%3))
-			return zigzagcat(is);
+		{
+			zigzag = 1;
+			return lolcat(is);
+		}
 	#endif
-
-	#if defined _WIN32 || defined _WIN64
-		gradient = 0.35;
-		posGrad = rand()%2;
-	#else
+	else
+	{
 		gradient = 0.6;
 		posGrad = rand()%2;
-	#endif
+	}
 
 	return lolcat(is);
 }
 
 int lolmain(const int& argc, const char* argv[])
 {
-	srand(time(NULL));
+srand(time(NULL));
 	
 	std::string param;
-	for(int i=2; i<argc; i++)
+	for(int i=1; i<argc; i++)
 	{
 		param = argv[i];
+
 		if(param == "-f")
 			format = 1;
 		else if(param.substr(0, 3) == "-g=")
@@ -329,7 +244,7 @@ int lolmain(const int& argc, const char* argv[])
 		else if(param == "-ps")
 		{
 			#if defined _WIN32 || defined _WIN64
-				use_powershell_colours();
+				powershell_colours();
 			#endif
 		}
 		else if(param.substr(0, 4) == "-tw=")
@@ -349,7 +264,7 @@ int lolmain(const int& argc, const char* argv[])
 		{
 			std::stringstream ss;
 
-			ss << argv[0] << " lolcat-cc is a cross-platform c++ implementation of the original lolcat,";
+			ss << argv[0] << " is a cross-platform c++ implementation of the original lolcat,";
 			ss << " which writes output to the terminal with rainbow colours" << std::endl;
 
 			ss  << "=>" << " usage:" << std::endl;
@@ -371,13 +286,13 @@ int lolmain(const int& argc, const char* argv[])
 		else if(param == "-v" || param == "-version")
 		{
 			std::stringstream ss;
-			ss << "v1.0.1" << std::endl;
+			ss << "v1.0.0" << std::endl;
 
 			return lolfilter(ss);
 		}
 		else
 		{
-			std::cout << "error: " << argv[0] << " lolcat-cc: ";
+			std::cout << "error: " << argv[0] << ": ";
 
 			std::stringstream ss;
 			ss << "do not recognise '" << param << "'" << std::endl;

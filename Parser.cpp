@@ -2449,7 +2449,7 @@ int Parser::read_and_process_fn(const bool& indent,
 		}
 	}
 
-	if(funcName[0] == '$')
+	if(funcName[0] == '$' && !(funcName == "$" && brackets == "()"))
 	{
 		if(funcName == "$")
 		{
@@ -4508,6 +4508,21 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
+		else if(funcName == "lolcat.cmd")
+		{
+			if(params.size())
+			{
+				if(!consoleLocked)
+					os_mtx->lock();
+				start_err_ml(eos, readPath, sLineNo, lineNo) << "lolcat.cmd: expected 0 parameters, got " << params.size() << std::endl;
+				os_mtx->unlock();
+				return 1;
+			}
+
+			outStr += lolcatCmd;
+
+			return 0;
+		}
 		else if(funcName == "lolcat.on")
 		{
 			if(params.size() > 1)
@@ -4644,6 +4659,24 @@ int Parser::read_and_process_fn(const bool& indent,
 						break;
 				}
 			}
+
+			return 0;
+		}
+		else if(funcName == "lolcat.status")
+		{
+			if(params.size())
+			{
+				if(!consoleLocked)
+					os_mtx->lock();
+				start_err_ml(eos, readPath, sLineNo, lineNo) << "lolcat.status: expected 0 parameters, got " << params.size() << std::endl;
+				os_mtx->unlock();
+				return 1;
+			}
+
+			if(lolcatActive)
+				outStr += "lolcat is activated using " + quote(lolcatCmd);
+			else
+				outStr += "lolcat is not activated";
 
 			return 0;
 		}
@@ -13174,7 +13207,7 @@ int Parser::read_and_process_fn(const bool& indent,
 						parseBlock = 1;
 					else if(options[o] == "console")
 						console = 1;
-					else if(options[o] == "inject")
+					else if(options[o] == "inject" || options[o] == "inj")
 						inject = 1;
 					else if(options[o] == "raw")
 						injectRaw = 1;

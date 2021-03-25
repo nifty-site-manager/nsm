@@ -33,7 +33,6 @@
 	
 #endif
 
-int zigzagcat(std::istream& is);
 int lolcat(std::istream& is);
 int lolfilter(std::istream &is);
 

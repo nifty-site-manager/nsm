@@ -2,6 +2,12 @@
 Nift Release Notes
 ------------------
 
+Version 2.4.4 of Nift
+* Built-in improvements of uneccessarily repetitious code for lolcat-cc
+* Fixed $() syntax to hopefully not conflict with common bash code
+* Added lolcat.cmd and lolcat.status functions
+* Added alternative `inj` option for `sys/system` calls for terminal/cmd line brevity
+
 Version 2.4.3 of Nift
 * Fixed lolcat bug - it was a missing a space between `nift/nsm` and adding `lolcat-cc` in `lolcat_init`
 * Improved escape code handling for `lolcat-cc`, now seems to work for most animations
