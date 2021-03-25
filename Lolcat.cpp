@@ -244,7 +244,7 @@ srand(time(NULL));
 		else if(param == "-ps")
 		{
 			#if defined _WIN32 || defined _WIN64
-				powershell_colours();
+				lolcat_powershell();
 			#endif
 		}
 		else if(param.substr(0, 4) == "-tw=")
