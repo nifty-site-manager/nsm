@@ -1478,26 +1478,7 @@ int Parser::n_read_and_process_fast(const bool& indent,
 					if(linePos < inStr.size() && inStr[linePos] == '!')
 						++linePos;
 					else
-					{
-						//skips to next non-whitespace
-						while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-						{
-							if(inStr[linePos] == '@')
-								linePos = inStr.find("\n", linePos);
-							else
-							{
-								if(inStr[linePos] == '\n')
-									++lineNo;
-								++linePos;
-							}
-
-							if(linePos >= inStr.size())
-							{
-								finished = 1;
-								break;
-							}
-						}
-					}
+						skip_whitespace(0, inStr, lineNo, linePos, readPath, "<#--..--#>", eos);
 
 					continue;
 
@@ -1656,33 +1637,7 @@ int Parser::f_read_and_process_fast(const bool& addOutput,
 	++lineNo;
 	while(linePos < inStr.size())
 	{
-		//skips to next non-whitespace
-		while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || inStr[linePos] == '#'))
-		{
-			if(inStr[linePos] == '#')
-				linePos = inStr.find('\n', linePos);
-			else
-			{
-				if(inStr[linePos] == '\n')
-				{
-					++lineNo;
-					if(addOutput)
-					{
-						indentAmount = baseIndentAmount;
-						outStr += "\n" + baseIndentAmount;
-					}
-				}
-				else
-				{
-					if(addOutput)
-					{
-						outStr += inStr[linePos];
-						indentAmount += " ";
-					}
-				}
-				++linePos;
-			}
-		}
+		skip_whitespace(0, inStr, lineNo, linePos, readPath, "f_read_and_process_fast", eos);
 
 		if(linePos >= inStr.size())
 			return 0;
@@ -1942,23 +1897,7 @@ int Parser::read_and_process_fn(const bool& indent,
 					if(linePos < inStr.size() && inStr[linePos] == '!')
 						++linePos;
 					else
-					{
-						//skips to next non-whitespace
-						while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-						{
-							if(inStr[linePos] == '@')
-								linePos = inStr.find("\n", linePos);
-							else
-							{
-								if(inStr[linePos] == '\n')
-									++lineNo;
-								++linePos;
-							}
-
-							if(linePos >= inStr.size())
-								break;
-						}
-					}
+						skip_whitespace(0, inStr, lineNo, linePos, readPath, "@#--..--#", eos);
 				}
 
 				//parses comment stringstream
@@ -2093,23 +2032,7 @@ int Parser::read_and_process_fn(const bool& indent,
 					if(linePos < inStr.size() && inStr[linePos] == '!')
 						++linePos;
 					else
-					{
-						//skips to next non-whitespace
-						while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-						{
-							if(inStr[linePos] == '@')
-								linePos = inStr.find("\n", linePos);
-							else
-							{
-								if(inStr[linePos] == '\n')
-									++lineNo;
-								++linePos;
-							}
-
-							if(linePos >= inStr.size())
-								break;
-						}
-					}
+						skip_whitespace(0, inStr, lineNo, linePos, readPath, "@/*..*/", eos);
 				}
 
 				return 0;
@@ -2147,21 +2070,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			{
 				linePos += 2;
 
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, "-->(skip whitespace)", eos);
 
 				return 0;
 			}
@@ -3037,23 +2946,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				}
 			}
 			else if(ifExists)
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 			else
 			{
 				if(!consoleLocked)
@@ -3082,7 +2975,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			std::string item;
 			int itemLineNo;
 
-			if(read_block(item, linePos, inStr, readPath, lineNo, itemLineNo, "item", eos))
+			if(read_block(item, linePos, inStr, readPath, lineNo, itemLineNo, funcName, eos))
 				   return 1;
 
 			pagesInfo.items.push_back(item);
@@ -3090,42 +2983,12 @@ int Parser::read_and_process_fn(const bool& indent,
 			pagesInfo.itemCallLineNos.push_back(sLineNo);
 			pagesInfo.itemCallPaths.push_back(readPath);
 
-			//skips to next non-whitespace
-			while(linePos < inStr.size() && (inStr[linePos] == ' ' || 
-			                                 inStr[linePos] == '\t' || 
-			                                 inStr[linePos] == '\n' || 
-			                                 (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-			{
-				if(inStr[linePos] == '@')
-					linePos = inStr.find('\n', linePos);
-				else
-				{
-					if(inStr[linePos] == '\n')
-						++lineNo;
-					++linePos;
-				}
-			}
+			//skip_whitespace(0, inStr, lineNo, linePos, readPath, funcNmae, eos);
 
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -3239,23 +3102,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -3275,7 +3122,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			std::string block, parsedCondition, whitespace;
 			std::vector<std::string> blocks, conditions;
 			std::vector<int> bLineNos, cLineNos;
-			int bLineNo;
+			int bLineNo = 0;
 
 			if(options.size())
 			{
@@ -3296,7 +3143,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				}
 			}
 
-			if(linePos < inStr.size())
+			if(linePos >= inStr.size())
 			{
 				if(!consoleLocked)
 					os_mtx->lock();
@@ -3533,7 +3380,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 
 			bool fromFile = 0, readBlock = 0, parseBlock = 1;
-			int bLineNo;
+			int bLineNo = 0;
 			std::string userInput, inputMsg;
 			if(params.size() > 0)
 				inputMsg = params[0];
@@ -3680,7 +3527,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			int bLineNo;
+			int bLineNo = 0;
 			bool blockOpt = 0, parseBlock = 0, addOut = addOutput;
 
 			if(options.size())
@@ -4370,23 +4217,7 @@ int Parser::read_and_process_fn(const bool& indent,
 					if(linePos < inStr.size() && inStr[linePos] == '!')
 						++linePos;
 					else
-					{
-						//skips to next non-whitespace
-						while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-						{
-							if(inStr[linePos] == '@')
-								linePos = inStr.find("\n", linePos);
-							else
-							{
-								if(inStr[linePos] == '\n')
-									++lineNo;
-								++linePos;
-							}
-
-							if(linePos >= inStr.size())
-								break;
-						}
-					}
+						skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 				}
 				else if(paths.size())
 				{
@@ -4451,7 +4282,7 @@ int Parser::read_and_process_fn(const bool& indent,
 		else if(funcName == "lolcat")
 		{
 			bool readBlock = 0, parseBlock = 1;
-			int bLineNo;
+			int bLineNo = 0;
 			std::string txt;
 
 			if(!lolcatInit && !lolcat_init(""))
@@ -4611,23 +4442,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -4659,23 +4474,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -4972,25 +4771,9 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 
 			if(linePos < inStr.size() && inStr[linePos] == '!')
-			++linePos;
+				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -5032,21 +4815,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				}
 			}
 
-			//skips to next non-whitespace
-			while(linePos < inStr.size() && (inStr[linePos] == ' ' || 
-			                                 inStr[linePos] == '\t' || 
-			                                 inStr[linePos] == '\n' || 
-			                                 (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-			{
-				if(inStr[linePos] == '@')
-					linePos = inStr.find('\n', linePos);
-				else
-				{
-					if(inStr[linePos] == '\n')
-						++lineNo;
-					++linePos;
-				}
-			}
+			skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -5075,23 +4844,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -5125,23 +4878,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				if(linePos < inStr.size() && inStr[linePos] == '!')
 					++linePos;
 				else
-				{
-					//skips to next non-whitespace
-					while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-					{
-						if(inStr[linePos] == '@')
-							linePos = inStr.find("\n", linePos);
-						else
-						{
-							if(inStr[linePos] == '\n')
-								++lineNo;
-							++linePos;
-						}
-
-						if(linePos >= inStr.size())
-							break;
-					}
-				}
+					skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 			}
 
 			return 0;
@@ -5164,23 +4901,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -5335,23 +5056,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -5725,25 +5430,9 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 			
 			if(linePos < inStr.size() && inStr[linePos] == '!')
-			++linePos;
+				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -5795,25 +5484,9 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 
 			if(linePos < inStr.size() && inStr[linePos] == '!')
-			++linePos;
+				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -5855,32 +5528,16 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 
 			if(linePos < inStr.size() && inStr[linePos] == '!')
-			++linePos;
+				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
 		else if(funcName == "console")
 		{
 			bool readBlock = 0, parseBlock = 1;
-			int bLineNo;
+			int bLineNo = 0;
 			std::string txt;
 
 			if(options.size())
@@ -5944,25 +5601,9 @@ int Parser::read_and_process_fn(const bool& indent,
 				os_mtx->unlock();
 
 			if(linePos < inStr.size() && inStr[linePos] == '!')
-			++linePos;
+				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -5995,25 +5636,9 @@ int Parser::read_and_process_fn(const bool& indent,
 			os_mtx->lock();
 
 			if(linePos < inStr.size() && inStr[linePos] == '!')
-			++linePos;
+				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -6041,25 +5666,9 @@ int Parser::read_and_process_fn(const bool& indent,
 			os_mtx->unlock();
 
 			if(linePos < inStr.size() && inStr[linePos] == '!')
-			++linePos;
+				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -6472,7 +6081,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			bool readBlock = 0, parseBlock = 0;
 			char bLang = lang;
-			int bLineNo;
+			int bLineNo = 0;
 
 			if(options.size())
 			{
@@ -6529,23 +6138,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -9281,23 +8874,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -9558,7 +9135,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			bool readBlock = 0, parseBlock = 1;
 			char bLang = lang;
-			int bLineNo;
+			int bLineNo = 0;
 			std::string txt;
 
 			if(options.size())
@@ -9692,7 +9269,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			bool first = 1, addNewLines = 1, addIndent = 1, addScope = addScopeGlobal, addOut = addOutput;
 			char wLang = lang;
 			std::string block, parsedCondition, eob = "\n", wBaseIndentAmount = indentAmount;
-			int bLineNo;
+			int bLineNo = 0;
 
 			if(read_block(block, linePos, inStr, readPath, lineNo, bLineNo, "while(" + params[0] + ")", eos))
 				return 1;
@@ -9840,23 +9417,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				if(linePos < inStr.size() && inStr[linePos] == '!')
 					++linePos;
 				else
-				{
-					//skips to next non-whitespace
-					while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-					{
-						if(inStr[linePos] == '@')
-							linePos = inStr.find("\n", linePos);
-						else
-						{
-							if(inStr[linePos] == '\n')
-								++lineNo;
-							++linePos;
-						}
-
-						if(linePos >= inStr.size())
-							break;
-					}
-				}
+					skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 			}
 
 			return 0;
@@ -10174,23 +9735,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -10336,7 +9881,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			int bLineNo;
+			int bLineNo = 0;
 			bool addOut = addOutput;
 
 			if(options.size())
@@ -10407,7 +9952,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			bool first = 1, addNewLines = 1, addIndent = 1, addScope = addScopeGlobal, addOut = addOutput;
 			char fLang = lang;
 			std::string block, parsedCondition, eob = "\n", wBaseIndentAmount = indentAmount;
-			int bLineNo;
+			int bLineNo = 0;
 
 			std::string forStr;
 
@@ -10648,42 +10193,26 @@ int Parser::read_and_process_fn(const bool& indent,
 				if(linePos < inStr.size() && inStr[linePos] == '!')
 					++linePos;
 				else
-				{
-					//skips to next non-whitespace
-					while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-					{
-						if(inStr[linePos] == '@')
-							linePos = inStr.find("\n", linePos);
-						else
-						{
-							if(inStr[linePos] == '\n')
-								++lineNo;
-							++linePos;
-						}
-
-						if(linePos >= inStr.size())
-							break;
-					}
-				}
+					skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 			}
 
 			return 0;
 		}
-		else if(funcName == "function")
+		else if(funcName == "function" || funcName == "fn")
 		{
 			if(params.size() != 1)
 			{
 				if(!consoleLocked)
 					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "function: expected 1 parameter, got " << params.size() << std::endl;
+				start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": expected 1 parameter, got " << params.size() << std::endl;
 				os_mtx->unlock();
 				return 1;
 			}
 
 			std::string block;
-			int bLineNo;
+			int bLineNo = 0;
 			char fnLang = lang;
-			std::string fnType = "function";
+			std::string fnType = funcName;
 			bool parseBlock = 0;
 			size_t layer = vars.layers.size()-1;
 			bool addOut, isConst = 1, isPrivate = 0, unscopedFn = 0;
@@ -10728,7 +10257,7 @@ int Parser::read_and_process_fn(const bool& indent,
 						{
 							if(!consoleLocked)
 								os_mtx->lock();
-							start_err_ml(eos, readPath, sLineNo, lineNo) << "function: specified layer " << quote(str) << " is not a non-negative integer" << std::endl;
+							start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": specified layer " << quote(str) << " is not a non-negative integer" << std::endl;
 							os_mtx->unlock();
 							return 1;
 						}
@@ -10737,7 +10266,7 @@ int Parser::read_and_process_fn(const bool& indent,
 						{
 							if(!consoleLocked)
 								os_mtx->lock();
-							start_err_ml(eos, readPath, sLineNo, lineNo) << "function: specified layer " << quote(str) << " should be less than the number of layers" << std::endl;
+							start_err_ml(eos, readPath, sLineNo, lineNo) << funcName<< ": specified layer " << quote(str) << " should be less than the number of layers" << std::endl;
 							os_mtx->unlock();
 							return 1;
 						}
@@ -10751,29 +10280,13 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(parseBlock && parse_replace(lang, block, fnType + " block", readPath, antiDepsOfReadPath, bLineNo, fnType, sLineNo, eos))
 				return 1;
 
-			if(add_fn(params[0], fnLang, block, fnType, layer, isConst, isPrivate, unscopedFn, addOut, inScopes, readPath, bLineNo, "function", eos))
+			if(add_fn(params[0], fnLang, block, fnType, layer, isConst, isPrivate, unscopedFn, addOut, inScopes, readPath, bLineNo, funcName, eos))
 				return 1;
 
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -10884,23 +10397,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -11049,7 +10546,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			int bLineNo;
+			int bLineNo = 0;
 			bool blockOpt = 0, fileOpt = 0, parseBlock = 0, addOut = addOutput, round = 1;
 			char blockLang = lang;
 
@@ -11135,7 +10632,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			int bLineNo;
+			int bLineNo = 0;
 			bool blockOpt = 0, fileOpt = 0, parseBlock = 0;
 			char blockLang = lang;
 
@@ -11818,23 +11315,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -11852,7 +11333,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			bool first = 1, addNewLines = 1, addIndent = 1, addScope = addScopeGlobal, addOut = addOutput;
 			char dwLang = lang;
 			std::string block, parsedCondition, eob = "\n", wBaseIndentAmount = indentAmount;
-			int bLineNo;
+			int bLineNo = 0;
 
 			if(read_block(block, linePos, inStr, readPath, lineNo, bLineNo, "do-while(" + params[0] + ")", eos))
 				return 1;
@@ -12000,23 +11481,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				if(linePos < inStr.size() && inStr[linePos] == '!')
 					++linePos;
 				else
-				{
-					//skips to next non-whitespace
-					while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-					{
-						if(inStr[linePos] == '@')
-							linePos = inStr.find("\n", linePos);
-						else
-						{
-							if(inStr[linePos] == '\n')
-								++lineNo;
-							++linePos;
-						}
-
-						if(linePos >= inStr.size())
-							break;
-					}
-				}
+					skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 			}
 
 			return 0;
@@ -12168,23 +11633,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -12996,7 +12445,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			     attachContentPath = 0,
 			     makeBackup = 1;
 			bool blockOpt = 0, parseBlock = 0;
-			int bLineNo;
+			int bLineNo = 0;
 			bool noReturnValue = 0;
 			int console = 0, inject = 0, injectRaw = 0, noOutput = 0;
 			int c = sys_counter++;
@@ -13303,23 +12752,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				}
 			}
 			else if(ifExists)
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 			else
 			{
 				if(!consoleLocked)
@@ -13343,7 +12776,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 
 			int console = 0, inject = 0, injectRaw = 0, noOutput = 0;
-			int bLineNo;
+			int bLineNo = 0;
 			bool parseBlock = 0;
 			bool attachContentPath = 0;
 			bool noReturnValue = 0;
@@ -13954,23 +13387,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(linePos < inStr.size() && inStr[linePos] == '!')
 				++linePos;
 			else
-			{
-				//skips to next non-whitespace
-				while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-				{
-					if(inStr[linePos] == '@')
-						linePos = inStr.find("\n", linePos);
-					else
-					{
-						if(inStr[linePos] == '\n')
-							++lineNo;
-						++linePos;
-					}
-
-					if(linePos >= inStr.size())
-						break;
-				}
-			}
+				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 			return 0;
 		}
@@ -13995,7 +13412,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			int bLineNo;
+			int bLineNo = 0;
 			bool addOut = addOutput;
 
 			if(options.size())
@@ -14847,23 +14264,7 @@ int Parser::read_and_process_fn(const bool& indent,
 		if(linePos < inStr.size() && inStr[linePos] == '!')
 			++linePos;
 		else
-		{
-			//skips to next non-whitespace
-			while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-			{
-				if(inStr[linePos] == '@')
-					linePos = inStr.find("\n", linePos);
-				else
-				{
-					if(inStr[linePos] == '\n')
-						++lineNo;
-					++linePos;
-				}
-
-				if(linePos >= inStr.size())
-					break;
-			}
-		}
+			skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 
 		return 0;
 	}
@@ -14966,6 +14367,42 @@ int Parser::read_and_process_fn(const bool& indent,
 		start_err_ml(eos, readPath, sLineNo, lineNo) << c_light_blue << funcName << c_white << ": function does not exist" << std::endl;
 		os_mtx->unlock();
 		return 1;
+	}
+
+	return 0;
+}
+
+inline int Parser::skip_whitespace(const bool& checkEOF,
+                                   const std::string& inStr,
+                                   int& lineNo,
+                                   size_t& linePos,
+                                   const Path& readPath,
+                                   const std::string& callType,
+                                   std::ostream& eos)
+{
+	int sLineNo = lineNo;
+	//skips to next non-whitespace
+	while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || 
+		                             (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#") ||
+		                             (inStr[linePos] == '@' && inStr.substr(linePos, 3) == "@//")))
+	{
+		if(inStr[linePos] == '@')
+			linePos = inStr.find("\n", linePos);
+		else
+		{
+			if(inStr[linePos] == '\n')
+				++lineNo;
+			++linePos;
+		}
+
+		if(checkEOF && linePos >= inStr.size())
+		{
+			if(!consoleLocked)
+				os_mtx->lock();
+			start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close bracket" << std::endl;
+			os_mtx->unlock();
+			return 1;
+		}
 	}
 
 	return 0;
@@ -15803,13 +15240,13 @@ int Parser::read_func_name(std::string& funcName,
 }
 
 int Parser::read_def(std::string& varType,
-                           std::vector<std::pair<std::string, std::vector<std::string> > >& vars,
-                           size_t& linePos,
-                           const std::string& inStr,
-                           const Path& readPath,
-                           int& lineNo,
-                           const std::string& callType,
-                           std::ostream& eos)
+                     std::vector<std::pair<std::string, std::vector<std::string> > >& vars,
+                     size_t& linePos,
+                     const std::string& inStr,
+                     const Path& readPath,
+                     int& lineNo,
+                     const std::string& callType,
+                     std::ostream& eos)
 {
 	int sLineNo = lineNo;
 	std::string extraLine;
@@ -15819,27 +15256,8 @@ int Parser::read_def(std::string& varType,
 
 	++linePos;
 
-	//skips to next non-whitespace
-	while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-	{
-		if(inStr[linePos] == '@')
-			linePos = inStr.find("\n", linePos);
-		else
-		{
-			if(inStr[linePos] == '\n')
-				++lineNo;
-			++linePos;
-		}
-
-		if(linePos >= inStr.size())
-		{
-			if(!consoleLocked)
-				os_mtx->lock();
-			start_err_ml(eos, readPath, sLineNo, lineNo) << "no close bracket for " << callType << " call" << std::endl;
-			os_mtx->unlock();
-			return 1;
-		}
-	}
+	if(skip_whitespace(1, inStr, lineNo, linePos, readPath, callType, eos))
+		return 1;
 
 	//throws error if no variable definition
 	if(inStr[linePos] == ')')
@@ -15965,27 +15383,8 @@ int Parser::read_def(std::string& varType,
 		strip_trailing_whitespace(varType);
 	}
 
-	//skips to next non-whitespace
-	while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-	{
-		if(inStr[linePos] == '@')
-			linePos = inStr.find("\n", linePos);
-		else
-		{
-			if(inStr[linePos] == '\n')
-				++lineNo;
-			++linePos;
-		}
-
-		if(linePos >= inStr.size())
-		{
-			if(!consoleLocked)
-				os_mtx->lock();
-			start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close bracket" << std::endl;
-			os_mtx->unlock();
-			return 1;
-		}
-	}
+	if(skip_whitespace(1, inStr, lineNo, linePos, readPath, callType, eos))
+		return 1;
 
 	//throws error if no variable definition
 	if(inStr[linePos] == ')')
@@ -16013,27 +15412,8 @@ int Parser::read_def(std::string& varType,
 
 		linePos++;
 
-		//skips to next non-whitespace
-		while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-		{
-			if(inStr[linePos] == '@')
-				linePos = inStr.find("\n", linePos);
-			else
-			{
-				if(inStr[linePos] == '\n')
-					++lineNo;
-				++linePos;
-			}
-
-			if(linePos >= inStr.size())
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close bracket" << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-		}
+		if(skip_whitespace(1, inStr, lineNo, linePos, readPath, callType, eos))
+			return 1;
 
 		//throws error if incomplete variable definition
 		if(inStr[linePos] == ')')
@@ -16148,27 +15528,8 @@ int Parser::read_def(std::string& varType,
 			strip_trailing_whitespace(newVar.first);
 		}
 
-		//skips to next non-whitespace
-		while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-		{
-			if(inStr[linePos] == '@')
-				linePos = inStr.find("\n", linePos);
-			else
-			{
-				if(inStr[linePos] == '\n')
-					++lineNo;
-				++linePos;
-			}
-
-			if(linePos >= inStr.size())
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close bracket" << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-		}
+		if(skip_whitespace(1, inStr, lineNo, linePos, readPath, callType, eos))
+			return 1;
 
 		if(linePos < inStr.size() && inStr[linePos] == '(') //reads variable parameters
 		{
@@ -16180,27 +15541,8 @@ int Parser::read_def(std::string& varType,
 			linePos++;
 			newVar.second.push_back("");
 
-			//skips to next non-whitespace
-			while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-			{
-				if(inStr[linePos] == '@')
-					linePos = inStr.find("\n", linePos);
-				else
-				{
-					if(inStr[linePos] == '\n')
-						++lineNo;
-					++linePos;
-				}
-
-				if(linePos >= inStr.size())
-				{
-					if(!consoleLocked)
-						os_mtx->lock();
-					start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close bracket" << std::endl;
-					os_mtx->unlock();
-					return 1;
-				}
-			}
+			if(skip_whitespace(1, inStr, lineNo, linePos, readPath, callType, eos))
+				return 1;
 
 			//throws error if no variable definition
 			if(inStr[linePos] == ')')
@@ -16327,27 +15669,8 @@ int Parser::read_def(std::string& varType,
 				strip_trailing_whitespace(newVar.second[0]);
 			}
 
-			//skips to next non-whitespace
-			while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-			{
-				if(inStr[linePos] == '@')
-					linePos = inStr.find("\n", linePos);
-				else
-				{
-					if(inStr[linePos] == '\n')
-						++lineNo;
-					++linePos;
-				}
-
-				if(linePos >= inStr.size())
-				{
-					if(!consoleLocked)
-						os_mtx->lock();
-					start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close bracket" << std::endl;
-					os_mtx->unlock();
-					return 1;
-				}
-			}
+			if(skip_whitespace(1, inStr, lineNo, linePos, readPath, callType, eos))
+				return 1;
 		}
 
 		vars.push_back(newVar);
@@ -16629,27 +15952,8 @@ int Parser::read_params(std::vector<std::string>& params,
 
 		++linePos;
 
-		//skips to next non-whitespace
-		while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-		{
-			if(inStr[linePos] == '@')
-				linePos = inStr.find("\n", linePos);
-			else
-			{
-				if(inStr[linePos] == '\n')
-					++lineNo;
-				++linePos;
-			}
-
-			if(linePos >= inStr.size())
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close bracket" << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-		}
+		if(skip_whitespace(1, inStr, lineNo, linePos, readPath, callType, eos))
+			return 1;
 
 		//no parameters
 		if(linePos < inStr.size() && inStr[linePos] == closeBracket && !paramsAdded)
@@ -16812,51 +16116,13 @@ int Parser::read_params(std::vector<std::string>& params,
 
 		params.push_back(param);
 
-		//skips to next non-whitespace
-		while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-		{
-			if(inStr[linePos] == '@')
-				linePos = inStr.find("\n", linePos);
-			else
-			{
-				if(inStr[linePos] == '\n')
-					++lineNo;
-				++linePos;
-			}
-
-			if(linePos >= inStr.size())
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close bracket" << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-		}
+		if(skip_whitespace(1, inStr, lineNo, linePos, readPath, callType, eos))
+			return 1;
 	}while(inStr[linePos] == separator);
 
 	//don't actually need this as it's checked at end of do while loop
-	//skips to next non-whitespace
-	while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-	{
-		if(inStr[linePos] == '@')
-			linePos = inStr.find("\n", linePos);
-		else
-		{
-			if(inStr[linePos] == '\n')
-				++lineNo;
-			++linePos;
-		}
-
-		if(linePos >= inStr.size())
-		{
-			if(!consoleLocked)
-				os_mtx->lock();
-			start_err_ml(eos, readPath, sLineNo, lineNo) << callType << ": no close bracket" << std::endl;
-			os_mtx->unlock();
-			return 1;
-		}
-	}
+	if(skip_whitespace(1, inStr, lineNo, linePos, readPath, callType, eos))
+		return 1;
 
 	//throws error if there's no close bracket
 	if(inStr[linePos] != closeBracket)
@@ -17166,7 +16432,7 @@ int Parser::read_block(std::string& block,
 		return 1;
 	}
 
-	//skips to next non-whitespace
+	//skipz to next non-whitespace while working out lead indenting
 	while(linePos < inStr.size() && 
 		  (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || 
 		  (inStr[linePos] == '@' && (inStr.substr(linePos, 2) == "@#" || inStr.substr(linePos, 3) == "@//"))))
@@ -17211,7 +16477,7 @@ int Parser::read_block(std::string& block,
 		++linePos;
 		++depth;
 
-		//skips to next non-whitespace
+		//skipz to next non-whitespace white working out lead indenting
 		while(linePos < inStr.size() && 
 			  (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || 
 			  (inStr[linePos] == '@' && (inStr.substr(linePos, 2) == "@#" || inStr.substr(linePos, 3) == "@//"))))
@@ -17360,7 +16626,7 @@ int Parser::read_else_blocks(std::vector<std::string>& conditions,
 {
 	std::string block, condition, extraLine;
 	std::vector<std::string> params;
-	int bLineNo;
+	int bLineNo = 0;
 
 	if(linePos >= inStr.size())
 	{
@@ -17381,22 +16647,8 @@ int Parser::read_else_blocks(std::vector<std::string>& conditions,
 			break;
 		}
 
-		//skips to next non-whitespace
-		while(linePos < inStr.size() && (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || (inStr[linePos] == '@' && inStr.substr(linePos, 2) == "@#")))
-		{
-			if(inStr[linePos] == '@')
-				linePos = inStr.find("\n", linePos);
-			else
-			{
-				whitespace += inStr[linePos];
-				if(inStr[linePos] == '\n')
-					++lineNo;
-				++linePos;
-			}
-
-			if(linePos >= inStr.size())
-				return 0;
-		}
+		if(skip_whitespace(1, inStr, lineNo, linePos, readPath, callType, eos))
+			return 1;
 
 		if(inStr.substr(linePos, 4) == "else")
 		{

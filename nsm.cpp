@@ -858,12 +858,24 @@ int main(int argc, const char* argv[])
 			std::cout << project.execrc_path(argv[0], lang.substr(0, 1)) << std::endl;
 			parser.run(project.execrc_path(argv[0], lang.substr(0, 1)).str(), lang[0], std::cout);
 		}
+		else if(file_exists(project.execrc_path(argv[0], lang).str()))
+		{
+			std::cout << "running " << argv[0] << "rc." << lang[0] << " file: ";
+			std::cout << project.execrc_path(argv[0], lang) << std::endl;
+			parser.run(project.execrc_path(argv[0], lang).str(), lang[0], std::cout);
+		}
 
 		if(file_exists(Path(".nsm/", cmd + "." + lang.substr(0, 1)).str()))
 		{
 			std::cout << "runnning project " << cmd << "." << lang[0] << " file: ";
 			std::cout << Path(".nsm/", cmd + "." + lang.substr(0, 1)) << std::endl;
 			parser.run(Path(".nsm/", cmd + "." + lang.substr(0, 1)).str(), lang[0], std::cout);
+		}
+		else if(file_exists(Path(".nsm/", cmd + "." + lang).str()))
+		{
+			std::cout << "runnning project " << cmd << "." << lang << " file: ";
+			std::cout << Path(".nsm/", cmd + "." + lang) << std::endl;
+			parser.run(Path(".nsm/", cmd + "." + lang).str(), lang[0], std::cout);
 		}
 
 

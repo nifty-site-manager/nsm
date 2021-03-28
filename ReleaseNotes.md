@@ -2,6 +2,12 @@
 Nift Release Notes
 ------------------
 
+Version 2.4.6 of Nift
+* Initialised all bLineNo's to zero (started getting warnings on OSX)
+* Fixed up "run commands" in-built scripts from last version to handle language names as well as chars for script extensions
+* Added skip_whitespace fn to clean Parser.cpp codebase up a little bit
+* Can now optionally use `fn` in place of `function`, mostly intended for interpreter/shell sessions
+
 Version 2.4.5 of Nift
 * You can now do `nift sh/interp lang` and provided lang starts with the same char as the language you are specifying the prompt will match
 * Added `prompt.char(string)` command

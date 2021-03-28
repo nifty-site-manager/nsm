@@ -160,6 +160,14 @@ struct Parser
 	                        std::string& outStr,
 	                        std::ostream& eos);
 
+	inline int skip_whitespace(const bool& checkEOF,
+	                           const std::string& inStr,
+	                           int& lineNo,
+	                           size_t& linePos,
+	                           const Path& readPath,
+	                           const std::string& callType,
+	                           std::ostream& eos);
+
 	void get_line(const std::string& str, std::string& restOfLine, size_t& linePos);
 
 	int try_system_call(const std::string& funcName, 
