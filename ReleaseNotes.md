@@ -2,6 +2,15 @@
 Nift Release Notes
 ------------------
 
+Version 2.4.5 of Nift
+* You can now do `nift sh/interp lang` and provided lang starts with the same char as the language you are specifying the prompt will match
+* Added `prompt.char(string)` command
+* Added in global `$[cmd]rc.$[langChar]` "run command" support on start of an interpreter or shell session
+* Added in local `.nsm/[interp/sh].$[langChar]` "run command" support on start of an interpreter or shell session
+* Added in treating a single parameter for f++/n++/lua/exprtk function calls as a file-path to a file
+* Added in `exprtk.file` function to read and process ExprTk code at the file-path specified parameter
+* Added in `f/file` option for `exprtk` and `exprtk.compile` options
+
 Version 2.4.4 of Nift
 * Built-in improvements of uneccessarily repetitious code for lolcat-cc
 * Fixed $() syntax to hopefully not conflict with common bash code

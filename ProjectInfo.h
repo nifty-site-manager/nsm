@@ -61,6 +61,8 @@ struct ProjectInfo
 	int open_local_config(const bool& addMsg);
 	int open_tracking(const bool& addMsg);
 
+	Path execrc_path(const std::string& exec, const std::string& execrc_ext);
+
 	int save_config(const std::string& configPathStr, const bool& global);
 	int save_global_config();
 	int save_local_config();

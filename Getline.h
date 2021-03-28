@@ -11,10 +11,10 @@
 
 void save_session(const std::string& path);
 
-void write_prompt(const std::string& lang, const std::string& pwd, const char& promptCh);
+void write_prompt(const std::string& lang, const std::string& pwd, const std::string& promptCh);
 void write_info(const std::string& info, 
 	            const std::string& pwd,
-                const char& promptCh,
+                const std::string& promptCh,
 	            const std::string& str,
 	            size_t& sPos,
 	            const size_t& usableLength,
@@ -34,7 +34,7 @@ int rnbwcout(const std::set<std::string>& strs, const std::string& lolcatCmd);
 
 int getline(const std::string& lang,
             const bool& addPwd, 
-            const char& promptCh, 
+            const std::string& promptCh, 
 	        const int& lolcatActive,
             std::string& str, 
             bool trackLines, 

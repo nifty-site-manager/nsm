@@ -103,6 +103,8 @@ size_t width, cWidth;
 bool addLineNo = 0, zigzag = 0;
 int posGrad = 1;
 
+const std::string arr = "⥤";
+
 int lolcat(std::istream& is)
 {
 	std::string inLine;
@@ -152,9 +154,31 @@ int lolcat(std::istream& is)
 			for(size_t I=0; I<width && i<inLine.size(); ++I)
 			{
 				if(format)
-				{   //https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
-					while(i < inLine.size() && (inLine[i] == '\\' || 
+				{
+					for(size_t j=1; j<4; ++j)
+					{
+						if(j < 3 && i+width-j < inLine.size() && inLine[i+width-j] == arr[0])
+						{ //checks for multi-char utf characters
+							std::cout << colors[color] << inLine.substr(i, width+3-j);
+							i += width+3-j;
+							break;
+						}
+						else if(i+width-j < inLine.size() && (inLine[i+width-j] == '\xF0' ||
+							                                  inLine[i+width-j] == '\xE2' ||
+							                                  inLine[i+width-j] == '\xC2'))
+						{ //checks for emojis
+							std::cout << colors[color] << inLine.substr(i, width+4-j);
+							i += width+4-j;
+							break;
+						}
+					}
+
+					//https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
+					while(i < inLine.size() && ((inLine[i] == '\\' && (!i || inLine[i-1] != '\\')) || 
 					                            inLine[i] == '\x0' || 
+					                            inLine[i] == '\xF0' ||         // emojis
+					                            inLine[i] == '\xE2' ||         // emojis
+					                            inLine[i] == '\xC2' ||         // emojis
 					                            //inLine[i] == "\e" ||
 					                            inLine[i] == '\033' ||         // octag
 					                            inLine.substr(i, 2) == "^[" || // ctrl key

@@ -543,6 +543,11 @@ int ProjectInfo::open_tracking(const bool& addMsg)
 	return 0;
 }
 
+Path ProjectInfo::execrc_path(const std::string& exec, const std::string& execrc_ext)
+{
+	return Path(app_dir() + "/.nift/", exec + "rc." + execrc_ext);
+}
+
 int ProjectInfo::save_config(const std::string& configPathStr, const bool& global)
 {
 	std::ofstream ofs(configPathStr);

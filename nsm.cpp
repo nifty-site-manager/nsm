@@ -765,8 +765,8 @@ int main(int argc, const char* argv[])
 		std::cout << " (" << c_blue << "https://nift.dev" << c_white << ")" << std::endl;
 
 		//ensures correct number of parameters given
-		if(noParams != 1 && noParams != 2 && noParams != 3)
-			return parError(noParams, argv, "1-3");
+		if(noParams != 1 && noParams != 2)
+			return parError(noParams, argv, "1-2");
 
 		std::string param;
 		Path path;
@@ -778,18 +778,34 @@ int main(int argc, const char* argv[])
 		{
 			param = argv[2];
 
-			if(param.find_first_of('f') != std::string::npos)
-				lang = "f++";
-			else if(param.find_first_of('n') != std::string::npos)
-				lang = "n++";
-			else if(param.find_first_of('l') != std::string::npos)
-				lang = "lua";
-			else if(param.find_first_of('x') != std::string::npos)
-				lang = "exprtk";
+			size_t i = param.find_first_of("eEfFlLnN");
+
+			if(!i)
+			{
+				if(lang[0] == 't' || lang[0] == 'T')
+					lang = "n++";
+				else if(lang[0] == 'x' || lang[0] == 'X')
+					lang = "exprtk";
+				else
+					lang = param;
+			}
+			else if(i != std::string::npos)
+			{
+				char c = param[i];
+
+				if(c == 'f' || c == 'F')
+					lang = "f++";
+				else if(c == 'n' || c == 'N' || c == 't' || c == 'T')
+					lang = "n++";
+				else if(c == 'l' || c == 'L')
+					lang = "lua";
+				else if(c == 'e' || c == 'E' || c == 'x' || c == 'X')
+					lang = "exprtk";
+			}
 			else
 			{
 				start_err(std::cout) << cmd << ": cannot determine chosen language from " << quote(param) << ", ";
-				std::cout << "valid options include '-n++', '-f++', '-lua', '-exprtk'" << std::endl;
+				std::cout << "valid options include '-f++', '-n++', '-lua', '-exprtk'" << std::endl;
 				return 1;
 			}
 		}
@@ -805,6 +821,11 @@ int main(int argc, const char* argv[])
 
 			if(project.open_tracking(1))
 				return 1;
+
+			if(file_exists(".nsm/" + cmd + ".f"))
+			{
+
+			}
 		}
 		else if(project.open_global_config(1))
 				return 1;
@@ -830,6 +851,21 @@ int main(int argc, const char* argv[])
 			parser.lolcatActive = parser.lolcatInit = 1;
 			parser.lolcatCmd = project.lolcatCmd;
 		}
+
+		if(file_exists(project.execrc_path(argv[0], lang.substr(0, 1)).str()))
+		{
+			std::cout << "running " << argv[0] << "rc." << lang[0] << " file: ";
+			std::cout << project.execrc_path(argv[0], lang.substr(0, 1)) << std::endl;
+			parser.run(project.execrc_path(argv[0], lang.substr(0, 1)).str(), lang[0], std::cout);
+		}
+
+		if(file_exists(Path(".nsm/", cmd + "." + lang.substr(0, 1)).str()))
+		{
+			std::cout << "runnning project " << cmd << "." << lang[0] << " file: ";
+			std::cout << Path(".nsm/", cmd + "." + lang.substr(0, 1)) << std::endl;
+			parser.run(Path(".nsm/", cmd + "." + lang.substr(0, 1)).str(), lang[0], std::cout);
+		}
+
 
 		if(cmd == "interp")
 			return parser.interpreter(lang, std::cout);

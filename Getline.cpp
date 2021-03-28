@@ -13,7 +13,7 @@ void save_session(const std::string& path)
 	ofs.close();
 }
 
-void write_prompt(const std::string& lang, const std::string& pwd, const char& promptCh)
+void write_prompt(const std::string& lang, const std::string& pwd, const std::string& promptCh)
 {
 	//clears current line in console
 	clear_console_line();
@@ -31,7 +31,7 @@ void write_prompt(const std::string& lang, const std::string& pwd, const char& p
 
 void write_input_line(const std::string& lang, 
 	            const std::string& pwd,
-                const char& promptCh,
+                const std::string& promptCh,
 	            const std::string& str,
 	            size_t& sPos,
 	            const size_t& usableLength,
@@ -114,7 +114,7 @@ int rnbwcout(const std::set<std::string>& strs)
 #if defined _WIN32 || defined _WIN64
 	int getline(const std::string& lang,
 	            const bool& addPwd, 
-	            const char& promptCh, 
+	            const string& promptCh, 
 	            const int& lolcatActive,
 	            std::string& str, 
 	            bool trackLines, 
@@ -154,7 +154,7 @@ int rnbwcout(const std::set<std::string>& strs)
 					if(pwd.size() > maxPWDLength)
 						pwd = ".." + pwd.substr(pwd.size()-maxPWDLength, maxPWDLength);
 
-					promptLength = lang.size() + pwd.size() + 3; 
+					promptLength = lang.size() + pwd.size() + promptCh.size() + 2; 
 				}
 			}
 			usableLength = std::max(0, (int)currConsoleWidth - (int)promptLength - 1);
@@ -597,7 +597,7 @@ int rnbwcout(const std::set<std::string>& strs)
 #else  //*nix
 	int getline(const std::string& lang, 
 	            const bool& addPwd, 
-	            const char& promptCh, 
+	            const std::string& promptCh, 
 	            const int& lolcatActive,
 	            std::string& str, 
 	            bool trackLines, 
@@ -646,7 +646,7 @@ int rnbwcout(const std::set<std::string>& strs)
 					if(pwd.size() > maxPWDLength)
 						pwd = ".." + pwd.substr(pwd.size()-maxPWDLength, maxPWDLength);
 
-					promptLength = lang.size() + pwd.size() + 3; 
+					promptLength = lang.size() + pwd.size() + promptCh.size() + 2; 
 				}
 			}
 			usableLength = std::max(0, (int)currConsoleWidth - (int)promptLength - 1);

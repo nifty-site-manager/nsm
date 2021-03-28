@@ -51,6 +51,8 @@ Parser::Parser(std::set<TrackedInfo>* TrackedAll,
 	unixTextEditor = UnixTextEditor;
 	winTextEditor = WinTextEditor;
 
+	promptChar = '$';
+
 	mode = -1;
 	lolcatActive = lolcatInit = 0;
 
@@ -524,7 +526,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 	vars.precision = 6;
 	vars.fixedPrecision = vars.scientificPrecision = 0;
 
-	if(lang != "f++" && lang != "n++" && lang != "lua" && lang != "exprtk")
+	if(lang.find_first_of("eEfFlLnN"))
 	{
 		if(!consoleLocked)
 			os_mtx->lock();
@@ -589,7 +591,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 		int netBrackets = 0;
 		try
 		{
-			result = getline(lang, addPath, '$', lolcatActive, inLine, 1, tabCompletionStrs);
+			result = getline(lang, addPath, promptChar, lolcatActive, inLine, 1, tabCompletionStrs);
 		}
 		catch(...)
 		{
@@ -626,7 +628,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 				toProcess += inLine + "\n";
 
 			inLine = "";
-			result = getline(lang, addPath, '>', lolcatActive, inLine, 1, tabCompletionStrs);
+			result = getline(lang, addPath, ">", lolcatActive, inLine, 1, tabCompletionStrs);
 			for(size_t i=0; i<inLine.size(); ++i)
 			{
 				if(inLine[i] == '(' || inLine[i] == '{' || inLine[i] == '[' || inLine[i] == '<')
@@ -3694,7 +3696,9 @@ int Parser::read_and_process_fn(const bool& indent,
 				}
 			}
 
-			if(params.size() == 0)
+			bool fromFile = 0;
+
+			if(!params.size())
 			{
 				blockOpt = 1;
 				params.push_back("");
@@ -3704,12 +3708,25 @@ int Parser::read_and_process_fn(const bool& indent,
 				if(parseBlock && parse_replace(lang, params[0], "lua block", readPath, antiDepsOfReadPath, bLineNo, "lua{block}", sLineNo, eos))
 					return 1;
 			}
+			else if(params.size())
+			{
+				fromFile = 1;
+
+				if(!file_exists(params[0]))
+				{
+					if(!consoleLocked)
+						os_mtx->lock();
+					start_err_ml(eos, readPath, sLineNo, lineNo) << "lua: file " << params[0] << " does not exist" << std::endl;
+					os_mtx->unlock();
+					return 1;
+				}
+			}
 
 			//makes sure lua is initialised
 			if(!lua.initialised)
 				lua.init();
 
-			int result = luaL_dostring(lua.L, params[0].c_str());
+			int result = (fromFile) ? luaL_dofile(lua.L, params[0].c_str()) : luaL_dostring(lua.L, params[0].c_str());
 
 			if(result)
 			{
@@ -4523,7 +4540,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == "lolcat.on")
+		else if(funcName == "lolcat.activate" || funcName == "lolcat.on")
 		{
 			if(params.size() > 1)
 			{
@@ -4614,7 +4631,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == "lolcat.off")
+		else if(funcName == "lolcat.deactivate" || funcName == "lolcat.off")
 		{
 			if(params.size() != 0)
 			{
@@ -5338,6 +5355,22 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
+		else if(funcName == "prompt.char")
+		{
+			if(params.size() != 1)
+			{
+				if(!consoleLocked)
+					os_mtx->lock();
+				start_err_ml(eos, readPath, sLineNo, lineNo) << "prompt.char: expected 1 parameters, got " << params.size() << std::endl;
+				os_mtx->unlock();
+				return 1;
+			}
+
+			change_prompt_char(params[0]);
+
+			return 0;
+		}
+
 	}
 	else if(funcName[0] == 'c')
 	{
@@ -10294,11 +10327,11 @@ int Parser::read_and_process_fn(const bool& indent,
 	{
 		if(funcName == "f++")
 		{
-			if(params.size() != 0)
+			if(params.size() > 1)
 			{
 				if(!consoleLocked)
 					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "f++: expected 0 parameters, got " << params.size() << std::endl;
+				start_err_ml(eos, readPath, sLineNo, lineNo) << "f++: expected 0-1 parameters, got " << params.size() << std::endl;
 				os_mtx->unlock();
 				return 1;
 			}
@@ -10317,9 +10350,25 @@ int Parser::read_and_process_fn(const bool& indent,
 				}
 			}
 
-			params.push_back("");
-			if(read_block(params[0], linePos, inStr, readPath, lineNo, bLineNo, "f++{block}", eos))
-				return 1;
+			if(params.size())
+			{
+				if(!file_exists(params[0]))
+				{
+					if(!consoleLocked)
+						os_mtx->lock();
+					start_err_ml(eos, readPath, sLineNo, lineNo) << "f++: file " << params[0] << " does not exist" << std::endl;
+					os_mtx->unlock();
+					return 1;
+				}
+
+				params[0] = string_from_file(params[0]);
+			}
+			else
+			{
+				params.push_back("");
+				if(read_block(params[0], linePos, inStr, readPath, lineNo, bLineNo, "f++{block}", eos))
+					return 1;
+			}
 
 			std::string resultStr;
 			int result = f_read_and_process_fast(addOut, params[0], bLineNo-1, readPath, antiDepsOfReadPath, resultStr, eos);
@@ -10340,6 +10389,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				if(indent)
 					indentAmount += into_whitespace(resultStr);
 			}
+
 
 			return result;
 		}
@@ -11000,13 +11050,15 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 
 			int bLineNo;
-			bool blockOpt = 0, parseBlock = 0, addOut = addOutput, round = 1;
+			bool blockOpt = 0, fileOpt = 0, parseBlock = 0, addOut = addOutput, round = 1;
 			char blockLang = lang;
 
 			if(options.size())
 			{
 				for(size_t o=0; o<options.size(); o++)
 				{
+					if(options[o] == "f" || options[o] == "file")
+						fileOpt =  1;
 					if(options[o] == "f++")
 						blockLang = 'f';
 					else if(options[o] == "n++")
@@ -11031,6 +11083,19 @@ int Parser::read_and_process_fn(const bool& indent,
 
 				if(parseBlock && parse_replace(blockLang, params[0], "exprtk block", readPath, antiDepsOfReadPath, bLineNo, "exprtk{block}", sLineNo, eos))
 					return 1;
+			}
+			else if(fileOpt)
+			{
+				params[0] = string_from_file(params[0]);
+
+				if(!file_exists(params[0]))
+				{
+					if(!consoleLocked)
+						os_mtx->lock();
+					start_err_ml(eos, readPath, sLineNo, lineNo) << "exprtk: file " << params[0] << " does not exist" << std::endl;
+					os_mtx->unlock();
+					return 1;
+				}
 			}
 
 			if(!expr.compile(params[0]))
@@ -11071,7 +11136,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 
 			int bLineNo;
-			bool blockOpt = 0, parseBlock = 0;
+			bool blockOpt = 0, fileOpt = 0, parseBlock = 0;
 			char blockLang = lang;
 
 			if(options.size())
@@ -11080,6 +11145,8 @@ int Parser::read_and_process_fn(const bool& indent,
 				{
 					if(options[o] == "b" || options[o] == "block")
 						blockOpt = 1;
+					else if(options[o] == "f" || options[o] == "file")
+						fileOpt = 1;
 					else if(options[o] == "f++")
 						blockLang = 'f';
 					else if(options[o] == "n++")
@@ -11091,6 +11158,28 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			if(params.size() == 0)
 				blockOpt = 1;
+			else if(fileOpt)
+			{
+				if(params.size() != 1)
+				{
+					if(!consoleLocked)
+						os_mtx->lock();
+					start_err_ml(eos, readPath, sLineNo, lineNo) << "exprtk.compile: expected 1 parameter, got " << params.size() << std::endl;
+					os_mtx->unlock();
+					return 1;
+				}
+
+				params.push_back(string_from_file(params[0]));
+
+				if(!file_exists(params[1]))
+				{
+					if(!consoleLocked)
+						os_mtx->lock();
+					start_err_ml(eos, readPath, sLineNo, lineNo) << "exprtk.compile: file " << params[0] << " does not exist" << std::endl;
+					os_mtx->unlock();
+					return 1;
+				}
+			}
 
 			if(blockOpt)
 			{
@@ -11131,6 +11220,66 @@ int Parser::read_and_process_fn(const bool& indent,
 				os_mtx->unlock();
 				return 1;
 			}
+
+			return 0;
+		}
+		else if(funcName == "exprtk.file")
+		{
+			if(params.size() != 1)
+			{
+				if(!consoleLocked)
+					os_mtx->lock();
+				start_err_ml(eos, readPath, sLineNo, lineNo) << "exprtk: expected 1 parameter, got " << params.size() << std::endl;
+				os_mtx->unlock();
+				return 1;
+			}
+
+			bool addOut = addOutput, round = 1;
+
+			if(options.size())
+			{
+				for(size_t o=0; o<options.size(); o++)
+				{
+					if(options[o] == "o")
+						addOut = 1;
+					else if(options[o] == "!o")
+						addOut = 0;
+					else if(options[o] == "!round")
+						round = 0;
+				}
+			}
+
+			if(!file_exists(params[0]))
+			{
+				if(!consoleLocked)
+					os_mtx->lock();
+				start_err_ml(eos, readPath, sLineNo, lineNo) << "exprtk: file " << params[0] << " does not exist" << std::endl;
+				os_mtx->unlock();
+				return 1;
+			}
+			
+			params[0] = string_from_file(params[0]);
+
+			if(!expr.compile(params[0]))
+			{
+				if(!consoleLocked)
+					os_mtx->lock();
+				start_err(eos, readPath, sLineNo) << c_green << "exprtk" << c_white << ": failed to compile expression" << std::endl;
+				print_exprtk_parser_errs(eos, expr.parser, params[0], readPath, sLineNo);
+				os_mtx->unlock();
+				return 1;
+			}
+
+			if(addOut)
+			{
+				std::string value = vars.double_to_string(expr.evaluate(), round);
+
+				outStr += value;
+				if(indent)
+					indentAmount += into_whitespace(value);
+			}
+			else
+				expr.evaluate();
 
 			return 0;
 		}
@@ -13837,11 +13986,11 @@ int Parser::read_and_process_fn(const bool& indent,
 	{
 		if(funcName == "n++")
 		{
-			if(params.size() != 0)
+			if(params.size() > 1)
 			{
 				if(!consoleLocked)
 					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "n++: expected 0 parameters, got " << params.size() << std::endl;
+				start_err_ml(eos, readPath, sLineNo, lineNo) << "n++: expected 0-1 parameters, got " << params.size() << std::endl;
 				os_mtx->unlock();
 				return 1;
 			}
@@ -13860,9 +14009,25 @@ int Parser::read_and_process_fn(const bool& indent,
 				}
 			}
 
-			params.push_back("");
-			if(read_block(params[0], linePos, inStr, readPath, lineNo, bLineNo, "n++{block}", eos))
-				return 1;
+			if(params.size())
+			{
+				if(!file_exists(params[0]))
+				{
+					if(!consoleLocked)
+						os_mtx->lock();
+					start_err_ml(eos, readPath, sLineNo, lineNo) << "n++: file " << params[0] << " does not exist" << std::endl;
+					os_mtx->unlock();
+					return 1;
+				}
+
+				params[0] = string_from_file(params[0]);
+			}
+			else
+			{
+				params.push_back("");
+				if(read_block(params[0], linePos, inStr, readPath, lineNo, bLineNo, "n++{block}", eos))
+					return 1;
+			}
 
 			std::string resultStr;
 			int result = n_read_and_process_fast(1, addOut, params[0], bLineNo-1, readPath, antiDepsOfReadPath, resultStr, eos);
@@ -13884,6 +14049,7 @@ int Parser::read_and_process_fn(const bool& indent,
 					indentAmount += into_whitespace(resultStr);
 			}
 
+
 			return result;
 		}
 		else if(funcName == "nsm_lang" && (mode == MODE_INTERP || mode == MODE_SHELL))
@@ -13897,9 +14063,9 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			int pos = params[0].find_first_of("fFnNtTlLeExX", 0);
+			size_t pos = params[0].find_first_of("fFnNtTlLeExX", 0);
 
-			if(pos >= 0)
+			if(pos != std::string::npos)
 			{
 				if(params[0][pos] == 'f' || params[0][pos] == 'F') 
 					return LANG_FPP;
@@ -17366,6 +17532,47 @@ int Parser::valid_type(std::string& typeStr,
 	}
 
    return 0;
+}
+
+std::mutex chnge_prmpt_mtx;
+int Parser::change_prompt_char(const std::string& charStr)
+{
+	if(charStr.size() == 0)
+	{
+		chnge_prmpt_mtx.lock();
+		promptChar = "";
+		chnge_prmpt_mtx.unlock();
+		return 0;
+	}
+	else if (charStr.size() > 1 && !((charStr[0] == '\\' && (charStr[0] != '\'' && charStr[1] != '\\')) || 
+					                            charStr[0] == '\x0' || 
+					                            charStr[0] == '\xF0' ||         // emojis
+					                            charStr[0] == '\xE2' ||         // emojis
+					                            charStr[0] == '\xC2' ||         // emojis
+					                            //charStr[0] == "\e" ||
+					                            //charStr[0] != std::string("⥤")[0] || //some multi-char utf chars
+					                            charStr[0] == '\033' ||         // octag
+					                            charStr.substr(0, 2) == "^[" || // ctrl key
+					                            charStr[0] == '\x1b' ||         // hexadecimal
+					                            charStr[0] == '\u001b'))        // unicode
+	{
+		start_err(std::cout, std::string("prompt.char:")) << "new prompt should be 1 char long, not " + std::to_string(charStr.size()) << std::endl;
+		return 1; 
+	}
+	else
+	{
+		std::stringstream ss;
+
+		ss << charStr;
+
+		chnge_prmpt_mtx.lock();
+		ss >> promptChar;
+		chnge_prmpt_mtx.unlock();
+	}
+
+	std::cout << "changed prompt character to '" << promptChar << "'" << std::endl;
+
+	return 0;
 }
 
 

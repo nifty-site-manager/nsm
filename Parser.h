@@ -40,6 +40,7 @@ struct Parser
 	std::string indentAmount;
 	bool addMemberFnsGlobal, addScopeGlobal, replaceVarsGlobal;
 	bool contentAdded;
+	std::string promptChar;
 	std::string parsedText;
 	int mode;
 	bool lolcatActive, lolcatInit;
@@ -368,6 +369,8 @@ struct Parser
 				   const std::string& callType,
 				   const int& callLineNo,
 				   std::ostream& eos);
+
+	int change_prompt_char(const std::string& charStr);
 
 	void print_exprtk_parser_errs(std::ostream& eos, 
 	                              const exprtk::parser<double>& parser, 

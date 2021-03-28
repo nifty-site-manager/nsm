@@ -218,20 +218,6 @@ HashTk.o: hashtk/HashTk.cpp hashtk/HashTk.h
 
 ###
 
-fix-indenting: 
-ifeq ($(detected_OS),Windows)       # Windows
-	g++ FixIndenting.cpp -o indent-fixer-upperer
-	./indent-fixer-upperer.exe *.cpp *.h
-	del indent_fixer_upperer.exe
-else                                # *nix
-	g++ FixIndenting.cpp -o indent-fixer-upperer
-	./indent-fixer-upperer *.cpp *.h
-	rm indent-fixer-upperer
-endif 
-
-
-###
-
 nsm: $(objects)
 ifeq ($(detected_OS),Windows)  # Windows
 	$(CXX) $(CXXFLAGS) $(objects) -o nsm $(LDFLAGS)
