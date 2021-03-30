@@ -2,6 +2,14 @@
 Nift Release Notes
 ------------------
 
+Version 2.4.8 of Nift
+* added in default of trying system call if failure with lua(jit) or exprtk in interactive (interp/sh) mode,
+  they work better as shell extensions this way
+* cleaned up language choice so ExprTk and templatestein and all reasonable derivatives work okay
+* fixed up nsm_lang fns for Lua(JIT) and ExprTk to work with both string and char version of language selection 
+* updated sys/system fn output to use the called fn name rather than defaulting to system
+* added in passing parameters to the nift run command with variables 'argc' (int) and 'argv' (vector<string>)
+
 Version 2.4.7 of Nift
 * Reverted to handling @fns with f++, too ingrained in the codebase
 * Reverted to calling sys call on whole line for zero param functions

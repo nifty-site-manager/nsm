@@ -108,7 +108,8 @@ struct exprtk_nsm_lang : public exprtk::igeneric_function<T>
 {
 	typedef typename exprtk::igeneric_function<T>::parameter_list_t parameter_list_t;
 
-	std::string* nsm_lang;
+	std::string* nsm_lang_str_ptr;
+	char*        nsm_lang_ch_ptr;
 
 	exprtk_nsm_lang() : exprtk::igeneric_function<T>("S")
 	{}
@@ -122,17 +123,29 @@ struct exprtk_nsm_lang : public exprtk::igeneric_function<T>
 		string_t param_strt(gt);
 		std::string langStr = std::string(param_strt.begin(), param_strt.size());
 
-		int pos = langStr.find_first_of("fFnNtTlLeExX", 0);
+		int pos = langStr.find_first_of("fFnNtTlLxX", 0);
 		if(pos >= 0)
 		{
 			if(langStr[pos] == 'f' || langStr[pos] == 'F')
-				*nsm_lang = "f++";
+			{
+				*nsm_lang_str_ptr = "f++";
+				*nsm_lang_ch_ptr = 'f';
+			}
+			else if(langStr[pos] == 'x' || langStr[pos] == 'X')
+			{
+				*nsm_lang_str_ptr = "exprtk";
+				*nsm_lang_ch_ptr = 'x';
+			}
 			else if(langStr[pos] == 'n' || langStr[pos] == 'N' || langStr[pos] == 't' || langStr[pos] == 'T')
-				*nsm_lang = "n++";
+			{
+				*nsm_lang_str_ptr = "n++";
+				*nsm_lang_ch_ptr = 'n';
+			}
 			else if(langStr[pos] == 'l' || langStr[pos] == 'L')
-				*nsm_lang = "lua";
-			else if(langStr[pos] == 'e' || langStr[pos] == 'E' || langStr[pos] == 'x' || langStr[pos] == 'X')
-				*nsm_lang = "exprtk";
+			{
+				*nsm_lang_str_ptr = "lua";
+				*nsm_lang_ch_ptr = 'l';
+			}
 
 			return 1;
 		}
@@ -140,9 +153,14 @@ struct exprtk_nsm_lang : public exprtk::igeneric_function<T>
 		return 0;
 	}
 
-	void setLangPtr(std::string* langPtr)
+	void setLangStrPtr(std::string* langStrPtr)
 	{
-		nsm_lang = langPtr;
+		nsm_lang_str_ptr = langStrPtr;
+	}
+
+	void setLangChPtr(char* langChPtr)
+	{
+		nsm_lang_ch_ptr = langChPtr;
 	}
 };
 

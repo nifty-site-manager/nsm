@@ -553,7 +553,8 @@ int Parser::interactive(std::string& langStr, char& langCh, std::ostream& eos)
 	symbol_table.add_package(vectorops_package);
 
 	exprtk_nsm_lang<double> exprtk_nsm_lang_fn;
-	exprtk_nsm_lang_fn.setLangPtr(&langStr);
+	exprtk_nsm_lang_fn.setLangStrPtr(&langStr);
+	exprtk_nsm_lang_fn.setLangChPtr(&langCh);
 	symbol_table.add_function("nsm_lang", exprtk_nsm_lang_fn);
 	exprtk_nsm_mode<double> exprtk_nsm_mode_fn;
 	exprtk_nsm_mode_fn.setModePtr(&mode);
@@ -565,7 +566,10 @@ int Parser::interactive(std::string& langStr, char& langCh, std::ostream& eos)
 		lua_addnsmfns();
 
 		lua_pushlightuserdata(lua.L, &langStr);
-		lua_setglobal(lua.L, "nsm_lang__");
+		lua_setglobal(lua.L, "nsm_lang_str__");
+		lua_pushlightuserdata(lua.L, &langCh);
+		lua_setglobal(lua.L, "nsm_lang_ch__");
+
 		lua_register(lua.L, "nsm_lang", lua_nsm_lang);
 		lua_register(lua.L, "nsm_mode", lua_nsm_mode);
 	}
@@ -655,13 +659,38 @@ int Parser::interactive(std::string& langStr, char& langCh, std::ostream& eos)
 			{
 				if(!expr.compile(toProcess))
 				{
-					result = 1;
-					if(!consoleLocked)
-						os_mtx->lock();
-					start_err(eos, emptyPath, 1) << c_light_blue << "exprtk" << c_white << ": failed to compile expression" << std::endl;
-					print_exprtk_parser_errs(eos, expr.parser, toProcess, emptyPath, 1);
-					if(!consoleLocked)
-						os_mtx->unlock();
+					if(lolcatActive)
+					{
+						for(size_t i=0; i<toProcess.size(); ++i)
+						{
+							i = toProcess.find_first_of(";\n", i);
+							if(i == std::string::npos)
+							{
+								std::string checkStr = toProcess;
+								strip_trailing_whitespace_multiline(checkStr);
+								if(toProcess.size() && checkStr[checkStr.size()-1] != ';')
+									toProcess += " | " + lolcatCmd;
+								break;
+							}
+							else
+							{
+								toProcess.replace(i, 1, " | " + lolcatCmd + toProcess[i]);
+								i += 4 + lolcatCmd.size();
+							}
+						}
+					}
+
+					result = std::system(toProcess.c_str());
+
+					if(result)
+					{
+						if(!consoleLocked)
+							os_mtx->lock();
+						start_err(eos, emptyPath, 1) << c_light_blue << "exprtk" << c_white << ": failed to compile expression" << std::endl;
+						print_exprtk_parser_errs(eos, expr.parser, toProcess, emptyPath, 1);
+						if(!consoleLocked)
+							os_mtx->unlock();
+					}
 				}
 				else
 					result = expr.evaluate();
@@ -672,15 +701,41 @@ int Parser::interactive(std::string& langStr, char& langCh, std::ostream& eos)
 
 				if(result)
 				{
-					std::string errStr = lua_tostring(lua.L, -1);
-					lua_remove(lua.L, 1);
-					int errLineNo = 1;
-					process_lua_error(errStr, errLineNo);
+					if(lolcatActive)
+					{
+						for(size_t i=0; i<toProcess.size(); ++i)
+						{
+							i = toProcess.find_first_of(";\n", i);
+							if(i == std::string::npos)
+							{
+								std::string checkStr = toProcess;
+								strip_trailing_whitespace_multiline(checkStr);
+								if(toProcess.size() && checkStr[checkStr.size()-1] != ';')
+									toProcess += " | " + lolcatCmd;
+								break;
+							}
+							else
+							{
+								toProcess.replace(i, 1, " | " + lolcatCmd + toProcess[i]);
+								i += 4 + lolcatCmd.size();
+							}
+						}
+					}
 
-					if(!consoleLocked)
-						os_mtx->lock();
-					start_err(eos, emptyPath, errLineNo) << "lua: " << errStr << std::endl;
-					os_mtx->unlock();
+					int sysResult = std::system(toProcess.c_str());
+
+					if(sysResult)
+					{
+						std::string errStr = lua_tostring(lua.L, -1);
+						lua_remove(lua.L, 1);
+						int errLineNo = 1;
+						process_lua_error(errStr, errLineNo);
+
+						if(!consoleLocked)
+							os_mtx->lock();
+						start_err(eos, emptyPath, errLineNo) << "lua: " << errStr << std::endl;
+						os_mtx->unlock();
+					}
 				}
 			}
 		}
@@ -728,7 +783,9 @@ int Parser::interactive(std::string& langStr, char& langCh, std::ostream& eos)
 			mode = MODE_INTERP;
 			addPath = 0;
 		}
-		else if(parsedText != "")
+		else if(result == NSM_CONT)
+		{}
+		else if((langCh == 'f' || langCh == 'n') && parsedText != "")
 		{
 			if(lolcatActive)
 				rnbwcout(parsedText);
@@ -765,7 +822,7 @@ void setIncrMode(const int& IncrMode)
 	incrMode = IncrMode;
 }
 
-int Parser::run(const Path& path, char lang, std::ostream& eos)
+int Parser::run(const Path& path, char& langCh, const std::vector<std::string>& params, std::ostream& eos)
 {
 	mode = MODE_RUN;
 	vars.precision = 6;
@@ -780,21 +837,21 @@ int Parser::run(const Path& path, char lang, std::ostream& eos)
 		return 1;
 	}
 
-	if(lang == '?')
+	if(langCh == '?')
 	{
 		int pos = path.file.find_first_of('.');
 		std::string ext = path.file.substr(pos, path.file.size()-pos);
 
-		if(ext.find_first_of("fF") != std::string::npos)
-			lang = 'f';
-		else if(ext.find_first_of("nNtT") != std::string::npos)
-			lang = 'n';
+		if(ext.find_first_of("xX") != std::string::npos)
+			langCh = 'x';
+		else if(ext.find_first_of("fF") != std::string::npos)
+			langCh = 'f';
+		else if(ext.find_first_of("nNmM") != std::string::npos)
+			langCh = 'n';
 		if(ext.find_first_of("lL") != std::string::npos)
-			lang = 'l';
-		else if(ext.find_first_of("eExX") != std::string::npos)
-			lang = 'x';
+			langCh = 'l';
 		else 
-			lang = 'f';
+			langCh = 'f';
 		/*else
 		{
 			if(!consoleLocked)
@@ -865,11 +922,38 @@ int Parser::run(const Path& path, char lang, std::ostream& eos)
 
 	try
 	{
-		if(lang == 'n')
+		if(langCh == 'n' || langCh == 'f')
+		{
+			std::string toParse = ":={layer=0}(std::vector<string>, argv)";
+			std::string trash;
+			if(f_read_and_process_fast(0, toParse, lineNo, path, antiDepsOfReadPath, trash, eos) > 0)
+			{
+				if(!consoleLocked)
+					os_mtx->lock();
+				start_err(eos, path) << "run: failed to define argv vector" << std::endl;
+				os_mtx->unlock();
+				return 1;
+			}
+			vars.layers[0].strVecs["argv"] = params;
+			vars.layers[0].constants.insert("argv");
+
+			toParse = ":={layer=0}(int, argc = " + std::to_string(params.size()) + ")";
+			if(f_read_and_process_fast(0, toParse, lineNo, path, antiDepsOfReadPath, trash, eos) > 0)
+			{
+				if(!consoleLocked)
+					os_mtx->lock();
+				start_err(eos, path) << "run: failed to define argc integer" << std::endl;
+				os_mtx->unlock();
+				return 1;
+			}
+		}
+
+
+		if(langCh == 'n')
 			result = n_read_and_process_fast(1, 0, scriptStr, lineNo-1, path, antiDepsOfReadPath, parsedText, eos);
-		else if(lang == 'f')
+		else if(langCh == 'f')
 			result = f_read_and_process_fast(0, scriptStr, lineNo-1, path, antiDepsOfReadPath, parsedText, eos);
-		else if(lang == 'l')
+		else if(langCh == 'l')
 		{
 			lua.init();
 
@@ -887,7 +971,7 @@ int Parser::run(const Path& path, char lang, std::ostream& eos)
 				os_mtx->unlock();
 			}
 		}
-		else if(lang == 'e')
+		else if(langCh == 'x')
 		{
 			std::string strippedScriptStr = scriptStr;
 			strip_surrounding_whitespace_multiline(strippedScriptStr);
@@ -2932,7 +3016,10 @@ int Parser::read_and_process_fn(const bool& indent,
 					{
 						if(!consoleLocked)
 							os_mtx->lock();
-						start_err_ml(eos, readPath, sLineNo, lineNo) << "inputting file " << inputPath << " would result in an input loop" << std::endl;
+						if(funcName == "input")
+							start_err_ml(eos, readPath, sLineNo, lineNo) << "inputting file " << inputPath << " would result in an input loop" << std::endl;
+						else
+							start_err_ml(eos, readPath, sLineNo, lineNo) << "injecting file " << inputPath << " would result in an input loop" << std::endl;
 						os_mtx->unlock();
 						return 1;
 					}
@@ -2985,7 +3072,10 @@ int Parser::read_and_process_fn(const bool& indent,
 			{
 				if(!consoleLocked)
 					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "inputting/injecting file " << inputPath << " failed as path does not exist" << std::endl;
+				if(funcName == "input")
+					start_err_ml(eos, readPath, sLineNo, lineNo) << "inputting file " << inputPath << " failed as path does not exist" << std::endl;
+				else
+					start_err_ml(eos, readPath, sLineNo, lineNo) << "injecting file " << inputPath << " failed as path does not exist" << std::endl;
 				os_mtx->unlock();
 				return 1;
 			}
@@ -12804,7 +12894,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			{
 				if(!consoleLocked)
 					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "system: expected 0-1 parameters, got " << params.size() << std::endl;
+				start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": expected 0-1 parameters, got " << params.size() << std::endl;
 				os_mtx->unlock();
 				return 1;
 			}
@@ -12842,7 +12932,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				if(read_block(params[0], linePos, inStr, readPath, lineNo, bLineNo, "system{block}", eos))
 					return 1;
 
-				if(parseBlock && parse_replace(lang, params[0], "system block", readPath, antiDepsOfReadPath, bLineNo, "system{block}", sLineNo, eos))
+				if(parseBlock && parse_replace(lang, params[0], funcName + " block", readPath, antiDepsOfReadPath, bLineNo, funcName + "{block}", sLineNo, eos))
 					return 1;
 			}
 
@@ -12866,7 +12956,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			{
 				if(!consoleLocked)
 					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "system(" << quote(sys_call) << "): console, inject, raw and !o options are incompatible with each other" << std::endl;
+				start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << "(" << quote(sys_call) << "): console, inject, raw and !o options are incompatible with each other" << std::endl;
 				os_mtx->unlock();
 				return 1;
 			}
@@ -12910,7 +13000,7 @@ int Parser::read_and_process_fn(const bool& indent,
 					if(mode == MODE_INTERP || mode == MODE_SHELL)
 						std::cout << "\a" << std::flush;
 					else
-						start_err_ml(eos, readPath, sLineNo, lineNo) << "system{console}(" << quote(sys_call) << ") failed" << std::endl;
+						start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << "{console}(" << quote(sys_call) << ") failed" << std::endl;
 					os_mtx->unlock();
 					return 1;
 				}
@@ -12929,7 +13019,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				{
 					if(!consoleLocked)
 						os_mtx->lock();
-					start_err_ml(eos, readPath, sLineNo, lineNo) << "system{!o}(" << quote(sys_call) << ") failed, ";
+					start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << "{!o}(" << quote(sys_call) << ") failed, ";
 					eos << "see " << quote(output_filename) << " for pre-error system output" << std::endl;
 					os_mtx->unlock();
 					//remove_file(Path("./", output_filename));
@@ -12952,7 +13042,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				{
 					if(!consoleLocked)
 						os_mtx->lock();
-					start_err_ml(eos, readPath, sLineNo, lineNo) << "system{raw}(" << quote(sys_call) << ") failed, ";
+					start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << "{raw}(" << quote(sys_call) << ") failed, ";
 					eos << "see " << quote(output_filename) << " for pre-error system output" << std::endl;
 					os_mtx->unlock();
 					//remove_file(Path("./", output_filename));
@@ -12984,7 +13074,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				{
 					if(!consoleLocked)
 						os_mtx->lock();
-					start_err_ml(eos, readPath, sLineNo, lineNo) << "system{inject}(" << quote(sys_call) << ") failed, ";
+					start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << "{inject}(" << quote(sys_call) << ") failed, ";
 					eos << "see " << quote(output_filename) << " for pre-error system output" << std::endl;
 					os_mtx->unlock();
 					//remove_file(Path("./", output_filename));
@@ -12998,7 +13088,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				{
 					if(!consoleLocked)
 						os_mtx->lock();
-					start_err_ml(eos, readPath, sLineNo, lineNo) << "system: failed to process output of system call " << quote(sys_call) << std::endl;
+					start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": failed to process output of system call " << quote(sys_call) << std::endl;
 					os_mtx->unlock();
 					//remove_file(Path("./", output_filename));
 					return 1;
@@ -13520,12 +13610,12 @@ int Parser::read_and_process_fn(const bool& indent,
 			{
 				if(params[0][pos] == 'f' || params[0][pos] == 'F') 
 					return LANG_FPP;
+				else if(params[0][pos] == 'x' || params[0][pos] == 'X')
+					return LANG_EXPRTK;
 				else if(params[0][pos] == 'n' || params[0][pos] == 'N' || params[0][pos] == 't' || params[0][pos] == 'T')
 					return LANG_NPP;
 				else if(params[0][pos] == 'l' || params[0][pos] == 'L')
 					return LANG_LUA;
-				else if(params[0][pos] == 'e' || params[0][pos] == 'E' || params[0][pos] == 'x' || params[0][pos] == 'X')
-					return LANG_EXPRTK;
 			}
 			else
 			{
@@ -14168,6 +14258,7 @@ int Parser::read_and_process_fn(const bool& indent,
 		}
 		else
 			vars.layers[0].typeOf["params"] = "std::vector<string>";
+
 		vars.layers[0].strVecs["params"] = params;
 		vars.layers[0].constants.insert("params");
 

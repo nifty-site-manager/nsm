@@ -485,12 +485,14 @@ int lua_nsm_lang(lua_State* L)
 		return 0;
 	}
 
-	std::string* nsm_lang;
+	std::string* nsm_lang_str_ptr;
+	char* nsm_lang_ch_ptr;
 
-	lua_getglobal(L, "nsm_lang__");
+	lua_getglobal(L, "nsm_lang_str__");
+	lua_getglobal(L, "nsm_lang_ch__");
 	if(!lua_islightuserdata(L, 2))
 	{
-		lua_nsm_pusherrmsg(L, "nsm_lang(): variable 'nsm_lang__' should be of type 'lightuserdata'");
+		lua_nsm_pusherrmsg(L, "nsm_lang(): variable 'nsm_lang_str__' should be of type 'lightuserdata'");
 		lua_error(L);
 		return 0;
 	}
@@ -502,7 +504,10 @@ int lua_nsm_lang(lua_State* L)
 	}
 	else
 	{
-		nsm_lang = (std::string*)lua_topointer(L, 2);
+		nsm_lang_ch_ptr = (char*)lua_topointer(L, 3);
+		lua_remove(L, 3);
+
+		nsm_lang_str_ptr = (std::string*)lua_topointer(L, 2);
 		lua_remove(L, 2);
 
 		std::string langStr = lua_tostring(L, 1);
@@ -511,14 +516,26 @@ int lua_nsm_lang(lua_State* L)
 		int pos = langStr.find_first_of("fFnNtTlLeExX", 0);
 		if(pos >= 0)
 		{
+			if(langStr[pos] == 'x' || langStr[pos] == 'X')
+			{
+				*nsm_lang_str_ptr = "exprtk";
+				*nsm_lang_ch_ptr = 'x';
+			}
 			if(langStr[pos] == 'f' || langStr[pos] == 'F')
-				*nsm_lang = "f++";
-			else if(langStr[pos] == 'n' || langStr[pos] == 'N')
-				*nsm_lang = "n++";
+			{
+				*nsm_lang_str_ptr = "f++";
+				*nsm_lang_ch_ptr = 'f';
+			}
+			else if(langStr[pos] == 'n' || langStr[pos] == 'N' || langStr[pos] == 't' || langStr[pos] == 'T')
+			{
+				*nsm_lang_str_ptr = "n++";
+				*nsm_lang_ch_ptr = 'n';
+			}
 			else if(langStr[pos] == 'l' || langStr[pos] == 'L')
-				*nsm_lang = "lua";
-			else if(langStr[pos] == 'e' || langStr[pos] == 'E' || langStr[pos] == 'x' || langStr[pos] == 'X')
-				*nsm_lang = "exprtk";
+			{
+				*nsm_lang_str_ptr = "lua";
+				*nsm_lang_ch_ptr = 'l';
+			}
 
 			lua_pushnumber(L, 1);
 			return 1;

@@ -107,7 +107,7 @@ struct Parser
 	int shell(std::string& langStr, char& langCh, std::ostream& eos);
 	int interpreter(std::string& langStr, char& langCh, std::ostream& eos);
 	int interactive(std::string& langStr, char& langCh, std::ostream& eos);
-	int run(const Path& path, char lang, std::ostream& eos);
+	int run(const Path& path, char& langCh, const std::vector<std::string>& params, std::ostream& eos);
 	int build(const TrackedInfo& ToBuild,
 	          std::atomic<double>& estNoPagesFinished,
 	          std::atomic<int>& noPagesToBuild,
