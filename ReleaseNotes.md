@@ -2,6 +2,15 @@
 Nift Release Notes
 ------------------
 
+Version 2.4.7 of Nift
+* Reverted to handling @fns with f++, too ingrained in the codebase
+* Reverted to calling sys call on whole line for zero param functions
+* Reverted to breaking at non-escaped @'s when reading function names
+* Fixed up allowing for ';' at end of statements (hopefully no bugs/undesirable 
+  features), though any potential system call will be called on whole line for
+  possibly multiple statements, use a new line if needed
+* cleaned up (hopefully) language choce with interactive REPL's (both interp and sh) and run
+
 Version 2.4.6 of Nift
 * Initialised all bLineNo's to zero (started getting warnings on OSX)
 * Fixed up "run commands" in-built scripts from last version to handle language names as well as chars for script extensions

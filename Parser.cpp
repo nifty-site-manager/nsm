@@ -508,25 +508,25 @@ int Parser::refresh_completions()
 	return 0;
 }
 
-int Parser::shell(std::string& lang, std::ostream& eos)
+int Parser::shell(std::string& langStr, char& langCh, std::ostream& eos)
 {
 	mode = MODE_SHELL;
-	return interactive(lang, eos);
+	return interactive(langStr, langCh, eos);
 }
 
-int Parser::interpreter(std::string& lang, std::ostream& eos)
+int Parser::interpreter(std::string& langStr, char& langCh, std::ostream& eos)
 {
 	mode = MODE_INTERP;
-	return interactive(lang, eos);
+	return interactive(langStr, langCh, eos);
 }
 
-int Parser::interactive(std::string& lang, std::ostream& eos)
+int Parser::interactive(std::string& langStr, char& langCh, std::ostream& eos)
 {
 	bool addPath;
 	vars.precision = 6;
 	vars.fixedPrecision = vars.scientificPrecision = 0;
 
-	if(lang.find_first_of("eEfFlLnN"))
+	/*if(langStr.find_first_of("eEfFlLnN"))
 	{
 		if(!consoleLocked)
 			os_mtx->lock();
@@ -536,7 +536,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 			start_err(eos) << "sh: unknown language " << c_light_blue << lang << c_white << std::endl;
 		os_mtx->unlock();
 		return 1;
-	}
+	}*/
 
 	depFiles.clear();
 	includedFiles.clear();
@@ -553,7 +553,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 	symbol_table.add_package(vectorops_package);
 
 	exprtk_nsm_lang<double> exprtk_nsm_lang_fn;
-	exprtk_nsm_lang_fn.setLangPtr(&lang);
+	exprtk_nsm_lang_fn.setLangPtr(&langStr);
 	symbol_table.add_function("nsm_lang", exprtk_nsm_lang_fn);
 	exprtk_nsm_mode<double> exprtk_nsm_mode_fn;
 	exprtk_nsm_mode_fn.setModePtr(&mode);
@@ -564,7 +564,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 		lua.init();
 		lua_addnsmfns();
 
-		lua_pushlightuserdata(lua.L, &lang);
+		lua_pushlightuserdata(lua.L, &langStr);
 		lua_setglobal(lua.L, "nsm_lang__");
 		lua_register(lua.L, "nsm_lang", lua_nsm_lang);
 		lua_register(lua.L, "nsm_mode", lua_nsm_mode);
@@ -591,7 +591,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 		int netBrackets = 0;
 		try
 		{
-			result = getline(lang, addPath, promptChar, lolcatActive, inLine, 1, tabCompletionStrs);
+			result = getline(langStr, addPath, promptChar, lolcatActive, inLine, 1, tabCompletionStrs);
 		}
 		catch(...)
 		{
@@ -628,7 +628,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 				toProcess += inLine + "\n";
 
 			inLine = "";
-			result = getline(lang, addPath, ">", lolcatActive, inLine, 1, tabCompletionStrs);
+			result = getline(langStr, addPath, ">", lolcatActive, inLine, 1, tabCompletionStrs);
 			for(size_t i=0; i<inLine.size(); ++i)
 			{
 				if(inLine[i] == '(' || inLine[i] == '{' || inLine[i] == '[' || inLine[i] == '<')
@@ -645,13 +645,13 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 
 		try
 		{
-			if(lang[0] == 'n')
+			if(langCh == 'n')
 				result = n_read_and_process_fast(1, 0, toProcess, 0, emptyPath, antiDepsOfReadPath, parsedText, eos);
-			else if(lang[0] == 'f')
+			else if(langCh == 'f')
 				result = f_read_and_process_fast(0, toProcess, 0, emptyPath, antiDepsOfReadPath, parsedText, eos);
 			else if(toProcess == "exit" || toProcess == "quit")
 				result = NSM_QUIT;
-			else if(lang[0] == 'e')
+			else if(langCh == 'x')
 			{
 				if(!expr.compile(toProcess))
 				{
@@ -666,7 +666,7 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 				else
 					result = expr.evaluate();
 			}
-			else if(lang[0] == 'l')
+			else if(langCh == 'l')
 			{
 				result = luaL_dostring(lua.L, toProcess.c_str());
 
@@ -699,13 +699,25 @@ int Parser::interactive(std::string& lang, std::ostream& eos)
 		else if(result == NSM_QUIT || result == NSM_EXIT)
 			break;
 		else if(result == LANG_NPP)
-			lang = "n++";
+		{
+			langStr = "n++";
+			langCh = 'n';
+		}
 		else if(result == LANG_FPP)
-			lang = "f++";
+		{
+			langStr = "f++";
+			langCh = 'f';
+		}
 		else if(result == LANG_LUA)
-			lang = "lua";
+		{
+			langStr = "lua";
+			langCh = 'l';
+		}
 		else if(result == LANG_EXPRTK)
-			lang = "exprtk";
+		{
+			langStr = "exprtk";
+			langCh = 'x';
+		}
 		else if(result == MODE_SHELL)
 		{
 			mode = MODE_SHELL;
@@ -773,15 +785,15 @@ int Parser::run(const Path& path, char lang, std::ostream& eos)
 		int pos = path.file.find_first_of('.');
 		std::string ext = path.file.substr(pos, path.file.size()-pos);
 
-		if(ext.find_first_of('f') != std::string::npos)
+		if(ext.find_first_of("fF") != std::string::npos)
 			lang = 'f';
-		else if(ext.find_first_of('n') != std::string::npos)
+		else if(ext.find_first_of("nNtT") != std::string::npos)
 			lang = 'n';
-		if(ext.find_first_of('l') != std::string::npos)
+		if(ext.find_first_of("lL") != std::string::npos)
 			lang = 'l';
-		else if(ext.find_first_of('x') != std::string::npos)
+		else if(ext.find_first_of("eExX") != std::string::npos)
 			lang = 'x';
-		else //if(ext.find_first_of('f') != std::string::npos)
+		else 
 			lang = 'f';
 		/*else
 		{
@@ -875,7 +887,7 @@ int Parser::run(const Path& path, char lang, std::ostream& eos)
 				os_mtx->unlock();
 			}
 		}
-		else if(lang == 'x')
+		else if(lang == 'e')
 		{
 			std::string strippedScriptStr = scriptStr;
 			strip_surrounding_whitespace_multiline(strippedScriptStr);
@@ -1544,13 +1556,28 @@ int Parser::n_read_and_process_fast(const bool& indent,
 			}
 			else if(inStr[linePos] == '@') //checks for function calls
 			{
-				linePos++;
-				int ret_val = read_and_process_fn(indent, baseIndentAmount, 'n', addOutput, inStr, lineNo, linePos, readPath, antiDepsOfReadPath, outStr, eos);
+				try
+				{
+					linePos++;
+					int ret_val = read_and_process_fn(indent, baseIndentAmount, 'n', addOutput, inStr, lineNo, linePos, readPath, antiDepsOfReadPath, outStr, eos);
 
-				if(ret_val == NSM_CONT)
-					return 0;
-				else if(ret_val)
-					return ret_val;
+					//skips over 'end of statement' semicolons
+					while(linePos < inStr.size() && inStr[linePos] == ';')
+						++linePos;
+
+					if(ret_val == NSM_CONT)
+						return 0;
+					else if(ret_val)
+						return ret_val;
+				}
+				catch(...)
+				{
+					if(!consoleLocked)
+						os_mtx->lock();
+					start_err(eos, readPath, lineNo) << "caught an unknown error" << std::endl;
+					os_mtx->unlock();
+					return 1;
+				}
 			}
 			else if(inStr[linePos] == '$' && (inStr[linePos+1] == '{' || inStr[linePos+1] == '[' || inStr[linePos+1] == '`'))
 			{
@@ -1706,9 +1733,12 @@ int Parser::f_read_and_process_fast(const bool& addOutput,
 
 			continue;
 		}
-		else if(inStr[linePos] == '@') //ignores @ for function calls
+		else if(inStr[linePos] == '@') 
 		{
-			outStr += "@";
+			/*if(linePos && (inStr[linePos] == ' ' ||
+				             inStr[linePos] == '\t' ||
+				             inStr[linePos] == '\n'))*/
+			//outStr += "@";
 			++linePos;
 		}
 		else if(inStr[linePos] == '<')
@@ -1745,7 +1775,7 @@ int Parser::f_read_and_process_fast(const bool& addOutput,
 				return 1;
 			}
 		}
-		/*else if(isdigit(inStr[linePos]))
+		/*]else if(isdigit(inStr[linePos]))
 		{
 			do
 			{
@@ -1765,6 +1795,10 @@ int Parser::f_read_and_process_fast(const bool& addOutput,
 		{
 			int ret_val = read_and_process_fn(0, "", 'f', addOutput, inStr, lineNo, linePos, readPath, antiDepsOfReadPath, outStr, eos);
 
+			//skips over 'end of statement' semicolons
+			while(linePos < inStr.size() && inStr[linePos] == ';')
+				++linePos;
+
 			if(ret_val == NSM_CONT)
 				return 0;
 			else if(ret_val)
@@ -1774,7 +1808,7 @@ int Parser::f_read_and_process_fast(const bool& addOutput,
 		{
 			if(!consoleLocked)
 				os_mtx->lock();
-			start_err(eos, readPath, lineNo) << "an unknown error occurred" << std::endl;
+			start_err(eos, readPath, lineNo) << "caught an unknown error" << std::endl;
 			os_mtx->unlock();
 			return 1;
 		}
@@ -14297,14 +14331,14 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 			else
 			{
-				std::string trash, toParse = "sys(" + funcName;
+				//std::string trash, toParse = "sys(" + funcName;
 
-				if(options.size())
+				/*if(options.size())
 				{
 					for(size_t o=0; o<options.size(); ++o)
 						#if defined _WIN32 || defined _WIN64
 							toParse += " /" + options[o];
-						#else  //*nix
+						#else  // *nix
 							toParse += " -" + options[o];
 						#endif
 				}
@@ -14322,7 +14356,10 @@ int Parser::read_and_process_fn(const bool& indent,
 						toParse += inStr[linePos];
 					}
 				}
-				toParse += ")";
+				toParse += ")";*/
+
+				std::string trash,
+				            toParse = "sys{!p}(" + inStr.substr(sLinePos, (linePos = inStr.find_first_of("\n", sLinePos)) - sLinePos) + ")";
 
 				if(f_read_and_process(0, toParse, sLineNo-1, readPath, antiDepsOfReadPath, trash, eos))
 				{

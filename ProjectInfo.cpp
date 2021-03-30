@@ -548,6 +548,11 @@ Path ProjectInfo::execrc_path(const std::string& exec, const std::string& execrc
 	return Path(app_dir() + "/.nift/", exec + "rc." + execrc_ext);
 }
 
+Path ProjectInfo::execrc_path(const std::string& exec, const char& execrc_ext)
+{
+	return Path(app_dir() + "/.nift/", exec + "rc." + execrc_ext);
+}
+
 int ProjectInfo::save_config(const std::string& configPathStr, const bool& global)
 {
 	std::ofstream ofs(configPathStr);

@@ -104,9 +104,9 @@ struct Parser
 	               const bool& outputWhatDoing);
 
 	int refresh_completions();
-	int shell(std::string& lang, std::ostream& eos);
-	int interpreter(std::string& lang, std::ostream& eos);
-	int interactive(std::string& lang, std::ostream& eos);
+	int shell(std::string& langStr, char& langCh, std::ostream& eos);
+	int interpreter(std::string& langStr, char& langCh, std::ostream& eos);
+	int interactive(std::string& langStr, char& langCh, std::ostream& eos);
 	int run(const Path& path, char lang, std::ostream& eos);
 	int build(const TrackedInfo& ToBuild,
 	          std::atomic<double>& estNoPagesFinished,

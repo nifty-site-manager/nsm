@@ -771,45 +771,6 @@ int main(int argc, const char* argv[])
 		std::string param;
 		Path path;
 
-		std::string lang = "?";
-		if(noParams == 1)
-			lang = "f++";
-		else
-		{
-			param = argv[2];
-
-			size_t i = param.find_first_of("eEfFlLnN");
-
-			if(!i)
-			{
-				if(lang[0] == 't' || lang[0] == 'T')
-					lang = "n++";
-				else if(lang[0] == 'x' || lang[0] == 'X')
-					lang = "exprtk";
-				else
-					lang = param;
-			}
-			else if(i != std::string::npos)
-			{
-				char c = param[i];
-
-				if(c == 'f' || c == 'F')
-					lang = "f++";
-				else if(c == 'n' || c == 'N' || c == 't' || c == 'T')
-					lang = "n++";
-				else if(c == 'l' || c == 'L')
-					lang = "lua";
-				else if(c == 'e' || c == 'E' || c == 'x' || c == 'X')
-					lang = "exprtk";
-			}
-			else
-			{
-				start_err(std::cout) << cmd << ": cannot determine chosen language from " << quote(param) << ", ";
-				std::cout << "valid options include '-f++', '-n++', '-lua', '-exprtk'" << std::endl;
-				return 1;
-			}
-		}
-
 		std::set<TrackedInfo> trackedAll;
 		std::mutex os_mtx;
 
@@ -842,6 +803,22 @@ int main(int argc, const char* argv[])
 		              project.unixTextEditor,
 		              project.winTextEditor);
 
+		std::string langStr = "f++";
+		if(noParams == 2)
+			langStr = argv[2];
+		char langCh = 'f';
+
+		/*if(langStr.find_first_of("fF") != std::string::npos)
+			langCh = 'f';
+		else */if(langStr.find_first_of("nNtT") != std::string::npos)
+			langCh = 'n';
+		else if(langStr.find_first_of("lL") != std::string::npos)
+			langCh = 'l';
+		else if(langStr.find_first_of("eExX") != std::string::npos)
+			langCh = 'x';
+		/*else 
+			langCh = 'f';*/
+
 		/*if(project.lolcatDefault)
 			if(!parser.lolcat_init(project.lolcatCmd))
 				return NSM_ERR;*/
@@ -852,37 +829,38 @@ int main(int argc, const char* argv[])
 			parser.lolcatCmd = project.lolcatCmd;
 		}
 
-		if(file_exists(project.execrc_path(argv[0], lang.substr(0, 1)).str()))
+		std::cout << project.execrc_path(argv[0], langStr).str() << std::endl;
+		if(file_exists(project.execrc_path(argv[0], langCh).str()))
 		{
-			std::cout << "running " << argv[0] << "rc." << lang[0] << " file: ";
-			std::cout << project.execrc_path(argv[0], lang.substr(0, 1)) << std::endl;
-			parser.run(project.execrc_path(argv[0], lang.substr(0, 1)).str(), lang[0], std::cout);
+			std::cout << "running " << argv[0] << "rc." << langCh << " file: ";
+			std::cout << project.execrc_path(argv[0], langCh) << std::endl;
+			parser.run(project.execrc_path(argv[0], langCh).str(), langCh, std::cout);
 		}
-		else if(file_exists(project.execrc_path(argv[0], lang).str()))
+		else if(file_exists(project.execrc_path(argv[0], langStr).str()))
 		{
-			std::cout << "running " << argv[0] << "rc." << lang[0] << " file: ";
-			std::cout << project.execrc_path(argv[0], lang) << std::endl;
-			parser.run(project.execrc_path(argv[0], lang).str(), lang[0], std::cout);
+			std::cout << "running " << argv[0] << "rc." << langCh << " file: ";
+			std::cout << project.execrc_path(argv[0], langStr) << std::endl;
+			parser.run(project.execrc_path(argv[0], langStr).str(), langCh, std::cout);
 		}
 
-		if(file_exists(Path(".nsm/", cmd + "." + lang.substr(0, 1)).str()))
+		if(file_exists(Path(".nsm/", cmd + "." + langCh).str()))
 		{
-			std::cout << "runnning project " << cmd << "." << lang[0] << " file: ";
-			std::cout << Path(".nsm/", cmd + "." + lang.substr(0, 1)) << std::endl;
-			parser.run(Path(".nsm/", cmd + "." + lang.substr(0, 1)).str(), lang[0], std::cout);
+			std::cout << "runnning project " << cmd << "." << langCh << " file: ";
+			std::cout << Path(".nsm/", cmd + "." + langCh) << std::endl;
+			parser.run(Path(".nsm/", cmd + "." + langCh).str(), langCh, std::cout);
 		}
-		else if(file_exists(Path(".nsm/", cmd + "." + lang).str()))
+		else if(file_exists(Path(".nsm/", cmd + "." + langStr).str()))
 		{
-			std::cout << "runnning project " << cmd << "." << lang << " file: ";
-			std::cout << Path(".nsm/", cmd + "." + lang) << std::endl;
-			parser.run(Path(".nsm/", cmd + "." + lang).str(), lang[0], std::cout);
+			std::cout << "runnning project " << cmd << "." << langStr << " file: ";
+			std::cout << Path(".nsm/", cmd + "." + langStr) << std::endl;
+			parser.run(Path(".nsm/", cmd + "." + langStr).str(), langCh, std::cout);
 		}
 
 
 		if(cmd == "interp")
-			return parser.interpreter(lang, std::cout);
+			return parser.interpreter(langStr, langCh, std::cout);
 		else
-			return parser.shell(lang, std::cout);
+			return parser.shell(langStr, langCh, std::cout);
 	}
 	else if(cmd == "medit" || cmd == "mopen")
 	{
@@ -1024,13 +1002,13 @@ int main(int argc, const char* argv[])
 				langOpt = cmd.substr(3, cmd.size()-3);
 				strip_surrounding_whitespace(langOpt);
 
-				if(langOpt.find_first_of('n') != std::string::npos)
+				if(langOpt.find_first_of("nNtT") != std::string::npos)
 					lang = 'n';
-				else if(langOpt.find_first_of('f') != std::string::npos)
+				else if(langOpt.find_first_of("fF") != std::string::npos)
 					lang = 'f';
-				else if(langOpt.find_first_of('x') != std::string::npos)
+				else if(langOpt.find_first_of("eExX") != std::string::npos)
 					lang = 'x';
-				else if(langOpt.find_first_of('l') != std::string::npos)
+				else if(langOpt.find_first_of("lL") != std::string::npos)
 					lang = 'l';
 				else
 				{
@@ -1045,13 +1023,13 @@ int main(int argc, const char* argv[])
 			path.set_file_path_from(argv[3]);
 
 			langOpt = argv[2];
-			if(langOpt.find_first_of('n') != std::string::npos)
+			if(langOpt.find_first_of("nNtT") != std::string::npos)
 				lang = 'n';
-			else if(langOpt.find_first_of('f') != std::string::npos)
+			else if(langOpt.find_first_of("fF") != std::string::npos)
 				lang = 'f';
-			else if(langOpt.find_first_of('x') != std::string::npos)
+			else if(langOpt.find_first_of("eExX") != std::string::npos)
 				lang = 'x';
-			else if(langOpt.find_first_of('l') != std::string::npos)
+			else if(langOpt.find_first_of("lL") != std::string::npos)
 				lang = 'l';
 			else
 			{
