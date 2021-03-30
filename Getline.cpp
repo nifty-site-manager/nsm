@@ -114,7 +114,7 @@ int rnbwcout(const std::set<std::string>& strs)
 #if defined _WIN32 || defined _WIN64
 	int getline(const std::string& lang,
 	            const bool& addPwd, 
-	            const string& promptCh, 
+	            const std::string& promptCh, 
 	            const int& lolcatActive,
 	            std::string& str, 
 	            bool trackLines, 
