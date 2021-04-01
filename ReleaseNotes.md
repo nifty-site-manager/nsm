@@ -3,6 +3,13 @@ Nift Release Notes
 ------------------
 
 Version 2.4.8 of Nift
+* added in ability to run scripts with `nift script-path` as well as `nift run script-path`, makes shebangs nicer for example
+* further improved language detection
+* improved lolcat piping of system calls across multiple statements and made more consistent across f++/n++/Lua(JIT)/ExprTK
+* hopefully fixed bugs with n++ and zero param non-fns output (in particular $ instances)
+* added script path as first parameter for argv
+
+Version 2.4.8 of Nift
 * added in default of trying system call if failure with lua(jit) or exprtk in interactive (interp/sh) mode,
   they work better as shell extensions this way
 * cleaned up language choice so ExprTk and templatestein and all reasonable derivatives work okay

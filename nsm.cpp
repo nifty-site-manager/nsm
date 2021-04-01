@@ -782,11 +782,6 @@ int main(int argc, const char* argv[])
 
 			if(project.open_tracking(1))
 				return 1;
-
-			if(file_exists(".nsm/" + cmd + ".f"))
-			{
-
-			}
 		}
 		else if(project.open_global_config(1))
 				return 1;
@@ -808,21 +803,33 @@ int main(int argc, const char* argv[])
 			langStr = argv[2];
 		char langCh = 'f';
 
-		/*if(langStr.find_first_of("fF") != std::string::npos)
-			langCh = 'f';
-		else */if(langStr.find_first_of("xX") != std::string::npos)
+		if(langStr.find_first_of("xX") != std::string::npos)
 			langCh = 'x';
 		else if(langStr.find_first_of("nNmM") != std::string::npos)
 			langCh = 'n';
+		else if(langStr.find_first_of("fF") != std::string::npos)
+			langCh = 'f';
 		else if(langStr.find_first_of("lL") != std::string::npos)
 			langCh = 'l';
-		
-		/*else 
-			langCh = 'f';*/
+		else
+		{
+			size_t pos = langStr.find_first_of("eEtTfFlL");
 
-		/*if(project.lolcatDefault)
-			if(!parser.lolcat_init(project.lolcatCmd))
-				return NSM_ERR;*/
+			if(pos == std::string::npos)
+			{
+				start_err(std::cout) << "run: cannot determine chosen language from " << quote(langStr) << ", ";
+				std::cout << "valid options include '-n++', '-f++', '-lua', -exprtk'" << std::endl;
+				return 1;
+			}
+			else if(langStr[pos] == 'f' || langStr[pos] == 'F')
+				langCh = 'f';
+			else if(langStr[pos] == 't' || langStr[pos] == 'T')
+				langCh = 'n';
+			else if(langStr[pos] == 'e' || langStr[pos] == 'E')
+				langCh = 'x';
+			else if(langStr[pos] == 'l' || langStr[pos] == 'L')
+				langCh = 'l';
+		}
 
 		if(project.lolcatDefault)
 		{
@@ -987,79 +994,81 @@ int main(int argc, const char* argv[])
 
 		return ret_val;
 	}
-	else if(cmd == "run")
+	else if(cmd == "run" || file_exists(cmd))
 	{
 		//ensures correct number of parameters given
-		if(noParams < 2)
+		if(noParams < 1)
 			return parError(noParams, argv, "2+");
 
-		std::string langOpt;
+		std::string langStr;
 		std::vector<std::string> run_params;
 		Path path;
 
-		char lang = '?';
-		int param = 3;
-		if(noParams == 2)
+		char langCh = '?';
+		bool foundFile = 0;
+
+		for(int i=1; i<argc; ++i)
 		{
-			path.set_file_path_from(argv[2]);
-
-			if(cmd.size() > 3)
+			if(std::string(argv[i]).size() && argv[i][0] == '-')
+				langStr = argv[i];
+			else if(i == 1 && std::string(argv[i]) == "run") {}
+			else
 			{
-				langOpt = cmd.substr(3, cmd.size()-3);
-				strip_surrounding_whitespace(langOpt);
+				run_params.push_back(argv[i]);
 
-				if(langOpt.find_first_of("xX") != std::string::npos)
-					lang = 'x';
-				else if(langOpt.find_first_of("nNmM") != std::string::npos)
-					lang = 'n';
-				else if(langOpt.find_first_of("fF") != std::string::npos)
-					lang = 'f';
-				else if(langOpt.find_first_of("lL") != std::string::npos)
-					lang = 'l';
-				else
+				if(!foundFile && file_exists(argv[i]))
 				{
-					start_err(std::cout) << "run: cannot determine chosen language from " << quote(langOpt) << ", ";
-					std::cout << "valid options include '-n++', '-f++', '-lua', -exprtk'" << std::endl;
-					return 1;
+					foundFile = 1;
+					path.set_file_path_from(argv[i]);
+					if(langStr == "")
+					{
+						std::string pathStr = argv[i];
+						size_t pos = pathStr.find_last_of('.');
+						if(pos == std::string::npos)
+							langStr = "f++";
+						else
+						{
+							++pos;
+							langStr = pathStr.substr(pos, pathStr.size()-pos);
+						}
+					}
 				}
 			}
-			else
-			{
-				lang = 'f';
-			}
 		}
-		else if(noParams >= 3 && argv[2][0] == '-')
+
+		if(!foundFile)
 		{
-			++param;
+			start_err(std::cout) << "run: no file specified to run" << std::endl;
+			return 1;
+		}
 
-			path.set_file_path_from(argv[3]);
+		if(langStr.find_first_of("xX") != std::string::npos)
+			langCh = 'x';
+		else if(langStr.find_first_of("nNmM") != std::string::npos)
+			langCh = 'n';
+		else if(langStr.find_first_of("fF") != std::string::npos)
+			langCh = 'f';
+		else if(langStr.find_first_of("lL") != std::string::npos)
+			langCh = 'l';
+		else
+		{
+			size_t pos = langStr.find_first_of("eEtTfFlL");
 
-			langOpt = argv[2];
-
-			if(langOpt.find_first_of("xX") != std::string::npos)
-				lang = 'x';
-			else if(langOpt.find_first_of("nNmM") != std::string::npos)
-				lang = 'n';
-			else if(langOpt.find_first_of("fF") != std::string::npos)
-				lang = 'f';
-			else if(langOpt.find_first_of("lL") != std::string::npos)
-				lang = 'l';
-			else
+			if(pos == std::string::npos)
 			{
-				start_err(std::cout) << "run: cannot determine chosen language from " << quote(langOpt) << ", ";
-				std::cout << "valid options include '-f++', '-n++', '-lua', '-exprtk'" << std::endl;
+				start_err(std::cout) << "run: cannot determine chosen language from " << quote(langStr) << ", ";
+				std::cout << "valid options include '-n++', '-f++', '-lua', -exprtk'" << std::endl;
 				return 1;
 			}
+			else if(langStr[pos] == 'f' || langStr[pos] == 'F')
+				langCh = 'f';
+			else if(langStr[pos] == 't' || langStr[pos] == 'T')
+				langCh = 'n';
+			else if(langStr[pos] == 'e' || langStr[pos] == 'E')
+				langCh = 'x';
+			else if(langStr[pos] == 'l' || langStr[pos] == 'L')
+				langCh = 'l';
 		}
-		else if(noParams > 2)
-		{
-			lang = 'f';
-			langOpt = "f++";
-			path.set_file_path_from(argv[2]);
-		}
-		
-		for(; param<=noParams; ++param)
-			run_params.push_back(argv[param]);
 
 		std::set<TrackedInfo> trackedAll;
 		std::mutex os_mtx;
@@ -1088,7 +1097,7 @@ int main(int argc, const char* argv[])
 		              project.unixTextEditor,
 		              project.winTextEditor);
 
-		ret_val = parser.run(path, lang, run_params, std::cout);
+		ret_val = parser.run(path, langCh, run_params, std::cout);
 
 		std::cout.precision(4);
 		std::cout << "time taken: " << timer.getTime() << " seconds" << std::endl;

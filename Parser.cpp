@@ -526,18 +526,6 @@ int Parser::interactive(std::string& langStr, char& langCh, std::ostream& eos)
 	vars.precision = 6;
 	vars.fixedPrecision = vars.scientificPrecision = 0;
 
-	/*if(langStr.find_first_of("eEfFlLnN"))
-	{
-		if(!consoleLocked)
-			os_mtx->lock();
-		if(mode == MODE_INTERP)
-			start_err(eos) << "interp: unknown language " << c_light_blue << lang << c_white << std::endl;
-		else
-			start_err(eos) << "sh: unknown language " << c_light_blue << lang << c_white << std::endl;
-		os_mtx->unlock();
-		return 1;
-	}*/
-
 	depFiles.clear();
 	includedFiles.clear();
 
@@ -663,19 +651,25 @@ int Parser::interactive(std::string& langStr, char& langCh, std::ostream& eos)
 					{
 						for(size_t i=0; i<toProcess.size(); ++i)
 						{
-							i = toProcess.find_first_of(";\n", i);
+							size_t pos = toProcess.find_first_of(";\n", i);
+							std::string lineStr = toProcess.substr(i, pos-i);
+							i = pos;
+
 							if(i == std::string::npos)
 							{
-								std::string checkStr = toProcess;
-								strip_trailing_whitespace_multiline(checkStr);
-								if(toProcess.size() && checkStr[checkStr.size()-1] != ';')
+								lineStr = toProcess;
+								strip_trailing_whitespace_multiline(lineStr);
+								if(!is_whitespace(lineStr) && lineStr[lineStr.size()-1] != ';')
 									toProcess += " | " + lolcatCmd;
 								break;
 							}
 							else
 							{
-								toProcess.replace(i, 1, " | " + lolcatCmd + toProcess[i]);
-								i += 4 + lolcatCmd.size();
+								if(!is_whitespace(lineStr))
+								{
+									toProcess.replace(i, 1, " | " + lolcatCmd + toProcess[i]);
+									i += 3 + lolcatCmd.size();
+								}
 							}
 						}
 					}
@@ -705,19 +699,25 @@ int Parser::interactive(std::string& langStr, char& langCh, std::ostream& eos)
 					{
 						for(size_t i=0; i<toProcess.size(); ++i)
 						{
-							i = toProcess.find_first_of(";\n", i);
+							size_t pos = toProcess.find_first_of(";\n", i);
+							std::string lineStr = toProcess.substr(i, pos-i);
+							i = pos;
+
 							if(i == std::string::npos)
 							{
-								std::string checkStr = toProcess;
-								strip_trailing_whitespace_multiline(checkStr);
-								if(toProcess.size() && checkStr[checkStr.size()-1] != ';')
+								lineStr = toProcess;
+								strip_trailing_whitespace_multiline(lineStr);
+								if(!is_whitespace(lineStr) && lineStr[lineStr.size()-1] != ';')
 									toProcess += " | " + lolcatCmd;
 								break;
 							}
 							else
 							{
-								toProcess.replace(i, 1, " | " + lolcatCmd + toProcess[i]);
-								i += 4 + lolcatCmd.size();
+								if(!is_whitespace(lineStr))
+								{
+									toProcess.replace(i, 1, " | " + lolcatCmd + toProcess[i]);
+									i += 3 + lolcatCmd.size();
+								}
 							}
 						}
 					}
@@ -12981,7 +12981,31 @@ int Parser::read_and_process_fn(const bool& indent,
 					os_mtx->lock();
 
 				if(lolcatActive)
-					exec_str += " | " + lolcatCmd;
+				{
+					for(size_t i=0; i<exec_str.size(); ++i)
+					{
+						size_t pos = exec_str.find_first_of(";\n", i);
+						std::string lineStr = exec_str.substr(i, pos-i);
+						i = pos;
+
+						if(i == std::string::npos)
+						{
+							lineStr = exec_str;
+							strip_trailing_whitespace_multiline(lineStr);
+							if(!is_whitespace(lineStr) && lineStr[lineStr.size()-1] != ';')
+								exec_str += " | " + lolcatCmd;
+							break;
+						}
+						else
+						{
+							if(!is_whitespace(lineStr))
+							{
+								exec_str.replace(i, 1, " | " + lolcatCmd + exec_str[i]);
+								i += 3 + lolcatCmd.size();
+							}
+						}
+					}
+				}
 			}
 			else
 				exec_str += " > " + output_filename;
@@ -14398,9 +14422,16 @@ int Parser::read_and_process_fn(const bool& indent,
 		if(lang == 'n')
 		{
 			linePos = sLinePos;
+
+			if(inStr[sLinePos] == '$')
+				++linePos;
+
 			if(addOutput)
 			{
-				outStr += "@";
+				if(inStr[sLinePos] == '$')
+					outStr += "$";
+				else
+					outStr += "@";
 				if(indent)
 					indentAmount += " ";
 			}
@@ -14450,7 +14481,15 @@ int Parser::read_and_process_fn(const bool& indent,
 				toParse += ")";*/
 
 				std::string trash,
-				            toParse = "sys{!p}(" + inStr.substr(sLinePos, (linePos = inStr.find_first_of("\n", sLinePos)) - sLinePos) + ")";
+				            toParse;
+				if(mode == MODE_INTERP || mode == MODE_SHELL)
+				{
+					toParse = "sys{!p}(" + inStr.substr(sLinePos, inStr.size() - sLinePos) + ")";
+					linePos = inStr.size();
+				}
+				else
+					toParse = "sys{!p}(" + inStr.substr(sLinePos, (linePos = inStr.find_first_of("\n", sLinePos)) - sLinePos) + ")";
+
 
 				if(f_read_and_process(0, toParse, sLineNo-1, readPath, antiDepsOfReadPath, trash, eos))
 				{
