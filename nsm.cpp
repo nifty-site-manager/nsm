@@ -1247,6 +1247,14 @@ int main(int argc, const char* argv[])
 		if(project.open_local_config(1))
 			return 1;
 
+		if(cmd == "build")
+		{
+			if(noParams == 1 || (noParams == 2 && argv[2][0] == '-'))
+				cmd = "build-updated";
+			else
+				cmd = "build-names";
+		}
+
 		//Nift commands that need project information file open
 		if(cmd == "config")
 		{
@@ -2243,7 +2251,7 @@ int main(int argc, const char* argv[])
 
 			return result;
 		}
-		else if(cmd == "build-updated" || cmd == "build")
+		else if(cmd == "build-updated")
 		{
 			//ensures correct number of parameters given
 			if(noParams > 2)

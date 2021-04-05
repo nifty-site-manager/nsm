@@ -186,7 +186,10 @@ int lolcat(std::istream& is)
 					                            inLine[i] == '\u001b'))        // unicode
 					{
 						int start = i++;
-						while(i < inLine.size() && inLine[i] != ' ' && inLine[i] != '\n' && inLine[i] != '\t')
+						while(i < inLine.size() && inLine[i] != 'm' && 
+						                           inLine[i] != ' ' && 
+						                           inLine[i] != '\n' && 
+						                           inLine[i] != '\t')
 							++i;
 						std::cout << inLine.substr(start, i-start);
 					}

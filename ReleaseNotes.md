@@ -2,7 +2,13 @@
 Nift Release Notes
 ------------------
 
-Version 2.4.8 of Nift
+Version 2.4.10 of Nift
+* fixed up lolcat to handle finding the end of things with 'm' to avoid so much white
+* fixed up bug with reading {} in unbracketed code blocks
+* added trying to compile and evaluate unrecognised lines using ExprTk with functionstein (f++)
+* added option (default value can be changed with `exprtk.eval_params` fn) to compile and evaluate params with ExprTk
+
+Version 2.4.9 of Nift
 * added in ability to run scripts with `nift script-path` as well as `nift run script-path`, makes shebangs nicer for example
 * further improved language detection
 * improved lolcat piping of system calls across multiple statements and made more consistent across f++/n++/Lua(JIT)/ExprTK

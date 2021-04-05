@@ -54,6 +54,7 @@ Parser::Parser(std::set<TrackedInfo>* TrackedAll,
 	promptChar = '$';
 
 	mode = -1;
+	exprtkParams = 0;
 	lolcatActive = lolcatInit = 0;
 
 	//lua.init(); //don't want this done always
@@ -999,10 +1000,6 @@ int Parser::run(const Path& path, char& langCh, const std::vector<std::string>& 
 		os_mtx->unlock();
 		return 1;
 	}
-
-	/*std::cout << "----" << std::endl;
-	std::cout << parsedText << std::endl;
-	std::cout << "----" << std::endl;*/
 
 	vars = Variables();
 
@@ -2176,15 +2173,7 @@ int Parser::read_and_process_fn(const bool& indent,
 		}
 		else if(inStr[linePos] == '-')
 		{
-			if(linePos && inStr.substr(linePos-1, 4) == "@---" && inStr[linePos + 3] != '{' && inStr[linePos + 3] != '(')
-			{ //can delete this later
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err(eos, readPath, lineNo) << "@--- text --- comments have changed to @#-- text --#" << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-			else if(inStr.substr(linePos, 3) == "-->")
+			if(inStr.substr(linePos, 3) == "-->")
 			{
 				linePos += 2;
 
@@ -2331,7 +2320,8 @@ int Parser::read_and_process_fn(const bool& indent,
 	std::string funcName;
 	std::string optionsStr, paramsStr;
 	std::vector<std::string> options, params;
-	bool doNotParse = 0, 
+	bool doNotParse = 0,
+		 exprtkParamsLocal = exprtkParams,
 	     parseFnName = 0, 
 	     parseOptions = 0, 
 	     parseParams = 0, 
@@ -2361,7 +2351,11 @@ int Parser::read_and_process_fn(const bool& indent,
 	{
 		for(size_t o=0; o<options.size(); o++)
 		{
-			if(options[o] == "1p")
+			if(options[o] == "et" || options[o] == "exprtk")
+				exprtkParamsLocal = 1;
+			if(options[o] == "!et" || options[o] == "!exprtk")
+				exprtkParamsLocal = 0;
+			else if(options[o] == "1p")
 				oneParamOpt = 1;
 			else if(options[o] == "!p")
 				doNotParse = 1;
@@ -2476,6 +2470,12 @@ int Parser::read_and_process_fn(const bool& indent,
 			else if(read_params(params, pos, paramsStr, readPath, lineNo, funcName, eos))
 				return 1;
 		}
+
+
+		if(exprtkParamsLocal)
+			for(size_t p=0; p<params.size(); ++p)
+				if(!isDouble(params[p]) && expr.compile(params[p]))
+					params[p] = std::to_string(expr.evaluate());
 	}
 
 	if(funcName[0] == '$' && !(funcName == "$" && brackets == "()"))
@@ -7910,11 +7910,16 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}*/
 
+			if(varType == "std::vector<double>")
+				addToExpr = 0;
+
 			if(options.size())
 			{
 				for(size_t o=0; o<options.size(); o++)
 				{
-					if(options[o] == "!exprtk")
+					if(options[o] == "et" || options[o] == "exprtk")
+						addToExpr = 1;
+					else if(options[o] == "!et" || options[o] == "!exprtk")
 						addToExpr = 0;
 					else if(options[o] == "const")
 						constants = 1;
@@ -9764,6 +9769,15 @@ int Parser::read_and_process_fn(const bool& indent,
 					params[p] = params[p].substr(0, pos+1);
 				}
 
+				if(params[p] == "" || params[p] == "/" || params[p] == "*" || params[p] == "~")
+				{
+					if(!consoleLocked)
+						os_mtx->lock();
+					start_err_ml(eos, readPath, sLineNo, lineNo) <<  funcName << ": refuse to remove " << quote(params[p]) << std::endl;
+					os_mtx->unlock();
+					return 1;
+				}
+
 				rmPathStr = replace_home_dir(params[p]);
 				rmPath.set_file_path_from(rmPathStr);
 
@@ -10841,6 +10855,21 @@ int Parser::read_and_process_fn(const bool& indent,
 				os_mtx->unlock();
 				return 1;
 			}
+
+			return 0;
+		}
+		else if(funcName == "exprtk.eval_params")
+		{
+			if(params.size() != 1)
+			{
+				if(!consoleLocked)
+					os_mtx->lock();
+				start_err_ml(eos, readPath, sLineNo, lineNo) << "exprtk.eval_params: expected 1 parameter, got " << params.size() << std::endl;
+				os_mtx->unlock();
+				return 1;
+			}
+
+			exprtkParams = (std::strtod(params[0].c_str(), NULL));
 
 			return 0;
 		}
@@ -14484,24 +14513,36 @@ int Parser::read_and_process_fn(const bool& indent,
 				            toParse;
 				if(mode == MODE_INTERP || mode == MODE_SHELL)
 				{
-					toParse = "sys{!p}(" + inStr.substr(sLinePos, inStr.size() - sLinePos) + ")";
+					toParse = inStr.substr(sLinePos, inStr.size() - sLinePos);
 					linePos = inStr.size();
 				}
 				else
-					toParse = "sys{!p}(" + inStr.substr(sLinePos, (linePos = inStr.find_first_of("\n", sLinePos)) - sLinePos) + ")";
+					toParse = inStr.substr(sLinePos, (linePos = inStr.find_first_of("\n", sLinePos)) - sLinePos);
 
-
-				if(f_read_and_process(0, toParse, sLineNo-1, readPath, antiDepsOfReadPath, trash, eos))
+				if(expr.compile(toParse) && expr.evaluate())
+					return 0;
+				else
 				{
-					if(mode != MODE_INTERP && mode != MODE_SHELL)
+					std::string parseReplace = toParse;
+
+					if(parse_replace(lang, parseReplace, "expression", readPath, antiDepsOfReadPath, sLineNo, parseReplace, sLineNo, eos))
+			   			return 1;
+
+			   		if(expr.compile(parseReplace) && expr.evaluate())
+			   			return 0;
+					else if(f_read_and_process(0, "sys{!p}(" + toParse + ")", sLineNo-1, readPath, antiDepsOfReadPath, trash, eos))
 					{
-						if(!consoleLocked)
-							os_mtx->lock();
-						start_err_ml(eos, readPath, sLineNo, lineNo) << c_light_blue << funcName << c_white << ": function does not exist in this scope";
-						eos << " and failed as a system call" << std::endl;
-						os_mtx->unlock();
+						if(mode != MODE_INTERP && mode != MODE_SHELL)
+						{
+							if(!consoleLocked)
+								os_mtx->lock();
+							start_err_ml(eos, readPath, sLineNo, lineNo) << c_light_blue << funcName << c_white << ": function does not exist in this scope";
+							eos << " and failed as a system call" << std::endl;
+							print_exprtk_parser_errs(eos, expr.parser, expr.expr_str, readPath, sLineNo);
+							os_mtx->unlock();
+						}
+						return 1;
 					}
-					return 1;
 				}
 
 				return 0;
@@ -16599,7 +16640,7 @@ int Parser::read_block(std::string& block,
 		return 1;
 	}
 
-	//skipz to next non-whitespace while working out lead indenting
+	//skips to next non-whitespace while working out lead indenting
 	while(linePos < inStr.size() && 
 		  (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || 
 		  (inStr[linePos] == '@' && (inStr.substr(linePos, 2) == "@#" || inStr.substr(linePos, 3) == "@//"))))
@@ -16635,16 +16676,15 @@ int Parser::read_block(std::string& block,
 	}
 
 	bool needsCloseBrace = 0;
-	int depth = 0;
+	int depth = 1;
 	sLineNo = bLineNo = lineNo;
 	if(inStr[linePos] == '{')  //bracketed block
 	{
 		leadIndenting = "";
 		needsCloseBrace = 1;
 		++linePos;
-		++depth;
 
-		//skipz to next non-whitespace white working out lead indenting
+		//skips to next non-whitespace while working out lead indenting
 		while(linePos < inStr.size() && 
 			  (inStr[linePos] == ' ' || inStr[linePos] == '\t' || inStr[linePos] == '\n' || 
 			  (inStr[linePos] == '@' && (inStr.substr(linePos, 2) == "@#" || inStr.substr(linePos, 3) == "@//"))))
@@ -16770,7 +16810,8 @@ int Parser::read_block(std::string& block,
 		return 1;
 	}
 
-	++linePos;
+	if(needsCloseBrace)
+		++linePos;
 
 	//not sure if this will cause problems anywhere? seems to 'fix' while loops
 	//this should be added now above
@@ -16797,6 +16838,8 @@ int Parser::read_else_blocks(std::vector<std::string>& conditions,
 
 	if(linePos >= inStr.size())
 	{
+		return 0;
+		
 		if(!consoleLocked)
 			os_mtx->lock();
 		start_err(eos, readPath, lineNo) << "no else blocks to read" << std::endl;

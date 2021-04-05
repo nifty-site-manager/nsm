@@ -43,6 +43,7 @@ struct Parser
 	std::string promptChar;
 	std::string parsedText;
 	int mode;
+	bool exprtkParams;
 	bool lolcatActive, lolcatInit;
 	std::string lolcatCmd;
 	std::set<Path> depFiles, includedFiles;
