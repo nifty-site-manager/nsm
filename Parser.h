@@ -8,6 +8,7 @@
 #include <mutex>
 #include <sstream>
 #include <set>
+#include <thread>
 #include <algorithm>
 //#include <bits/stdc++.h> //doesn't work on osx, algorithm works instead
 
@@ -62,14 +63,14 @@ struct Parser
 	Expr expr;
 	ExprSet exprset;
 
-	exprtk_cd<double>            exprtk_cd_fn;
-	exprtk_sys<double>           exprtk_sys_fn;
-	exprtk_to_string<double>     exprtk_to_string_fn;
-	exprtk_nsm_tonumber<double>  exprtk_nsm_tonumber_fn;
-	exprtk_nsm_tostring<double>  exprtk_nsm_tostring_fn;
-	exprtk_nsm_setnumber<double> exprtk_nsm_setnumber_fn;
-	exprtk_nsm_setstring<double> exprtk_nsm_setstring_fn;
-	exprtk_nsm_write<double>     exprtk_nsm_write_fn;
+	exprtk_cd<double>             exprtk_cd_fn;
+	exprtk_sys<double>            exprtk_sys_fn;
+	exprtk_to_string<double>      exprtk_to_string_fn;
+	exprtk_nsm_tonumber<double>   exprtk_nsm_tonumber_fn;
+	exprtk_nsm_tostring<double>   exprtk_nsm_tostring_fn;
+	exprtk_nsm_setnumber<double>  exprtk_nsm_setnumber_fn;
+	exprtk_nsm_setstring<double>  exprtk_nsm_setstring_fn;
+	exprtk_nsm_write<double>      exprtk_nsm_write_fn;
 
 	//project info
 	Directory contentDir,

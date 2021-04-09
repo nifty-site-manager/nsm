@@ -3985,7 +3985,7 @@ int Parser::read_and_process_fn(const bool& indent,
 						lua_pushlightuserdata(lua.L, &vars.layers[vpos.layer].ifstreams[vpos.name]);
 					else if(vpos.type == "ofstream")
 						lua_pushlightuserdata(lua.L, &vars.layers[vpos.layer].ofstreams[vpos.name]);
-					else if(vpos.type == "function")
+					else if(vpos.type == "function" || vpos.type == "fn")
 						lua_pushlightuserdata(lua.L, &vars.layers[vpos.layer].functions[vpos.name]);
 					else
 					{
@@ -5147,7 +5147,8 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			bool createFiles = 1;
+			bool createFiles = 1,
+			     mt = 0;
 
 			if(options.size())
 			{
@@ -5155,25 +5156,46 @@ int Parser::read_and_process_fn(const bool& indent,
 				{
 					if(options[o] == "dirs")
 						createFiles = 0;
+					else if(options[o] == "mt")
+						mt = 1;
 				}
 			}
 
-			Path path;
-			for(size_t p=0; p<params.size(); p++)
+			if(mt)
 			{
-				path.set_file_path_from(params[p]);
-				if(createFiles)
-					path.ensureFileExists();
-				else
+				size_t max_p,
+				       no_thrds = std::atoi(params[0].c_str()),
+				       trans = std::ceil((double)(params.size()-1)/(double)no_thrds);
+				std::vector<std::thread> threads;
+
+				for(size_t min_p = 1; min_p<params.size(); min_p=max_p)
 				{
-					if(path.file.size())
+					max_p = std::min(min_p+trans, params.size());
+					threads.push_back(std::thread(create_files_thread, params, min_p, max_p));
+				}
+
+				for(size_t i=0; i<threads.size(); ++i)
+					threads[i].join();
+			}
+			else
+			{
+				Path path;
+				for(size_t p=0; p<params.size(); p++)
+				{
+					path.set_file_path_from(params[p]);
+					if(createFiles)
+						path.ensureFileExists();
+					else
 					{
-						if(path.dir.size())
-							path.dir += "/" + path.file + "/";
-						else
-							path.dir = "./" + path.file + "/";
+						if(path.file.size())
+						{
+							if(path.dir.size())
+								path.dir += "/" + path.file + "/";
+							else
+								path.dir = "./" + path.file + "/";
+						}
+						path.ensureDirExists();
 					}
-					path.ensureDirExists();
 				}
 			}
 
@@ -5674,6 +5696,9 @@ int Parser::read_and_process_fn(const bool& indent,
 						parseBlock = 0;
 				}
 			}
+
+			if(!params.size())
+				readBlock = 1;
 
 			if(readBlock)
 			{
@@ -8867,7 +8892,7 @@ int Parser::read_and_process_fn(const bool& indent,
 							}
 							else 
 							{
-								if(f_read_and_process_fast(1, vars.typeDefs[preType], vars.typeDefLineNo[preType]-1, vars.typeDefPath[preType], antiDepsOfReadPath, defOutput, eos) > 0)
+								if(f_read_and_process_fast(0, vars.typeDefs[preType], vars.typeDefLineNo[preType]-1, vars.typeDefPath[preType], antiDepsOfReadPath, defOutput, eos) > 0)
 								{
 									if(!consoleLocked)
 										os_mtx->lock();
@@ -9738,7 +9763,8 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			bool changePermissions = 0, 
+			bool changePermissions = 0,
+			     mt = 0, 
 			     prompt = 0,
 			     verbose = 0;
 
@@ -9750,130 +9776,151 @@ int Parser::read_and_process_fn(const bool& indent,
 						changePermissions = 1;
 					else if(options[o] == "i")
 						prompt = 1;
+					else if(options[o] == "mt")
+						mt = 1;
 					else if(options[o] == "v")
 						verbose = 1;
 				}
 			}
 
-			Path rmPath;
-			std::string rmPathStr;
-			char promptInput = 'n';
-			
-			for(size_t p=0; p<params.size(); ++p)
+			if(mt)
 			{
-				if(params[p].size() && (params[p][params[p].size()-1] == '/' || params[p][params[p].size()-1] == '\\'))
+				size_t max_p,
+				       no_thrds = std::atoi(params[0].c_str()),
+				       trans = std::ceil((double)(params.size()-1)/(double)no_thrds);
+				std::vector<std::thread> threads;
+
+				for(size_t min_p = 1; min_p<params.size(); min_p=max_p)
 				{
-					int pos=params[p].size()-2; 
-					while(pos>=0 && (params[p][pos] == '/' || params[p][pos] == '\\'))
-						--pos;
-					params[p] = params[p].substr(0, pos+1);
+					max_p = std::min(min_p+trans, params.size());
+					threads.push_back(std::thread(remove_files_thread, params, min_p, max_p));
 				}
 
-				if(params[p] == "" || params[p] == "/" || params[p] == "*" || params[p] == "~")
+				for(size_t i=0; i<threads.size(); ++i)
+					threads[i].join();
+			}
+			else
+			{
+				Path rmPath;
+				std::string rmPathStr;
+				char promptInput = 'n';
+				
+				for(size_t p=0; p<params.size(); ++p)
 				{
-					if(!consoleLocked)
-						os_mtx->lock();
-					start_err_ml(eos, readPath, sLineNo, lineNo) <<  funcName << ": refuse to remove " << quote(params[p]) << std::endl;
-					os_mtx->unlock();
-					return 1;
-				}
-
-				rmPathStr = replace_home_dir(params[p]);
-				rmPath.set_file_path_from(rmPathStr);
-
-				if(!path_exists(rmPathStr))
-				{
-					if(rmPathStr.find_first_of('*') != std::string::npos)
+					if(params[p].size() && (params[p][params[p].size()-1] == '/' || params[p][params[p].size()-1] == '\\'))
 					{
-						std::string parsedTxt, toParse = "@lst{!c, 1, P}(" + rmPathStr + ")";
-						int parseLineNo = 0;
-
-						if(n_read_and_process_fast(indent, toParse, parseLineNo, readPath, antiDepsOfReadPath, parsedTxt, eos))
-						{
-							if(!consoleLocked)
-								os_mtx->lock();
-							start_err_ml(eos, readPath, sLineNo, lineNo) <<  funcName << ": failed to list " << quote(rmPathStr) << std::endl;
-							os_mtx->unlock();
-							return 1;
-						}
-
-						std::istringstream iss(parsedTxt);
-						while(getline(iss, rmPathStr))
-							params.push_back(rmPathStr);
-
-						continue;
+						int pos=params[p].size()-2; 
+						while(pos>=0 && (params[p][pos] == '/' || params[p][pos] == '\\'))
+							--pos;
+						params[p] = params[p].substr(0, pos+1);
 					}
-					else
+
+					if(params[p] == "" || params[p] == "/" || params[p] == "*" || params[p] == "~")
 					{
 						if(!consoleLocked)
 							os_mtx->lock();
-						start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": cannot remove ";
-						eos << quote(params[p]) << " as path does not exist" << std::endl;
+						start_err_ml(eos, readPath, sLineNo, lineNo) <<  funcName << ": refuse to remove " << quote(params[p]) << std::endl;
 						os_mtx->unlock();
 						return 1;
 					}
-				}
-				else
-				{
-					struct stat  oldDirPerms;
-					if(changePermissions)
-					{
-						chmod(rmPathStr.c_str(), 0666);
-						stat(rmPath.dir.c_str(), &oldDirPerms);
-						chmod(rmPath.dir.c_str(), S_IRWXU);
-					}
 
-					if((prompt && promptInput != 'a') || verbose)
-					{
-						std::cout << "rmv " << quote(params[p]);
+					rmPathStr = replace_home_dir(params[p]);
+					rmPath.set_file_path_from(rmPathStr);
 
-						if(prompt && promptInput != 'a')
+					if(!path_exists(rmPathStr))
+					{
+						if(rmPathStr.find_first_of('*') != std::string::npos)
 						{
-							std::cout << "? " << std::flush;
-							promptInput = nsm_getch();
-							if(promptInput == 'Y' || promptInput == '1')
-								promptInput = 'y';
-							else if(promptInput == 'A')
-								promptInput = 'a';
-						}
-						
-						std::cout << std::endl;
-					}
+							std::string parsedTxt, toParse = "@lst{!c, 1, P}(" + rmPathStr + ")";
+							int parseLineNo = 0;
 
-					if(!prompt || promptInput == 'y' || promptInput == 'a')
-					{
-						if(dir_exists(rmPathStr))
-						{
-							if(!can_write(rmPath.str()) || delDir(rmPathStr, sLineNo, readPath, eos, consoleLocked, os_mtx))
+							if(n_read_and_process_fast(indent, toParse, parseLineNo, readPath, antiDepsOfReadPath, parsedTxt, eos))
 							{
 								if(!consoleLocked)
 									os_mtx->lock();
-								start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": failed to remove directory ";
+								start_err_ml(eos, readPath, sLineNo, lineNo) <<  funcName << ": failed to list " << quote(rmPathStr) << std::endl;
+								os_mtx->unlock();
+								return 1;
+							}
+
+							std::istringstream iss(parsedTxt);
+							while(getline(iss, rmPathStr))
+								params.push_back(rmPathStr);
+
+							continue;
+						}
+						else
+						{
+							if(!consoleLocked)
+								os_mtx->lock();
+							start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": cannot remove ";
+							eos << quote(params[p]) << " as path does not exist" << std::endl;
+							os_mtx->unlock();
+							return 1;
+						}
+					}
+					else
+					{
+						struct stat  oldDirPerms;
+						if(changePermissions)
+						{
+							chmod(rmPathStr.c_str(), 0666);
+							stat(rmPath.dir.c_str(), &oldDirPerms);
+							chmod(rmPath.dir.c_str(), S_IRWXU);
+						}
+
+						if((prompt && promptInput != 'a') || verbose)
+						{
+							std::cout << "rmv " << quote(params[p]);
+
+							if(prompt && promptInput != 'a')
+							{
+								std::cout << "? " << std::flush;
+								promptInput = nsm_getch();
+								if(promptInput == 'Y' || promptInput == '1')
+									promptInput = 'y';
+								else if(promptInput == 'A')
+									promptInput = 'a';
+							}
+							
+							std::cout << std::endl;
+						}
+
+						if(!prompt || promptInput == 'y' || promptInput == 'a')
+						{
+							if(dir_exists(rmPathStr))
+							{
+								if(!can_write(rmPath.str()) || delDir(rmPathStr, sLineNo, readPath, eos, consoleLocked, os_mtx))
+								{
+									if(!consoleLocked)
+										os_mtx->lock();
+									start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": failed to remove directory ";
+									eos << quote(params[p]) << std::endl;
+									os_mtx->unlock();
+									return 1;
+								}
+							}
+							else if(!can_write(rmPath.str()) || remove_file(rmPath))
+							{
+								if(!consoleLocked)
+									os_mtx->lock();
+								start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": failed to remove file ";
 								eos << quote(params[p]) << std::endl;
 								os_mtx->unlock();
 								return 1;
 							}
 						}
-						else if(!can_write(rmPath.str()) || remove_file(rmPath))
-						{
-							if(!consoleLocked)
-								os_mtx->lock();
-							start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": failed to remove file ";
-							eos << quote(params[p]) << std::endl;
-							os_mtx->unlock();
-							return 1;
-						}
+
+						if(changePermissions)
+							chmod(rmPath.dir.c_str(), oldDirPerms.st_mode);
 					}
-
-					if(changePermissions)
-						chmod(rmPath.dir.c_str(), oldDirPerms.st_mode);
 				}
-			}
 
-			if(linePos < inStr.size() && inStr[linePos] == '!')
-				++linePos;
-			else
-				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
+				if(linePos < inStr.size() && inStr[linePos] == '!')
+					++linePos;
+				else
+					skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
+			}
 
 			return 0;
 		}
@@ -10348,7 +10395,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 
 			std::string block;
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 			char fnLang = lang;
 			std::string fnType = funcName;
 			bool parseBlock = 0;
@@ -10415,7 +10462,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(read_block(block, linePos, inStr, readPath, lineNo, bLineNo, fnType + "(" + params[0] + ")", eos))
 				return 1;
 
-			if(parseBlock && parse_replace(lang, block, fnType + " block", readPath, antiDepsOfReadPath, bLineNo, fnType, sLineNo, eos))
+			if(parseBlock && parse_replace('n', block, fnType + " block", readPath, antiDepsOfReadPath, bLineNo, fnType, sLineNo, eos))
 				return 1;
 
 			if(add_fn(params[0], fnLang, block, fnType, layer, isConst, isPrivate, unscopedFn, addOut, inScopes, readPath, bLineNo, funcName, eos))
@@ -10509,7 +10556,7 @@ int Parser::read_and_process_fn(const bool& indent,
 						vars.layers[vpos.layer].ifstreams.erase(params[p]);
 					else if(vpos.type == "ofstream")
 						vars.layers[vpos.layer].ofstreams.erase(params[p]);
-					else if(vpos.type == "function")
+					else if(vpos.type == "function" || vpos.type == "fn")
 					{
 						vars.layers[vpos.layer].functions.erase(params[p]);
 						vars.layers[vpos.layer].paths.erase(params[p]);
@@ -11377,18 +11424,21 @@ int Parser::read_and_process_fn(const bool& indent,
 		}
 		else if(funcName == "error")
 		{
-			if(params.size() != 1)
+			if(params.size() == 0)
 			{
 				if(!consoleLocked)
 					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "error: expected 1 parameter, got " << params.size() << std::endl;
+				start_err_ml(eos, readPath, sLineNo, lineNo) << "error: expected parameters, got " << params.size() << std::endl;
 				os_mtx->unlock();
 				return 1;
 			}
 
 			if(!consoleLocked)
 				os_mtx->lock();
-			start_err_ml(eos, readPath, sLineNo, lineNo) << params[0] << std::endl;
+			start_err_ml(eos, readPath, sLineNo, lineNo) << params[0];
+			for(size_t p=1; p<params.size(); ++p)
+				eos << params[p];
+			eos << std::endl;
 			os_mtx->unlock();
 
 			return 1;
@@ -11771,6 +11821,8 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 			else
 			{
+				vars.typeDefLineNo[params[0]] = lineNo;
+
 				if(read_block(block, linePos, inStr, readPath, lineNo, vars.typeDefLineNo[params[0]], "struct(" + params[0] + ")", eos))
 					return 1;
 
@@ -13726,7 +13778,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			bool addAtStart = 0, addAtEnd = 0;
 			VPos vpos;
 
-			if(params.size() == 2)
+			if(params.size() >= 2)
 				separator = params[1];
 
 			if(options.size())
@@ -13742,15 +13794,21 @@ int Parser::read_and_process_fn(const bool& indent,
 				}
 			}
 
-			if(vars.find(params[0] + ".size", vpos) && (vpos.type == "std::int" || vpos.type == "int"))
+			if(params.size() == 4 || 
+			   (vars.find(params[0] + ".size", vpos) && 
+			    (vpos.type == "std::int" || vpos.type == "int")))
 			{
-				int sizeOf;
-				if(vpos.type == "std::int")
-					sizeOf = vars.layers[vpos.layer].ints[params[0] + ".size"];
-				else
-					sizeOf = vars.layers[vpos.layer].doubles[params[0] + ".size"];
+				int sizeOf = 0;
+				int spos = 0, epos = 0;
 
-				int spos = 0, epos = sizeOf-1;
+				if(params.size() < 4)
+				{
+					if(vpos.type == "std::int")
+						sizeOf = vars.layers[vpos.layer].ints[params[0] + ".size"];
+					else
+						sizeOf = vars.layers[vpos.layer].doubles[params[0] + ".size"];
+					epos = sizeOf-1;
+				}
 
 				if(params.size() > 2)
 				{
@@ -13765,7 +13823,7 @@ int Parser::read_and_process_fn(const bool& indent,
 						return 1;
 					}
 					spos = std::atoi(params[2].c_str());
-					if(spos >= sizeOf)
+					if(params.size() < 4 && spos >= sizeOf)
 					{
 						if(!consoleLocked)
 							os_mtx->lock();
@@ -13789,16 +13847,7 @@ int Parser::read_and_process_fn(const bool& indent,
 						return 1;
 					}
 					epos = std::atoi(params[3].c_str());
-					if(epos >= sizeOf)
-					{
-						if(!consoleLocked)
-							os_mtx->lock();
-						start_err_ml(eos, readPath, sLineNo, lineNo) << "join: ";
-						eos << "fourth parameter " << params[3] << " should be a non-negative integer less than the ";
-						eos << "size of struct specified in first parameter" << std::endl;
-						os_mtx->unlock();
-						return 1;
-					}
+					sizeOf = epos - spos;
 				}
 
 				if(spos <= epos)
@@ -13815,7 +13864,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				if(spos <= epos && addAtEnd)
 					output += separator;
 
-				if(parse_replace(lang, output, "join output", readPath, antiDepsOfReadPath, lineNo, "join", sLineNo, eos))
+				if(parse_replace('n', output, "join output", readPath, antiDepsOfReadPath, lineNo, "join", sLineNo, eos))
 					return 1;
 
 				outStr += output;
@@ -14525,12 +14574,16 @@ int Parser::read_and_process_fn(const bool& indent,
 				{
 					std::string parseReplace = toParse;
 
-					if(parse_replace(lang, parseReplace, "expression", readPath, antiDepsOfReadPath, sLineNo, parseReplace, sLineNo, eos))
+					lineNo = sLineNo;
+
+					if(parse_replace(lang, parseReplace, "expression", readPath, antiDepsOfReadPath, lineNo-1, parseReplace, sLineNo, eos))
 			   			return 1;
+
+			   		lineNo = sLineNo;
 
 			   		if(expr.compile(parseReplace) && expr.evaluate())
 			   			return 0;
-					else if(f_read_and_process(0, "sys{!p}(" + toParse + ")", sLineNo-1, readPath, antiDepsOfReadPath, trash, eos))
+					else if(f_read_and_process(0, "sys{!p}(" + toParse + ")", lineNo-1, readPath, antiDepsOfReadPath, trash, eos))
 					{
 						if(mode != MODE_INTERP && mode != MODE_SHELL)
 						{
@@ -16309,7 +16362,7 @@ int Parser::read_params(std::vector<std::string>& params,
 				}
 			}
 		}
-		strip_trailing_whitespace(param);
+		//strip_trailing_whitespace(param);
 		if(noQuotedSections == 1)
 			param = unquote(param);
 
@@ -16655,7 +16708,7 @@ int Parser::read_block(std::string& block,
 		{
 			++lineNo;
 			++bLineNo;
-			block += "\n";
+			//block += "\n";
 			leadIndenting = "";
 		}
 		else if(inStr[linePos] == ' ' || inStr[linePos] == '\t')
@@ -16677,8 +16730,9 @@ int Parser::read_block(std::string& block,
 
 	bool needsCloseBrace = 0;
 	int depth = 1;
-	sLineNo = bLineNo = lineNo;
-	if(inStr[linePos] == '{')  //bracketed block
+	//sLineNo = bLineNo = lineNo;
+	sLineNo = lineNo;
+	if(linePos < inStr.size() && inStr[linePos] == '{')  //bracketed block
 	{
 		leadIndenting = "";
 		needsCloseBrace = 1;
@@ -16693,13 +16747,12 @@ int Parser::read_block(std::string& block,
 			{
 				linePos = inStr.find("\n", linePos);
 				++lineNo;
-				++bLineNo;
 			}
 			else if(inStr[linePos] == '\n')
 			{
 				++lineNo;
 				++bLineNo;
-				block += "\n";
+				//block += "\n";
 				leadIndenting = "";
 			}
 			else if(inStr[linePos] == ' ' || inStr[linePos] == '\t')
@@ -16720,28 +16773,27 @@ int Parser::read_block(std::string& block,
 		}
 	}
 
-	//bLineNo = lineNo;
-
 	//reads the first line of the block
-	for(; inStr[linePos] != '\n'; ++linePos)
+	for(; linePos < inStr.size() && inStr[linePos] != '\n'; ++linePos)
 	{
-		if(inStr[linePos] == '{')
-			++depth;
-		else if(inStr[linePos] == '}')
+		if(needsCloseBrace)
 		{
-			--depth;
-			if(!depth)
-				break;
+			if(inStr[linePos] == '{')
+				++depth;
+			else if(inStr[linePos] == '}')
+			{
+				--depth;
+				if(!depth)
+					break;
+			}
 		}
 
 		block += inStr[linePos];
 	}
-	//++bLineNo; ++lineNo;
 
 	//reads the rest of block lines
-	while(inStr[linePos] == '\n')
+	while(linePos < inStr.size() && inStr[linePos] == '\n')
 	{
-		++bLineNo; 
 		++lineNo;
 		++linePos;
 
@@ -16776,7 +16828,7 @@ int Parser::read_block(std::string& block,
 		block += '\n';
 
 		//reads the line of the block
-		for(; inStr[linePos] != '\n' && linePos < inStr.size(); ++linePos)
+		for(; linePos < inStr.size() && inStr[linePos] != '\n'; ++linePos)
 		{
 			if(inStr[linePos] == '{')
 				++depth;

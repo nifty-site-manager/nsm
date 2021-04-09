@@ -88,6 +88,62 @@ bool remove_file(const Path& path)
 	return 0;
 }
 
+void remove_files_thread(const std::vector<std::string>& paths, const size_t& p_min, const size_t& p_max)
+{
+	for(size_t c_path = p_min; c_path < p_max; ++c_path)
+		if(paths[c_path] != "" && file_exists(paths[c_path])) 
+			std::remove(paths[c_path].c_str());
+}
+
+void create_files_thread(const std::vector<std::string>& paths, const size_t& p_min, const size_t& p_max)
+{
+	for(size_t c_path = p_min; c_path < p_max; ++c_path)
+	{
+		if(paths[c_path] != "") 
+		{
+			close(creat(paths[c_path].c_str(), O_CREAT));
+			chmod(paths[c_path].c_str(), 0644);
+		}
+	}
+}
+
+/*void remove_files_thread(const std::vector<std::string>& paths, std::mutex* rft_mtx, size_t* path)
+{
+	size_t c_path;
+
+	while(1)
+	{
+		rft_mtx->lock();
+		c_path = ++(*path);
+		rft_mtx->unlock();
+
+		if(c_path >= paths.size())
+			break;
+		else if(paths[c_path] != "" && file_exists(paths[c_path])) 
+			std::remove(paths[c_path].c_str());
+	}
+}
+
+void create_files_thread(const std::vector<std::string>& paths, std::mutex* rft_mtx, size_t* path)
+{
+	size_t c_path;
+
+	while(1)
+	{
+		rft_mtx->lock();
+		c_path = ++(*path);
+		rft_mtx->unlock();
+
+		if(c_path >= paths.size())
+			break;
+		else if(paths[c_path] != "") 
+		{
+			close(creat(paths[c_path].c_str(), O_CREAT));
+			chmod(paths[c_path].c_str(), 0644);
+		}
+	}
+}*/
+
 bool remove_path(const Path& path)
 {
 	std::mutex os_mtx;

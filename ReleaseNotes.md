@@ -2,6 +2,14 @@
 Nift Release Notes
 ------------------
 
+Version 2.4.11 of Nift
+* added basic/fast multi-threading options to poke and rmv
+* changed to strictly using templatestein when parsing constructed string for join function
+* fixed up being able to use "fn" instead of "function"
+* fixed up error function to handle multiple parameters
+* improved reading bracketless codeblocks inside bracketed codeblocks (no longer need an empty end line)
+* hunted down some bugs wth line number tracing for errors
+
 Version 2.4.10 of Nift
 * fixed up lolcat to handle finding the end of things with 'm' to avoid so much white
 * fixed up bug with reading {} in unbracketed code blocks

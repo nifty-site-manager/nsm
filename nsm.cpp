@@ -758,7 +758,7 @@ int main(int argc, const char* argv[])
 
 		return 0;
 	}
-	else if(cmd == "interp" || cmd == "sh")
+	else if(cmd == "interp" || cmd == "sh" || cmd == "shh")
 	{
 		std::cout << "Nift (aka nsm) " << c_gold << "v" << NSM_VERSION << c_white;
 		std::cout << " (c)" << DateTimeInfo().currentYYYY();

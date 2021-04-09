@@ -1,6 +1,7 @@
 #ifndef FILE_SYSTEM_H_
 #define FILE_SYSTEM_H_
 
+#include <atomic>
 #include <dirent.h>
 #include <mutex>
 #include <sys/types.h>
@@ -22,6 +23,10 @@ bool can_exec(const std::string& path);
 bool can_write(const std::string& path);
 
 bool remove_file(const Path& path);
+//void remove_files_thread(const std::vector<std::string>& paths, std::mutex* rft_mtx, size_t* path);
+void remove_files_thread(const std::vector<std::string>& paths, const size_t& p_min, const size_t& p_max);
+void create_files_thread(const std::vector<std::string>& paths, const size_t& p_min, const size_t& p_max);
+//void create_files_thread(const std::vector<std::string>& paths, std::mutex* rft_mtx, size_t* path);
 bool remove_path(const Path& path);
 bool remove_path(const Path& path,
                  const int& lineNo,

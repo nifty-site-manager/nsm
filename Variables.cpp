@@ -332,7 +332,7 @@ int Variables::add_str_from_var(const VPos& vpos, std::string& str, const bool& 
 
 		return 1;
 	}
-	else if(vpos.type == "function")
+	else if(vpos.type == "function" || vpos.type == "fn")
 	{
 		std::istringstream iss(layers[vpos.layer].functions[vpos.name]);
 		std::string ssLine, oldLine;
