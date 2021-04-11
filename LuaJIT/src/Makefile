@@ -20,6 +20,9 @@ ifeq ($(OS),Windows_NT)
   detected_OS := Windows
 else
   detected_OS := $(shell sh -c 'uname 2>/dev/null || echo Unknown')
+  ifeq ($(detected_OS),FreeBSD)
+    FREEBSD_VERSION := $(shell uname -r | cut -d - -f 1)
+  endif
 endif
 
 ##############################################################################
@@ -123,6 +126,11 @@ XCFLAGS=
 # Disable LJ_GC64 mode for x64.
 #XCFLAGS+= -DLUAJIT_DISABLE_GC64
 #
+ifeq ($(detected_OS),FreeBSD)  # FreeBSD
+  ifeq ($(shell expr $(FREEBSD_VERSION) \< 12.0),1)
+    XCFLAGS+= -DLJ_TARGET_HAS_GETENTROPY=0
+  endif
+endif
 ##############################################################################
 
 ##############################################################################
