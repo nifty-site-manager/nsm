@@ -98,6 +98,8 @@ Parser::Parser(std::set<TrackedInfo>* TrackedAll,
 int Parser::lua_addnsmfns()
 {
 	lua_register(lua.L, "cd", lua_cd);
+	lua_register(lua.L, "get_pwd", lua_get_pwd);
+	lua_register(lua.L, "pwd", lua_pwd);
 	if(mode == MODE_INTERP || mode == MODE_SHELL)
 		lua_register(lua.L, "sys", lua_sys_bell);
 	else
@@ -836,33 +838,6 @@ int Parser::run(const Path& path, char& langCh, const std::vector<std::string>& 
 		start_err(eos) << "run: cannot run " << c_light_blue << path << c_white << " as file does not exist" << std::endl;
 		os_mtx->unlock();
 		return 1;
-	}
-
-	if(langCh == '?')
-	{
-		int pos = path.file.find_first_of('.');
-		std::string ext = path.file.substr(pos, path.file.size()-pos);
-
-		if(ext.find_first_of("xX") != std::string::npos)
-			langCh = 'x';
-		else if(ext.find_first_of("fF") != std::string::npos)
-			langCh = 'f';
-		else if(ext.find_first_of("nNmM") != std::string::npos)
-			langCh = 'n';
-		if(ext.find_first_of("lL") != std::string::npos)
-			langCh = 'l';
-		else 
-			langCh = 'f';
-		/*else
-		{
-			if(!consoleLocked)
-				os_mtx->lock();
-			start_err(eos) << "run: cannot determine chosen language from extension " << quote(ext) << ", ";
-			eos << "valid options include '.n', '.f', '.exprtk', '.lua', ";
-			eos << "or you can specify the language using eg. `nsm run -n++ " << path << "`" << std::endl;
-			os_mtx->unlock();
-			return 1;
-		}*/
 	}
 
 	depFiles.clear();
@@ -3246,7 +3221,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			std::string block, parsedCondition, whitespace;
 			std::vector<std::string> blocks, conditions;
 			std::vector<int> bLineNos, cLineNos;
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 
 			if(options.size())
 			{
@@ -3504,7 +3479,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 
 			bool fromFile = 0, readBlock = 0, parseBlock = 1;
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 			std::string userInput, inputMsg;
 			if(params.size() > 0)
 				inputMsg = params[0];
@@ -3651,7 +3626,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 			bool blockOpt = 0, parseBlock = 0, addOut = addOutput;
 
 			if(options.size())
@@ -4406,7 +4381,7 @@ int Parser::read_and_process_fn(const bool& indent,
 		else if(funcName == "lolcat")
 		{
 			bool readBlock = 0, parseBlock = 1;
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 			std::string txt;
 
 			if(!lolcatInit && !lolcat_init(""))
@@ -5683,7 +5658,7 @@ int Parser::read_and_process_fn(const bool& indent,
 		else if(funcName == "console")
 		{
 			bool readBlock = 0, parseBlock = 1;
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 			std::string txt;
 
 			if(options.size())
@@ -6230,7 +6205,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			bool readBlock = 0, parseBlock = 0;
 			char bLang = lang;
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 
 			if(options.size())
 			{
@@ -9289,7 +9264,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			bool readBlock = 0, parseBlock = 1;
 			char bLang = lang;
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 			std::string txt;
 
 			if(options.size())
@@ -9423,7 +9398,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			bool first = 1, addNewLines = 1, addIndent = 1, addScope = addScopeGlobal, addOut = addOutput;
 			char wLang = lang;
 			std::string block, parsedCondition, eob = "\n", wBaseIndentAmount = indentAmount;
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 
 			if(read_block(block, linePos, inStr, readPath, lineNo, bLineNo, "while(" + params[0] + ")", eos))
 				return 1;
@@ -10066,7 +10041,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 			bool addOut = addOutput;
 
 			if(options.size())
@@ -10137,7 +10112,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			bool first = 1, addNewLines = 1, addIndent = 1, addScope = addScopeGlobal, addOut = addOutput;
 			char fLang = lang;
 			std::string block, parsedCondition, eob = "\n", wBaseIndentAmount = indentAmount;
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 
 			std::string forStr;
 
@@ -10731,7 +10706,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 			bool blockOpt = 0, fileOpt = 0, parseBlock = 0, addOut = addOutput, round = 1;
 			char blockLang = lang;
 
@@ -10817,7 +10792,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 			bool blockOpt = 0, fileOpt = 0, parseBlock = 0;
 			char blockLang = lang;
 
@@ -11536,7 +11511,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			bool first = 1, addNewLines = 1, addIndent = 1, addScope = addScopeGlobal, addOut = addOutput;
 			char dwLang = lang;
 			std::string block, parsedCondition, eob = "\n", wBaseIndentAmount = indentAmount;
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 
 			if(read_block(block, linePos, inStr, readPath, lineNo, bLineNo, "do-while(" + params[0] + ")", eos))
 				return 1;
@@ -12650,7 +12625,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			     attachContentPath = 0,
 			     makeBackup = 1;
 			bool blockOpt = 0, parseBlock = 0;
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 			bool noReturnValue = 0;
 			int console = 0, inject = 0, injectRaw = 0, noOutput = 0;
 			int c = sys_counter++;
@@ -12981,7 +12956,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 
 			int console = 0, inject = 0, injectRaw = 0, noOutput = 0;
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 			bool parseBlock = 0;
 			bool attachContentPath = 0;
 			bool noReturnValue = 0;
@@ -13641,7 +13616,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 			}
 
-			int bLineNo = 0;
+			int bLineNo = lineNo;
 			bool addOut = addOutput;
 
 			if(options.size())
@@ -16886,7 +16861,7 @@ int Parser::read_else_blocks(std::vector<std::string>& conditions,
 {
 	std::string block, condition, extraLine;
 	std::vector<std::string> params;
-	int bLineNo = 0;
+	int bLineNo = lineNo;
 
 	if(linePos >= inStr.size())
 	{

@@ -60,6 +60,34 @@ int lua_cd(lua_State* L)
 	return 0;
 }
 
+int lua_get_pwd(lua_State* L)
+{
+	if(lua_gettop(L) != 0)
+	{
+		lua_nsm_pusherrmsg(L, "pwd: expected 0 parameters, got " + std::to_string(lua_gettop(L)));
+		lua_error(L);
+		return 0;
+	}
+
+	lua_pushstring(L, get_pwd().c_str());
+
+	return 1;
+}
+
+int lua_pwd(lua_State* L)
+{
+	if(lua_gettop(L) != 0)
+	{
+		lua_nsm_pusherrmsg(L, "pwd: expected 0 parameters, got " + std::to_string(lua_gettop(L)));
+		lua_error(L);
+		return 0;
+	}
+
+	std::cout << get_pwd() << std::endl;
+
+	return 0;
+}
+
 int lua_sys(lua_State* L)
 {
 	if(lua_gettop(L) != 1)

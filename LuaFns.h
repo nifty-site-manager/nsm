@@ -18,6 +18,8 @@ void lua_nsm_pusherrmsg(lua_State* L, const std::string& errStr);
 void lua_nsm_pusherrmsg(lua_State* L, const std::string& errStr, int lineNoOffset);
 
 int lua_cd(lua_State* L);
+int lua_get_pwd(lua_State* L);
+int lua_pwd(lua_State* L);
 
 int lua_sys(lua_State* L);
 int lua_sys_bell(lua_State* L);

@@ -2,6 +2,11 @@
 Nift Release Notes
 ------------------
 
+Version 2.4.12 of Nift
+* further improved line number tracing for errors
+* added get_pwd and pwd to embedded lua
+* updated to newer versions of LuaJIT 2.1.0-beta3 and ExprTk
+
 Version 2.4.11 of Nift
 * added basic/fast multi-threading options to poke and rmv
 * changed to strictly using templatestein when parsing constructed string for join function
