@@ -170,28 +170,28 @@ bool remove_path(const Path& path,
 			os_mtx->unlock();
 			return 1;
 		}
+	}
 
-		std::string delDir = path.dir;
-		size_t pos;
+	std::string delDir = path.dir;
+	size_t pos;
 
-		int delDirSize = delDir.size();
-		if(delDirSize && (delDir[delDirSize-1] == '/' || delDir[delDirSize-1] == '\\'))
-			delDir = delDir.substr(0, delDirSize-1);
+	int delDirSize = delDir.size();
+	if(delDirSize && (delDir[delDirSize-1] == '/' || delDir[delDirSize-1] == '\\'))
+		delDir = delDir.substr(0, delDirSize-1);
 
-		while(delDir.size() &&
-		      delDir != "/" && 
-		      delDir != "C:" &&
-		      delDir != "C:\\" &&
-		      delDir != "C:/" &&
-		      delDir != "./" &&
-		      !rmdir(delDir.c_str()))
-		{
-			pos = delDir.find_last_of("/\\");
-			if(pos == std::string::npos)
-				break;
-			else
-				delDir = delDir.substr(0, pos);
-		}
+	while(delDir.size() &&
+	      delDir != "/" && 
+	      delDir != "C:" &&
+	      delDir != "C:\\" &&
+	      delDir != "C:/" &&
+	      delDir != "./" &&
+	      !rmdir(delDir.c_str()))
+	{
+		pos = delDir.find_last_of("/\\");
+		if(pos == std::string::npos)
+			break;
+		else
+			delDir = delDir.substr(0, pos);
 	}
 
 	return 0;

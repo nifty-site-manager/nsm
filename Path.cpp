@@ -10,6 +10,9 @@ Path::Path(const Directory& Dir, const Filename& File)
 	dir = Dir;
 	file = File;
 	type = "file";
+
+	if(dir.size() > 1 && (dir[dir.size()-2] == '/' || dir[dir.size()-2] == '\\'))
+		dir = dir.substr(0, dir.size()-1);
 }
 
 Path::Path(const std::string& path)
@@ -45,7 +48,8 @@ std::ostream& operator<<(std::ostream& os, const Path& path)
 
 void Path::set_file_path_from(const std::string& s)
 {
-	size_t pos = s.find_last_of('/');
+	size_t pos = s.find_last_of("/\\");
+
 	if(pos == std::string::npos)
 		*this = Path("", s);
 	else
@@ -75,19 +79,34 @@ bool Path::modified_after(const Path& path2) const
 		return 0;
 }
 
+Path Path::getDepsPath() const
+{
+	return Path(dir,  strippedExtension(file) + ".deps.json");
+}
+
+Path Path::getDepsPathOld() const
+{
+	return Path(dir,  strippedExtension(file) + ".deps");
+}
+
 Path Path::getInfoPath() const
 {
-	return Path(".nsm/" + dir,  strippedExtension(file) + ".info");
+	return Path(".nift/" + dir,  strippedExtension(file) + ".info.json");
 }
 
 Path Path::getHashPath() const
 {
-	return Path(".nsm/" + dir,  strippedExtension(file) + ".hash");
+	return Path(".nift/" + dir,  file + ".hash");
 }
 
 Path Path::getPaginationPath() const
 {
-	return Path(".nsm/" + dir,  strippedExtension(file) + ".pagination");
+	return Path(".nift/" + dir,  strippedExtension(file) + ".pagination.json");
+}
+
+Path Path::getPaginationPathOld() const
+{
+	return Path(".nift/" + dir,  strippedExtension(file) + ".pagination");
 }
 
 bool Path::ensureDirExists() const

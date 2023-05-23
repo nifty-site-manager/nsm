@@ -20,6 +20,7 @@
 #include "LuaFns.h"
 #include "Lua.h"
 #include "Pagination.h"
+#include "RapidJSON.h"
 #include "SystemInfo.h"
 #include "TrackedInfo.h"
 #include "Variables.h"

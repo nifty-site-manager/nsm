@@ -1,6 +1,6 @@
 /*
 ** I/O library.
-** Copyright (C) 2005-2021 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2017 Mike Pall. See Copyright Notice in luajit.h
 **
 ** Major portions taken verbatim or adapted from the Lua interpreter.
 ** Copyright (C) 1994-2011 Lua.org, PUC-Rio. See Copyright Notice in lua.h
@@ -99,8 +99,11 @@ static int io_file_close(lua_State *L, IOFileUD *iof)
     int stat = -1;
 #if LJ_TARGET_POSIX
     stat = pclose(iof->fp);
-#elif LJ_TARGET_WINDOWS && !LJ_TARGET_XBOXONE && !LJ_TARGET_UWP
+#elif LJ_TARGET_WINDOWS && !LJ_TARGET_XBOXONE
     stat = _pclose(iof->fp);
+#else
+    lua_assert(0);
+    return 0;
 #endif
 #if LJ_52
     iof->fp = NULL;
@@ -109,8 +112,7 @@ static int io_file_close(lua_State *L, IOFileUD *iof)
     ok = (stat != -1);
 #endif
   } else {
-    lj_assertL((iof->type & IOFILE_TYPE_MASK) == IOFILE_TYPE_STDF,
-	       "close of unknown FILE* type");
+    lua_assert((iof->type & IOFILE_TYPE_MASK) == IOFILE_TYPE_STDF);
     setnilV(L->top++);
     lua_pushliteral(L, "cannot close standard file");
     return 2;
@@ -304,14 +306,6 @@ LJLIB_CF(io_method_flush)		LJLIB_REC(io_flush 0)
   return luaL_fileresult(L, fflush(io_tofile(L)->fp) == 0, NULL);
 }
 
-#if LJ_32 && defined(__ANDROID__) && __ANDROID_API__ < 24
-/* The Android NDK is such an unmatched marvel of engineering. */
-extern int fseeko32(FILE *, long int, int) __asm__("fseeko");
-extern long int ftello32(FILE *) __asm__("ftello");
-#define fseeko(fp, pos, whence)	(fseeko32((fp), (pos), (whence)))
-#define ftello(fp)		(ftello32((fp)))
-#endif
-
 LJLIB_CF(io_method_seek)
 {
   FILE *fp = io_tofile(L)->fp;
@@ -412,7 +406,7 @@ LJLIB_CF(io_open)
 
 LJLIB_CF(io_popen)
 {
-#if LJ_TARGET_POSIX || (LJ_TARGET_WINDOWS && !LJ_TARGET_XBOXONE && !LJ_TARGET_UWP)
+#if LJ_TARGET_POSIX || (LJ_TARGET_WINDOWS && !LJ_TARGET_XBOXONE)
   const char *fname = strdata(lj_lib_checkstr(L, 1));
   GCstr *s = lj_lib_optstr(L, 2);
   const char *mode = s ? strdata(s) : "r";

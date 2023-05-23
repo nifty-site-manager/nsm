@@ -34,7 +34,8 @@ int create_blank_template(const Path& templatePath);
 int create_config_file(const Path& configPath, 
                        const std::string& outputExt, 
                        bool global);
-bool upgradeProject();
+bool upgrade_global_config();
+bool upgrade_config_dir();
 
 struct ProjectInfo
 {
@@ -45,6 +46,7 @@ struct ProjectInfo
 	std::string contentExt,
 	            outputExt,
 	            scriptExt,
+	            browser,
 	            terminal,
 	            lolcatCmd,
 	            unixTextEditor,
@@ -57,23 +59,34 @@ struct ProjectInfo
 
 	int open(const bool& addMsg);
 	int open_config(const Path& configPath, const bool& global, const bool& addMsg);
+	int open_config_old(const Path& configPath, const bool& global, const bool& addMsg);
 	int open_global_config(const bool& addMsg);
 	int open_local_config(const bool& addMsg);
 	int open_tracking(const bool& addMsg);
+	int open_tracking_old(const bool& addMsg);
 
 	Path execrc_path(const std::string& exec, const std::string& execrc_ext);
 	Path execrc_path(const std::string& exec, const char& execrc_ext);
 
 	int save_config(const std::string& configPathStr, const bool& global);
+	int save_config_old(const std::string& configPathStr, const bool& global);
 	int save_global_config();
 	int save_local_config();
 	int save_tracking();
+	int save_tracking_old();
 
 	TrackedInfo make_info(const Name& name);
 	TrackedInfo make_info(const Name& name, const Title& title);
 	TrackedInfo make_info(const Name& name, 
 	                      const Title& title, 
 	                      const Path& templatePath);
+	TrackedInfo make_info(const Name& name, 
+                          const Title& title, 
+                          const Path& templatePath, 
+                          const Directory& contentDir, 
+                          const Directory& outputDir, 
+                          const std::string& contentExt, 
+                          const std::string& outputExt);
 	TrackedInfo get_info(const Name& name);
 	int info(const std::vector<Name>& names);
 	int info_all();
@@ -83,12 +96,6 @@ struct ProjectInfo
 
 	int set_incr_mode(const std::string& modeStr);
 	int remove_hash_files();
-
-	std::string get_ext(const TrackedInfo& trackedInfo, 
-	                    const std::string& extType);
-	std::string get_cont_ext(const TrackedInfo& trackedInfo);
-	std::string get_output_ext(const TrackedInfo& trackedInfo);
-	std::string get_script_ext(const TrackedInfo& trackedInfo);
 
 	bool tracking(const TrackedInfo& trackedInfo);
 	bool tracking(const Name& name);
@@ -124,6 +131,7 @@ struct ProjectInfo
 	int new_content_dir(const Directory& newContDir);
 	int new_content_ext(const std::string& newExt);
 	int new_content_ext(const Name& name, const std::string& newExt);
+	int new_content_ext_old(const Name& name, const std::string& newExt);
 	int new_output_ext(const std::string& newExt);
 	int new_output_ext(const Name& name, const std::string& newExt);
 	int new_script_ext(const std::string& newExt);

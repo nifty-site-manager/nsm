@@ -5,9 +5,9 @@
 #include <set>
 
 #include "FileSystem.h"
+#include "RapidJSON.h"
 
 std::string strip_trailing_slash(const std::string& source);
-std::string replace_slashes(const std::string& source); //can delete this later
 
 struct WatchDir
 {
@@ -29,6 +29,9 @@ struct WatchList
 
 	int open();
 	int save();
+
+	int open_old();
+	int save_old();
 };
 
 std::ostream& operator<<(std::ostream &os, const WatchList &wl);

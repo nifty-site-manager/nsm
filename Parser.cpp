@@ -288,7 +288,7 @@ int Parser::run_script(std::ostream& os, const Path& scriptPath, const bool& mak
 
 		int result;
 		int c = sys_counter++;
-		size_t pos = scriptPath.str().substr(1, scriptPath.str().size()-1).find_first_of('.');
+		size_t pos = scriptPath.str().substr(1, scriptPath.str().size()-1).find_last_of('.');
 		std::string cScriptExt = "";
 		if(pos != std::string::npos)
 			cScriptExt = scriptPath.str().substr(pos+1, scriptPath.str().size()-pos-1);
@@ -1035,7 +1035,7 @@ int Parser::build(const TrackedInfo& ToBuild,
 
 	//checks for non-default script extension
 	Path extPath = toBuild.outputPath.getInfoPath();
-	extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
+	extPath.file = extPath.file.substr(0, extPath.file.find_last_of('.')) + ".scriptExt";
 
 	std::string cScriptExt;
 	if(file_exists(extPath.str()))
@@ -1076,7 +1076,7 @@ int Parser::build(const TrackedInfo& ToBuild,
 		depFiles.insert(dep);
 	}
 	Path prebuildScript = toBuild.contentPath;
-	prebuildScript.file = prebuildScript.file.substr(0, prebuildScript.file.find_first_of('.')) + "-pre-build" + cScriptExt;
+	prebuildScript.file = prebuildScript.file.substr(0, prebuildScript.file.find_last_of('.')) + "-pre-build" + cScriptExt;
 	if(file_exists(prebuildScript.str()))
 	{
 		if(incrMode != INCR_MOD)
@@ -1123,9 +1123,10 @@ int Parser::build(const TrackedInfo& ToBuild,
 	if(file_exists(paginationPathStr))
 	{
 		std::string str;
-		std::ifstream ifs(paginationPathStr);
-		ifs >> str >> oldNoPaginationPages;
-		ifs.close();
+		rapidjson::Document doc;
+
+		doc.Parse(string_from_file(paginationPathStr).c_str());
+		oldNoPaginationPages = doc["no-pages"].GetInt();
 	}
 
 	//adds template path to dependencies
@@ -1182,7 +1183,9 @@ int Parser::build(const TrackedInfo& ToBuild,
 		//creates/updates pagination file
 		chmod(paginationPathStr.c_str(), 0666);
 		std::ofstream ofs(paginationPathStr);
-		ofs << "noPages " << pagesInfo.noPages << "\n";
+		ofs << "{\n";
+		ofs << "\t\"no-pages\": " << pagesInfo.noPages << "\n";
+		ofs << "}";
 		ofs.close();
 		//makes sure user can't accidentally write to pagination file
 		chmod(paginationPathStr.c_str(), 0444); 
@@ -1351,7 +1354,7 @@ int Parser::build(const TrackedInfo& ToBuild,
 			depFiles.insert(dep);
 		}
 		Path postbuildScript = toBuild.contentPath;
-		postbuildScript.file = postbuildScript.file.substr(0, postbuildScript.file.find_first_of('.')) + "-post-build" + cScriptExt;
+		postbuildScript.file = postbuildScript.file.substr(0, postbuildScript.file.find_last_of('.')) + "-post-build" + cScriptExt;
 		if(file_exists(postbuildScript.str()))
 		{
 			if(incrMode != INCR_MOD)
@@ -1392,12 +1395,22 @@ int Parser::build(const TrackedInfo& ToBuild,
 
 		//writes info file
 		std::ofstream infoStream(infoPath.str());
-		infoStream << dateTimeInfo.currentTime() << " " << dateTimeInfo.currentDate() << "\n";
+		infoStream << "{\n";
+		infoStream << "\t\"last-built\": \"" << dateTimeInfo.currentTime() << " " << dateTimeInfo.currentDate() << "\",\n";
 		//what if files are modified mid-build? at worst files will be rebuilt next build, but could be annoying for larger projects
-		//infoStream << dateTimeInfo.cTime << " " << dateTimeInfo.cDate << "\n";
-		infoStream << toBuild << "\n\n";
+		//infoStream << "\t\"last-built\": \"" << dateTimeInfo.cTime << " " << dateTimeInfo.cDate << "\"\n";
+
+		infoStream << "\t\"name\": \"" <<  toBuild.name << "\",\n";
+		infoStream << "\t\"title\": \"" <<  unquote(toBuild.title.str) << "\",\n";
+		infoStream << "\t\"template\": \"" <<  toBuild.templatePath.str() << "\",\n";
+
+		infoStream << "\t\"dependencies\": [\n"; 
 		for(auto depFile=depFiles.begin(); depFile != depFiles.end(); depFile++)
-			infoStream << *depFile << "\n";
+			infoStream << "\t\t\"" << depFile->str() << "\",\n";
+		size_t pos = infoStream.tellp();
+		infoStream.seekp(pos-2);
+		infoStream << "\n\t]\n";
+		infoStream << "}";
 		infoStream.close();
 
 		//makes sure user can't accidentally write to info file
@@ -2625,21 +2638,11 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 			else if(varName == "content-ext")
 			{
-				//checks for non-default content extension
-				Path extPath = toBuild.outputPath.getInfoPath();
-				extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".contExt";
-
-				if(file_exists(extPath.str()))
+				if(toBuild.contentExt != "")
 				{
-					std::string ext;
-
-					std::ifstream ifs(extPath.str());
-					getline(ifs, ext);
-					ifs.close();
-
-					outStr += ext;
+					outStr += toBuild.contentExt;
 					if(indent)
-						indentAmount += into_whitespace(ext);
+						indentAmount += into_whitespace(toBuild.contentExt);
 				}
 				else
 				{
@@ -2650,21 +2653,11 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 			else if(varName == "output-ext")
 			{
-				//checks for non-default output extension
-				Path extPath = toBuild.outputPath.getInfoPath();
-				extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".outputExt";
-
-				if(file_exists(extPath.str()))
+				if(toBuild.outputExt != "")
 				{
-					std::string ext;
-
-					std::ifstream ifs(extPath.str());
-					getline(ifs, ext);
-					ifs.close();
-
-					outStr += ext;
+					outStr += toBuild.outputExt;
 					if(indent)
-						indentAmount += into_whitespace(ext);
+						indentAmount += into_whitespace(toBuild.outputExt);
 				}
 				else
 				{
@@ -2675,21 +2668,11 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 			else if(varName == "script-ext")
 			{
-				//checks for non-default script extension
-				Path extPath = toBuild.outputPath.getInfoPath();
-				extPath.file = extPath.file.substr(0, extPath.file.find_first_of('.')) + ".scriptExt";
-
-				if(file_exists(extPath.str()))
+				if(toBuild.scriptExt != "")
 				{
-					std::string ext;
-
-					std::ifstream ifs(extPath.str());
-					getline(ifs, ext);
-					ifs.close();
-
-					outStr += ext;
+					outStr += toBuild.scriptExt;
 					if(indent)
-						indentAmount += into_whitespace(ext);
+						indentAmount += into_whitespace(toBuild.scriptExt);
 				}
 				else
 				{
@@ -2706,33 +2689,15 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 			else if(varName == "content-dir")
 			{
-				if(contentDir.size() && (contentDir[contentDir.size()-1] == '/' || contentDir[contentDir.size()-1] == '\\'))
-				{
-					outStr += contentDir.substr(0, contentDir.size()-1);
-					if(indent)
-						indentAmount += into_whitespace(contentDir.substr(0, contentDir.size()-1));
-				}
-				else
-				{
-					outStr += contentDir;
-					if(indent)
-						indentAmount += into_whitespace(contentDir);
-				}
+				outStr += contentDir;
+				if(indent)
+					indentAmount += into_whitespace(contentDir);
 			}
 			else if(varName == "output-dir")
 			{
-				if(outputDir.size() && (outputDir[outputDir.size()-1] == '/' || outputDir[outputDir.size()-1] == '\\'))
-				{
-					outStr += outputDir.substr(0, outputDir.size()-1);
-					if(indent)
-						indentAmount += into_whitespace(outputDir.substr(0, outputDir.size()-1));
-				}
-				else
-				{
-					outStr += outputDir;
-					if(indent)
-						indentAmount += into_whitespace(outputDir);
-				}
+				outStr += outputDir;
+				if(indent)
+					indentAmount += into_whitespace(outputDir);
 			}
 			else if(varName == "default-content-ext")
 			{
@@ -2930,6 +2895,53 @@ int Parser::read_and_process_fn(const bool& indent,
 			bool ifExists = 0, inputRaw = 0, noIndent = 0;
 			char inpLang = lang;
 
+			std::string oldIndent = indentAmount;
+			if(noIndent)
+				indentAmount = "";
+
+			if(options.size())
+			{
+				for(size_t o=0; o<options.size(); o++)
+				{
+					if(options[o] == "f++")
+						inpLang = 'f';
+					else if(options[o] == "n++")
+						inpLang = 'n';
+					else if(options[o] == "raw")
+						inputRaw = 1;
+					else if(options[o] == "if-exists")
+						ifExists = 1;
+					else if(options[o] == "!i" || options[o] == "!indent")
+						noIndent = 1;
+				}
+			}
+
+			if(!file_exists(inputPathStr)) 
+			{
+				if(file_exists(readPath.dir + inputPathStr))
+					inputPathStr = readPath.dir + inputPathStr;
+				else if(ifExists) 
+				{
+					skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
+
+					if(noIndent)
+						indentAmount = oldIndent;
+
+					return 0;
+				}
+				else
+				{
+					if(!consoleLocked)
+						os_mtx->lock();
+					if(funcName == "input")
+						start_err_ml(eos, readPath, sLineNo, lineNo) << "inputting file " << c_purple << params[0] << c_white << " failed as path does not exist" << std::endl;
+					else
+						start_err_ml(eos, readPath, sLineNo, lineNo) << "injecting file " << c_purple << params[0] << c_white << " failed as path does not exist" << std::endl;
+					os_mtx->unlock();
+					return 1;
+				}
+			}
+
 			Path inputPath;
 			inputPath.set_file_path_from(inputPathStr);
 
@@ -2960,60 +2972,27 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(inputPath == toBuild.contentPath)
 				contentAdded = 1;
 
-			if(options.size())
+			if(!inputRaw)
 			{
-				for(size_t o=0; o<options.size(); o++)
+				//ensures insert file isn't an anti dep of read path
+				if(antiDepsOfReadPath.count(inputPath))
 				{
-					if(options[o] == "f++")
-						inpLang = 'f';
-					else if(options[o] == "n++")
-						inpLang = 'n';
-					else if(options[o] == "raw")
-						inputRaw = 1;
-					else if(options[o] == "if-exists")
-						ifExists = 1;
-					else if(options[o] == "!i")
-						noIndent = 1;
+					if(!consoleLocked)
+						os_mtx->lock();
+					if(funcName == "input")
+						start_err_ml(eos, readPath, sLineNo, lineNo) << "inputting file " << c_purple << inputPath << c_white << " would result in an input loop" << std::endl;
+					else
+						start_err_ml(eos, readPath, sLineNo, lineNo) << "injecting file " << c_purple << inputPath << c_white << " would result in an input loop" << std::endl;
+					os_mtx->unlock();
+					return 1;
 				}
-			}
 
-			std::string oldIndent = indentAmount;
-			if(noIndent)
-				indentAmount = "";
+				std::string fileStr = string_from_file(inputPath.str());
 
-			//ensures insert file exists
-			if(file_exists(inputPathStr))
-			{
-				if(!inputRaw)
+				//adds insert file
+				if(inpLang == 'f')
 				{
-					//ensures insert file isn't an anti dep of read path
-					if(antiDepsOfReadPath.count(inputPath))
-					{
-						if(!consoleLocked)
-							os_mtx->lock();
-						if(funcName == "input")
-							start_err_ml(eos, readPath, sLineNo, lineNo) << "inputting file " << inputPath << " would result in an input loop" << std::endl;
-						else
-							start_err_ml(eos, readPath, sLineNo, lineNo) << "injecting file " << inputPath << " would result in an input loop" << std::endl;
-						os_mtx->unlock();
-						return 1;
-					}
-
-					std::string fileStr = string_from_file(inputPath.str());
-
-					//adds insert file
-					if(inpLang == 'f')
-					{
-						if(f_read_and_process(1, fileStr, 0, inputPath, antiDepsOfReadPath, outStr, eos) > 0)
-						{
-							if(!consoleLocked)
-								os_mtx->lock();
-							start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << "(" << inputPath << ") failed" << std::endl;
-							os_mtx->unlock();
-							return 1;
-						}
-					}
-					else if(n_read_and_process(1, fileStr, 0, inputPath, antiDepsOfReadPath, outStr, eos) > 0)
+					if(f_read_and_process(1, fileStr, 0, inputPath, antiDepsOfReadPath, outStr, eos) > 0)
 					{
 						if(!consoleLocked)
 							os_mtx->lock();
@@ -3022,37 +3001,32 @@ int Parser::read_and_process_fn(const bool& indent,
 						return 1;
 					}
 				}
-				else
+				else if(n_read_and_process(1, fileStr, 0, inputPath, antiDepsOfReadPath, outStr, eos) > 0)
 				{
-					std::ifstream ifs(inputPath.str());
-					std::string fileLine, oldLine;
-					int fileLineNo = 0;
-
-					while(!ifs.eof())
-					{
-						getline(ifs, fileLine);
-						if(0 < fileLineNo++)
-							outStr += "\n" + indentAmount;
-						oldLine = fileLine;
-						outStr += fileLine;
-					}
-					indentAmount += into_whitespace(oldLine);
-
-					ifs.close();
+					if(!consoleLocked)
+						os_mtx->lock();
+					start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << "(" << inputPath << ") failed" << std::endl;
+					os_mtx->unlock();
+					return 1;
 				}
 			}
-			else if(ifExists)
-				skip_whitespace(0, inStr, lineNo, linePos, readPath, funcName, eos);
 			else
 			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				if(funcName == "input")
-					start_err_ml(eos, readPath, sLineNo, lineNo) << "inputting file " << inputPath << " failed as path does not exist" << std::endl;
-				else
-					start_err_ml(eos, readPath, sLineNo, lineNo) << "injecting file " << inputPath << " failed as path does not exist" << std::endl;
-				os_mtx->unlock();
-				return 1;
+				std::ifstream ifs(inputPath.str());
+				std::string fileLine, oldLine;
+				int fileLineNo = 0;
+
+				while(!ifs.eof())
+				{
+					getline(ifs, fileLine);
+					if(0 < fileLineNo++)
+						outStr += "\n" + indentAmount;
+					oldLine = fileLine;
+					outStr += fileLine;
+				}
+				indentAmount += into_whitespace(oldLine);
+
+				ifs.close();
 			}
 
 			if(noIndent)
@@ -4646,6 +4620,9 @@ int Parser::read_and_process_fn(const bool& indent,
 					Path targetPath = trackedAll->find(targetInfo)->outputPath;
 					//targetPath.set_file_path_from(targetPathStr);
 
+					if(targetPath.file == "index.html")
+						targetPath.file = "";
+
 					Path pathToTarget(pathBetween(toBuild.outputPath.dir, targetPath.dir), targetPath.file);
 
 					//adds path to target
@@ -4719,6 +4696,9 @@ int Parser::read_and_process_fn(const bool& indent,
 			{
 				Path targetPath = trackedAll->find(targetInfo)->outputPath;
 				//targetPath.set_file_path_from(targetPathStr);
+
+				if(targetPath.file == "index.html")
+					targetPath.file = "";
 
 				Path pathToTarget(pathBetween(toBuild.outputPath.dir, targetPath.dir), targetPath.file);
 
@@ -4799,26 +4779,31 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			std::string targetFilePath = params[0];
 
-			if(path_exists(targetFilePath.c_str()))
-			{
-				Path targetPath;
-				targetPath.set_file_path_from(targetFilePath);
 
-				Path pathToTarget(pathBetween(toBuild.outputPath.dir, targetPath.dir), targetPath.file);
-
-				//adds path to target
-				outStr += pathToTarget.str();
-				if(indent)
-					indentAmount += into_whitespace(pathToTarget.str());
-			}
-			else //throws error if targetFilePath doesn't exist
+			if(!path_exists(targetFilePath.c_str())) 
 			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "pathtofile: file " << targetFilePath << " does not exist" << std::endl;
-				os_mtx->unlock();
-				return 1;
+				if(path_exists(outputDir + targetFilePath)) 
+					targetFilePath = outputDir + targetFilePath;
+				else //throws error if targetFilePath doesn't exist
+				{
+					if(!consoleLocked)
+						os_mtx->lock();
+					start_err_ml(eos, readPath, sLineNo, lineNo) << "pathtofile: file " << targetFilePath << " does not exist" << std::endl;
+					os_mtx->unlock();
+					return 1;
+				}
 			}
+
+			Path targetPath;
+			targetPath.set_file_path_from(targetFilePath);
+
+			Path pathToTarget(pathBetween(toBuild.outputPath.dir, targetPath.dir), targetPath.file);
+
+			//adds path to target
+			outStr += pathToTarget.str();
+			if(indent)
+				indentAmount += into_whitespace(pathToTarget.str());
+				
 
 			return 0;
 		}
@@ -12692,7 +12677,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			else if(params.size() == 1)
 				params.push_back("");
 
-			size_t pos = params[0].substr(1, params[0].size()-1).find_first_of('.');
+			size_t pos = params[0].substr(1, params[0].size()-1).find_last_of('.');
 			std::string cScriptExt = "";
 			if(pos != std::string::npos)
 				cScriptExt = params[0].substr(pos+1, params[0].size()-pos-1);

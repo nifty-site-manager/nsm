@@ -12,21 +12,6 @@ std::string strip_trailing_slash(const std::string& source)
 	return result;
 }
 
-std::string replace_slashes(const std::string& source) //can delete this later
-{
-	std::string result = "";
-
-	for(size_t i=0; i<source.size(); i++)
-	{
-		if(source[i] == '/' || source[i] == '\\')
-			result += '|';
-		else
-			result += source[i];
-	}
-
-	return result;
-}
-
 WatchDir::WatchDir()
 {
 }
@@ -42,15 +27,149 @@ WatchList::WatchList()
 
 int WatchList::open()
 {
-	if(file_exists(".nsm/nift.config"))
+	std::cout << "loading project watch file: " << Path(".nift/.watch/", "watched.json") << std::endl;
+
+	if(file_exists(".nift/config.json"))
 	{
-		if(file_exists(".nsm/.watchinfo/watching.list"))
+		if(file_exists(".nift/.watch/watched.json"))
 		{
 			WatchDir wd;
 			std::string contExt;
 			Path templatePath;
 
-			std::ifstream ifs(".nsm/.watchinfo/watching.list");
+			rapidjson::Document watched_doc;
+			rapidjson::Value arr(rapidjson::kArrayType), exts_arr(rapidjson::kArrayType);
+
+			watched_doc.Parse(string_from_file(".nift/.watch/watched.json").c_str());
+			arr = watched_doc["watched"].GetArray();
+
+			//while(read_quoted(ifs, wd.watchDir))
+			for(auto it = arr.Begin(); it != arr.End(); ++it) 
+			{
+				wd.watchDir = it->GetString();
+				wd.contExts.clear();
+				wd.templatePaths.clear();
+				wd.outputExts.clear();
+				if(wd.watchDir != "" && wd.watchDir[0] != '#')
+				{
+					std::string watchDirExtsFileStr = ".nift/.watch/" + wd.watchDir + "exts.json";
+
+					if(file_exists(watchDirExtsFileStr))
+					{
+						rapidjson::Document exts_doc;
+						exts_doc.Parse(string_from_file(watchDirExtsFileStr).c_str());
+						exts_arr = exts_doc["exts"].GetArray();
+
+						for(auto ext=exts_arr.Begin(); ext!=exts_arr.End(); ++ext)
+						{
+							contExt = (*ext)["content-ext"].GetString();
+
+							wd.contExts.insert(contExt);
+							wd.templatePaths[contExt] = Path((*ext)["template"].GetString());
+							wd.outputExts[contExt] = (*ext)["output-ext"].GetString();
+						}
+					}
+					else
+					{
+						std::cout << "error: watched content extensions file " << quote(watchDirExtsFileStr) << " does not exist for watched directory" << std::endl;
+						return 1;
+					}
+
+					dirs.insert(wd);
+				}
+			}
+		}
+		else
+		{
+			//watch list isn't present, so technically already open
+			/*std::cout << "error: cannot open watch list as '.nift/.watch/watched.json' file does not exist" << std::endl;
+			return 1;*/
+		}
+	}
+	else
+	{
+		//no Nift configuration file found
+		std::cout << "error: cannot open watch list as Nift configuration file '.nift/config.json' does not exist" << std::endl;
+		return 1;
+	}
+
+	return 0;
+}
+
+int WatchList::save()
+{
+	if(file_exists(".nift/config.json"))
+	{
+		if(dirs.size())
+		{
+			Path(".nift/.watch/", "").ensureDirExists();
+			std::ofstream ofs(".nift/.watch/watched.json");
+
+			ofs << "{\n";
+			ofs << "\t\"watched\": [\n";
+
+			for(auto wd=dirs.begin(); wd!=dirs.end(); wd++)
+			{
+				if(wd != dirs.begin())
+					ofs << ",\n";
+
+				ofs << "\t\t" << double_quote(wd->watchDir);
+
+				std::string watchDirExtsFileStr = ".nift/.watch/" + wd->watchDir + "exts.json";
+
+				Path watchDirExtsFilePath;
+				watchDirExtsFilePath.set_file_path_from(watchDirExtsFileStr);
+				watchDirExtsFilePath.ensureFileExists();
+				
+				std::ofstream ofxs(watchDirExtsFileStr);
+				ofxs << "{\n";
+				ofxs << "\t\"exts\": [\n";
+				for(auto ext=wd->contExts.begin(); ext!=wd->contExts.end(); ext++)
+				{
+					if(ext != wd->contExts.begin())
+						ofxs << ",\n";
+
+					ofxs << "\t\t{";
+					ofxs << "\t\t\t\"content-ext\": " << double_quote(*ext)         << ",\n";
+					ofxs << "\t\t\t\"template\": "    << double_quote(wd->templatePaths.at(*ext).str()) << ",\n";
+					ofxs << "\t\t\t\"output-ext\": "  << double_quote(wd->outputExts.at(*ext))    << "\n";
+					ofxs << "\t\t}";
+				}
+				ofxs << "\n\t]\n";
+				ofxs << "}";
+				ofxs.close();
+			}
+
+			ofs << "\n\t]\n";
+			ofs << "}";
+
+			ofs.close();
+		}
+		else
+		{
+			remove_path(Path(".nift/.watch/", "watched.json"));
+		}
+	}
+	else
+	{
+		std::cout << "error: cannot save watch list to '.nift/.watch/watched.json' as cannot find Nift configuration file '.nift/config.json'" << std::endl;
+		return 1;
+	}
+
+	return 0;
+}
+
+int WatchList::open_old()
+{
+	if(file_exists(".nift/config.json"))
+	{
+		if(file_exists(".nift/.watchinfo/watching.list"))
+		{
+			WatchDir wd;
+			std::string contExt;
+			Path templatePath;
+
+			std::ifstream ifs(".nift/.watchinfo/watching.list");
 
 			while(read_quoted(ifs, wd.watchDir))
 			{
@@ -59,18 +178,7 @@ int WatchList::open()
 				wd.outputExts.clear();
 				if(wd.watchDir != "" && wd.watchDir[0] != '#')
 				{
-					std::string watchDirExtsFileStr = ".nsm/.watchinfo/" + strip_trailing_slash(wd.watchDir) + ".exts";
-
-					//can delete this later
-					std::string watchDirExtsFileStrOld = ".nsm/.watchinfo/" + replace_slashes(wd.watchDir) + ".exts";
-					if(file_exists(watchDirExtsFileStrOld))
-					{
-						Path(watchDirExtsFileStr).ensureDirExists();
-						if(rename(watchDirExtsFileStrOld.c_str(), watchDirExtsFileStr.c_str()))
-						{
-							std::cout << "error: failed to rename " << quote(watchDirExtsFileStrOld) << " to " << quote(watchDirExtsFileStr) << std::endl;
-						}
-					}
+					std::string watchDirExtsFileStr = ".nift/.watchinfo/" + strip_trailing_slash(wd.watchDir) + ".exts";
 
 					if(file_exists(watchDirExtsFileStr))
 					{
@@ -109,34 +217,34 @@ int WatchList::open()
 		else
 		{
 			//watch list isn't present, so technically already open
-			/*std::cout << "error: cannot open watch list as '.nsm/watching.list' file does not exist" << std::endl;
+			/*std::cout << "error: cannot open watch list as '.nift/.watchinfo/watching.list' file does not exist" << std::endl;
 			return 1;*/
 		}
 	}
 	else
 	{
 		//no Nift configuration file found
-		std::cout << "error: cannot open watch list as Nift configuration file '.nsm/nift.config' does not exist" << std::endl;
+		std::cout << "error: cannot open watch list as Nift configuration file '.nift/config.json' does not exist" << std::endl;
 		return 1;
 	}
 
 	return 0;
 }
 
-int WatchList::save()
+int WatchList::save_old()
 {
-	if(file_exists(".nsm/nift.config"))
+	if(file_exists(".nift/config.json"))
 	{
 		if(dirs.size())
 		{
-			Path(".nsm/.watchinfo/", "").ensureDirExists();
-			std::ofstream ofs(".nsm/.watchinfo/watching.list");
+			Path(".nift/.watchinfo/", "").ensureDirExists();
+			std::ofstream ofs(".nift/.watchinfo/watching.list");
 
 			for(auto wd=dirs.begin(); wd!=dirs.end(); wd++)
 			{
 				ofs << quote(wd->watchDir) << "\n";
 
-				std::string watchDirExtsFileStr = ".nsm/.watchinfo/" + strip_trailing_slash(wd->watchDir) + ".exts";
+				std::string watchDirExtsFileStr = ".nift/.watchinfo/" + strip_trailing_slash(wd->watchDir) + ".exts";
 
 				Path watchDirExtsFilePath;
 				watchDirExtsFilePath.set_file_path_from(watchDirExtsFileStr);
@@ -152,13 +260,12 @@ int WatchList::save()
 		}
 		else
 		{
-			remove_path(Path(".nsm/.watchinfo/", "watching.list"));
-			//Path(".nsm/.watchinfo/", "").removePath();
+			remove_path(Path(".nift/.watchinfo/", "watching.list"));
 		}
 	}
 	else
 	{
-		std::cout << "error: cannot save watch list to '.nsm/watching.list' as cannot find Nift configuration file '.nsm/nift.config'" << std::endl;
+		std::cout << "error: cannot save watch list to '.nift/watching.list' as cannot find Nift configuration file '.nift/config.json'" << std::endl;
 		return 1;
 	}
 

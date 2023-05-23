@@ -13,14 +13,14 @@
 #include "GitInfo.h"
 #include "ProjectInfo.h"
 
-std::atomic<bool> serving;
-std::mutex serve_mtx;
+std::atomic<bool> auto_build;
+std::mutex auto_build_mtx;
 
-int read_serve_commands()
+int read_build_auto_commands()
 {
 	char cmd;
 
-	std::cout << "serving project locally - 'q' or 's' to stop serving ('ctrl c' to kill)" << std::endl;
+	std::cout << "auto building project locally - 'q' or 's' to stop ('ctrl c' to kill)" << std::endl;
 
 	while(1)
 	{
@@ -33,33 +33,33 @@ int read_serve_commands()
 		#endif
 
 		if(cmd != 'q' && cmd != 's')
-			std::cout << "unrecognised command - 'q' or 's' to stop serving ('ctrl c' to kill)" << std::endl;
+			std::cout << "unrecognised command - 'q' or 's' to stop ('ctrl c' to kill)" << std::endl;
 		else
 			break;
 	}
 
-	serving = 0;
+	auto_build = 0;
 
 	return 0;
 }
 
 int sleepTime = 300000; //default value: 0.3 seconds
 
-int serve()
+int build_auto()
 {
 	std::ofstream ofs;
 
-	while(serving)
+	while(auto_build)
 	{
 		ProjectInfo project;
 		if(project.open(1))
 		{
-			start_err(std::cout) << "serve(): failed to open project, no longer serving" << std::endl;
+			start_err(std::cout) << "build_auto(): failed to open project, no longer serving" << std::endl;
 			return 1;
 		}
 
 		Parser parser(&project.trackedAll, 
-		          &serve_mtx, 
+		          &auto_build_mtx, 
 		          project.contentDir, 
 		          project.outputDir, 
 		          project.contentExt, 
@@ -70,7 +70,7 @@ int serve()
 		          project.unixTextEditor, 
 		          project.winTextEditor);
 
-		ofs.open(".serve-build-log.txt");
+		ofs.open(".build-auto-log.txt");
 
 		if(!parser.run_script(ofs, Path("", "pre-build" + project.scriptExt), project.backupScripts, 1))
 			if(!project.build_updated(ofs, 0, 1, 1))
@@ -81,7 +81,7 @@ int serve()
 		usleep(sleepTime);
 	}
 
-	remove_file(Path("./", ".serve-build-log.txt"));
+	remove_file(Path("./", ".build-auto-log.txt"));
 
 	return 0;
 }
@@ -183,9 +183,11 @@ int main(int argc, const char* argv[])
 	Timer timer;
 	timer.start();
 
-	Path globalConfigPath(app_dir() + "/.nift/", "nift.config");
-	if(!file_exists(globalConfigPath.str()))
-		create_config_file(globalConfigPath, ".html", 1);
+	Path globalConfigPath(app_dir() + "/.nift/", "config.json");
+	if(file_exists(app_dir() + "/.nift/nift.config") && upgrade_global_config())
+		return 1;
+	else if(!file_exists(globalConfigPath.str()))
+		create_config_file(globalConfigPath, "", 1);
 
 	int noParams = argc-1;
 	int ret_val;
@@ -281,7 +283,8 @@ int main(int argc, const char* argv[])
 		std::cout << "| build-names       | par: name-1 .. name-k                    |" << std::endl;
 		std::cout << "| build(-updated)   | build updated output files               |" << std::endl;
 		std::cout << "| build-all         | build all tracked output files           |" << std::endl;
-		std::cout << "| serve             | serve project locally par: (sleep-sec)   |" << std::endl;
+		std::cout << "| build-auto        | par: (sleep-sec)                         |" << std::endl;
+		std::cout << "| browse            | browse page: (name or path)              |" << std::endl;
 		std::cout << "| mve-output-dir    | par: dir-path                            |" << std::endl;
 		std::cout << "| mve-cont-dir      | par: dir-path                            |" << std::endl;
 		std::cout << "| new-title         | par: name new-title                      |" << std::endl;
@@ -325,66 +328,10 @@ int main(int argc, const char* argv[])
 		if(noParams != 1 && noParams != 2)
 			return parError(noParams, argv, "1-2");
 
-		//ensures Nift is not managing a project from this directory or one of the ancestor directories
-		std::string parentDir = "../",
-		    rootDir = "C:\\",
-		    owd = get_pwd(),
-		    pwd = get_pwd(),
-		    prevPwd;
-
-		#if defined _WIN32 || defined _WIN64
-			rootDir = "C:\\";
-		#else  //*nix
-			rootDir = "/";
-		#endif
-
-		if(file_exists(".nsm/nift.config") || file_exists(".siteinfo/nsm.config"))
+		if(file_exists(".nift/config.json") ||
+		   file_exists(".nsm/nift.config"))
 		{
-			start_err(std::cout) << "Nift is already managing a project in " << owd << " (or an accessible ancestor directory)" << std::endl;
-			return 1;
-		}
-
-		while(pwd != rootDir || pwd == prevPwd)
-		{
-			//sets old pwd
-			prevPwd = pwd;
-
-			//changes to parent directory
-			ret_val = chdir(parentDir.c_str());
-			if(ret_val)
-			{
-				start_err(std::cout) << "init: failed to change directory to " << quote(parentDir) << " from " << quote(get_pwd()) << std::endl;
-				return ret_val;
-			}
-
-			//gets new pwd
-			pwd = get_pwd();
-
-			if(file_exists(".nsm/nift.config") || file_exists(".siteinfo/nsm.config"))
-			{
-				start_err(std::cout) << "Nift is already managing a project in " << owd << " (or an accessible ancestor directory)" << std::endl;
-				return 1;
-			}
-		}
-		ret_val = chdir(owd.c_str());
-		if(ret_val)
-		{
-			start_err(std::cout) << "init: failed to change directory to " << quote(owd) << " from " << quote(get_pwd()) << std::endl;
-			return ret_val;
-		}
-
-		//checks that directory is empty
-		std::string str = ls("./");
-		if(str != ".. . " &&
-		   str != ". .. " &&
-		   str != ".git .. . " &&
-		   str != ".git . .. " &&
-		   str != ". .git .. " &&
-		   str != ".. .git . " &&
-		   str != ". .. .git " &&
-		   str != ".. . .git ")
-		{
-			start_err(std::cout) << "init: must be run in an empty directory or empty git repository" << std::endl;
+			start_err(std::cout) << "Nift is already managing a project in " << get_pwd() << std::endl;
 			return 1;
 		}
 
@@ -404,22 +351,26 @@ int main(int argc, const char* argv[])
 			outputExt = argv[2];
 		}
 
-		Path trackingListPath(".nsm/", "tracking.list");
+		Path trackingListPath(".nift/", "tracked.json");
 		//ensures tracking list file exists
 		trackingListPath.ensureFileExists();
 
 		#if defined _WIN32 || defined _WIN64
-			ret_val = system("attrib +h .nsm");
+			ret_val = system("attrib +h .nift");
 
 			//if handling error here need to check what happens in all of cmd prompt/power shell/git bash/cygwin/etc.
 		#endif
 
-		Path configPath(".nsm/", "nift.config");
+		Path configPath(".nift/", "config.json");
 		create_config_file(configPath, outputExt, 0);
+
+		std::ofstream ofs(".nift/tracked.json");
+		ofs << "{\"tracked\":[]}";
+		ofs.close();
 
 		if(outputExt == ".html")
 		{
-			Path templatePath("template/", "page.template");
+			Path templatePath("templates/", "template.html");
 			create_default_html_template(templatePath);
 
 			ProjectInfo project;
@@ -429,11 +380,21 @@ int main(int argc, const char* argv[])
 			Name name = "index";
 			Title title = get_title(name);
 			project.track(name, title, templatePath);
+
+			name = "assets/css/style";
+			title = get_title(name);
+			project.track(name, title, Path("templates/", "template.css"), ".css", ".css");
+
+			name = "assets/js/script";
+			title = get_title(name);
+			project.track(name, title, Path("templates/", "template.js"), ".js", ".js");
+
+
 			project.build_all(std::cout, 0);
 		}
 		else
 		{
-			Path templatePath("template/", "project.template");
+			Path templatePath("templates/", "template" + outputExt);
 			create_blank_template(templatePath);
 		}
 
@@ -461,10 +422,10 @@ int main(int argc, const char* argv[])
 					editor = project.unixTextEditor;
 				#endif
 
-				ret_val = std::system((editor + " " + app_dir() + "/.nift/nift.config").c_str());
+				ret_val = std::system((editor + " " + app_dir() + "/.nift/config.json").c_str());
 
 				if(ret_val)
-					start_err(std::cout) << "config: system('" << editor << " " << app_dir() << "/.nift/nift.config) failed" << std::endl;
+					start_err(std::cout) << "config: system('" << editor << " " << app_dir() << "/.nift/config.json) failed" << std::endl;
 
 				return ret_val;
 			}
@@ -629,11 +590,11 @@ int main(int argc, const char* argv[])
 				return ret_val;
 			}
 
-			if(file_exists(".nsm/nift.config") || file_exists(".siteinfo/nsm.config")) //found root branch
+			if(file_exists(".nift/config.json") ||
+			   file_exists(".nsm/nift.config")) //found project root
 			{
-				if(file_exists(".siteinfo/nsm.config")) //can delete this later (and half of above)
-					if(upgradeProject())
-						return 1;
+				if(file_exists(".nsm/nift.config") && upgrade_config_dir())
+					return 1;
 
 				ProjectInfo project;
 				if(project.open(1))
@@ -675,10 +636,10 @@ int main(int argc, const char* argv[])
 						return ret_val;
 					}
 
-					ret_val = delDir(".nsm/", -1, emptyPath, std::cout, 0, &os_mtx); //can delete this later
+					ret_val = delDir(".nift/", -1, emptyPath, std::cout, 0, &os_mtx); //can delete this later
 					if(ret_val)
 					{
-						start_err(std::cout) << "clone: failed to delete directory " << get_pwd() << "/.nsm/" << std::endl;
+						start_err(std::cout) << "clone: failed to delete directory " << get_pwd() << "/.nift/" << std::endl;
 						return 1;
 					}
 
@@ -775,7 +736,7 @@ int main(int argc, const char* argv[])
 		std::mutex os_mtx;
 
 		ProjectInfo project, globalInfo;
-		if(file_exists(".nsm/nift.config"))
+		if(file_exists(".nift/config.json"))
 		{
 			if(project.open_local_config(1))
 				return 1;
@@ -852,19 +813,19 @@ int main(int argc, const char* argv[])
 			parser.run(project.execrc_path(argv[0], langStr).str(), langCh, run_params, std::cout);
 		}
 
-		if(file_exists(Path(".nsm/", cmd + "." + langCh).str()))
+		if(file_exists(Path(".nift/", cmd + "." + langCh).str()))
 		{
 			std::cout << "runnning project " << cmd << "." << langCh << " file: ";
-			std::cout << Path(".nsm/", cmd + "." + langCh) << std::endl;
+			std::cout << Path(".nift/", cmd + "." + langCh) << std::endl;
 			std::vector<std::string> run_params;
-			parser.run(Path(".nsm/", cmd + "." + langCh).str(), langCh, run_params, std::cout);
+			parser.run(Path(".nift/", cmd + "." + langCh).str(), langCh, run_params, std::cout);
 		}
-		else if(file_exists(Path(".nsm/", cmd + "." + langStr).str()))
+		else if(file_exists(Path(".nift/", cmd + "." + langStr).str()))
 		{
 			std::cout << "runnning project " << cmd << "." << langStr << " file: ";
-			std::cout << Path(".nsm/", cmd + "." + langStr) << std::endl;
+			std::cout << Path(".nift/", cmd + "." + langStr) << std::endl;
 			std::vector<std::string> run_params;
-			parser.run(Path(".nsm/", cmd + "." + langStr).str(), langCh, run_params, std::cout);
+			parser.run(Path(".nift/", cmd + "." + langStr).str(), langCh, run_params, std::cout);
 		}
 
 
@@ -1074,7 +1035,7 @@ int main(int argc, const char* argv[])
 		std::mutex os_mtx;
 		
 		ProjectInfo project;
-		if(file_exists(".nsm/nift.config"))
+		if(file_exists(".nift/config.json"))
 		{
 			if(project.open_local_config(0))
 				return 1;
@@ -1146,7 +1107,8 @@ int main(int argc, const char* argv[])
 		   cmd != "build" &&
 		   cmd != "build-updated" &&
 		   cmd != "build-all" &&
-		   cmd != "serve")
+		   cmd != "build-auto" &&
+		   cmd != "browse")
 		{
 			#if defined _WIN32 || defined _WIN64 //what is this for?
 				if(ProjectInfo().open_global_config(1))
@@ -1165,7 +1127,8 @@ int main(int argc, const char* argv[])
 		    pwd = get_pwd(),
 		    prevPwd;
 
-		while(!file_exists(".nsm/nift.config") && !file_exists(".siteinfo/nsm.config"))
+		while(!file_exists(".nift/config.json") &&
+		      !file_exists(".nsm/nift.config"))
 		{
 			//sets old pwd
 			prevPwd = pwd;
@@ -1189,23 +1152,19 @@ int main(int argc, const char* argv[])
 			}
 		}
 
-		if(file_exists(".siteinfo/nsm.config"))
-		{
-			if(upgradeProject())
-				return 1;
-			std::cout << std::endl;
-		}
+		if(file_exists(".nsm/nift.config") && upgrade_config_dir())
+			return 1;
 
-		//ensures both tracking.list and nift.config exist
-		if(!file_exists(".nsm/tracking.list"))
+		//ensures both tracked.json and config.json exist
+		if(!file_exists(".nift/tracked.json"))
 		{
-			start_err(std::cout) << quote(get_pwd() + "/.nsm/tracking.list") << " is missing" << std::endl;
+			start_err(std::cout) << quote(get_pwd() + "/.nift/tracked.json") << " is missing" << std::endl;
 			return 1;
 		}
 
-		if(!file_exists(".nsm/nift.config"))
+		if(!file_exists(".nift/config.json"))
 		{
-			start_err(std::cout) << quote(get_pwd() + "/.nsm/nift.config") << " is missing" << std::endl;
+			start_err(std::cout) << quote(get_pwd() + "/.nift/config.json") << " is missing" << std::endl;
 			return 1;
 		}
 
@@ -1276,10 +1235,10 @@ int main(int argc, const char* argv[])
 				editor = project.unixTextEditor;
 			#endif
 
-			ret_val = std::system((editor + " .nsm/nift.config").c_str());
+			ret_val = std::system((editor + " .nift/config.json").c_str());
 
 			if(ret_val)
-				start_err(std::cout) << "config: system(\"" << editor << " .nsm/nift.config\") failed" << std::endl;
+				start_err(std::cout) << "config: system(\"" << editor << " .nift/config.json\") failed" << std::endl;
 
 			return ret_val;
 		}
@@ -1328,7 +1287,7 @@ int main(int argc, const char* argv[])
 
 			if(projectRootDirBranch != project.rootBranch)
 			{
-				start_err(std::cout) << "pull: project root dir branch " << quote(projectRootDirBranch) << " is not the same as rootBranch " << quote(project.rootBranch) << " in .nsm/nift.config" << std::endl;
+				start_err(std::cout) << "pull: project root dir branch " << quote(projectRootDirBranch) << " is not the same as rootBranch " << quote(project.rootBranch) << " in .nift/config.json" << std::endl;
 				return 1;
 			}
 
@@ -1359,7 +1318,7 @@ int main(int argc, const char* argv[])
 
 			if(projectDirBranch != project.outputBranch)
 			{
-				start_err(std::cout) << "pull: output dir branch " << quote(projectDirBranch) << " is not the same as outputBranch " << quote(project.outputBranch) << " in .nsm/nift.config" << std::endl;
+				start_err(std::cout) << "pull: output dir branch " << quote(projectDirBranch) << " is not the same as outputBranch " << quote(project.outputBranch) << " in .nift/config.json" << std::endl;
 				return 1;
 			}
 
@@ -1499,7 +1458,7 @@ int main(int argc, const char* argv[])
 			WatchList wl;
 			if(wl.open())
 			{
-				start_err(std::cout) << "watch: failed to open watch list '.nsm/.watchinfo/watching.list'" << std::endl;
+				start_err(std::cout) << "watch: failed to open watch list '.nift/.watchinfo/watching.list'" << std::endl;
 				return 1;
 			}
 
@@ -1609,13 +1568,13 @@ int main(int argc, const char* argv[])
 			if(noParams < 2 || noParams > 3)
 				return parError(noParams, argv, "2 or 3");
 
-			if(file_exists(".nsm/.watchinfo/watching.list"))
+			if(file_exists(".nift/.watch/watched.json"))
 			{
 				std::string contExt;
 				WatchList wl;
 				if(wl.open())
 				{
-					start_err(std::cout) << "unwatch: failed to open watch list '.nsm/.watchinfo/watching.list'" << std::endl;
+					start_err(std::cout) << "unwatch: failed to open watch list '.nift/.watch/watched.json'" << std::endl;
 					return 1;
 				}
 
@@ -1636,8 +1595,8 @@ int main(int argc, const char* argv[])
 						if(found->contExts.size() == 1)
 						{
 							wl.dirs.erase(found);
-							remove_path(Path(".nsm/.watchinfo/" + strip_trailing_slash(wd.watchDir) + ".exts"));
-							remove_path(Path(".nsm/.watchinfo/" + strip_trailing_slash(wd.watchDir) + ".tracked"));
+							remove_path(Path(".nift/.watch/" + wd.watchDir + "exts.json"));
+							remove_path(Path(".nift/.watch/" + wd.watchDir + "tracked.json"));
 						}
 						else
 						{
@@ -1717,7 +1676,7 @@ int main(int argc, const char* argv[])
 
 			if(projectRootDirBranch != project.rootBranch)
 			{
-				start_err(std::cout) << "bcp: root dir branch " << quote(projectRootDirBranch) << " is not the same as rootBranch " << quote(project.rootBranch) << " in .nsm/nift.config" << std::endl;
+				start_err(std::cout) << "bcp: root dir branch " << quote(projectRootDirBranch) << " is not the same as rootBranch " << quote(project.rootBranch) << " in .nift/config.json" << std::endl;
 				return 1;
 			}
 
@@ -1744,7 +1703,7 @@ int main(int argc, const char* argv[])
 
 			if(outputDirBranch != project.outputBranch)
 			{
-				start_err(std::cout) << "bcp: output dir branch " << quote(outputDirBranch) << " is not the same as outputBranch " << quote(project.outputBranch) << " in .nsm/nift.config" << std::endl;
+				start_err(std::cout) << "bcp: output dir branch " << quote(outputDirBranch) << " is not the same as outputBranch " << quote(project.outputBranch) << " in .nift/config.json" << std::endl;
 				return 1;
 			}
 
@@ -1880,12 +1839,12 @@ int main(int argc, const char* argv[])
 			if(noParams < 2 || noParams > 4)
 				return parError(noParams, argv, "2-4");
 
-			Name newName = quote(argv[2]); 
+			Name newName = argv[2]; 
 			Title newTitle;
 			if(noParams >= 3)
-				newTitle = quote(argv[3]); 
+				newTitle = argv[3]; 
 			else
-				newTitle = get_title(newName);
+				newTitle = get_title(argv[2]);
 
 			Path newTemplatePath;
 			if(noParams == 4)
@@ -1981,12 +1940,7 @@ int main(int argc, const char* argv[])
 
 			return result;
 		}
-		else if(cmd == "rm-from-file" || cmd == "del-from-file")
-		{
-			start_err(std::cout) << "command has changed to rmv-from-file" << std::endl;
-			return 1;
-		}
-		else if(cmd == "rmv-from-file")
+		else if(cmd == "rmv-from-file" || cmd == "rm-from-file" || cmd == "del-from-file")
 		{
 			//ensures correct number of parameters given
 			if(noParams != 2)
@@ -1999,12 +1953,7 @@ int main(int argc, const char* argv[])
 
 			return result;
 		}
-		else if(cmd == "rm-dir" || cmd == "del-dir")
-			{
-			start_err(std::cout) << "command has changed to rmv-dir" << std::endl;
-			return 1;
-		}
-		else if(cmd == "rmv-dir")
+		else if(cmd == "rmv-dir" || cmd == "rm-dir" || cmd == "del-dir")
 		{
 			//ensures correct number of parameters given
 			if(noParams < 2 || noParams > 3)
@@ -2025,12 +1974,7 @@ int main(int argc, const char* argv[])
 
 			return result;
 		}
-		else if(cmd == "rm" || cmd == "del")
-		{
-			start_err(std::cout) << "command has changed to rmv" << std::endl;
-			return 1;
-		}
-		else if(cmd == "rmv")
+		else if(cmd == "rmv" || cmd == "rm" || cmd == "del")
 		{
 			//ensures correct number of parameters given
 			if(noParams < 2)
@@ -2042,12 +1986,7 @@ int main(int argc, const char* argv[])
 
 			return project.rm(namesToRemove);
 		}
-		else if(cmd == "mv" || cmd == "move")
-		{
-			start_err(std::cout) << "command has changed to mve" << std::endl;
-			return 1;
-		}
-		else if(cmd == "mve")
+		else if(cmd == "mve" || cmd == "mv" || cmd == "move")
 		{
 			//ensures correct number of parameters given
 			if(noParams != 3)
@@ -2058,12 +1997,7 @@ int main(int argc, const char* argv[])
 
 			return project.mv(oldName, newName);
 		}
-		else if(cmd == "cp" || cmd == "copy")
-		{
-			start_err(std::cout) << "command has changed to cpy" << std::endl;
-			return 1;
-		}
-		else if(cmd == "cpy")
+		else if(cmd == "cpy" || cmd == "cp" || cmd == "copy")
 		{
 			//ensures correct number of parameters given
 			if(noParams != 3)
@@ -2118,7 +2052,7 @@ int main(int argc, const char* argv[])
 			start_err(std::cout) << "command has changed to mve-output-dir" << std::endl;
 			return 1;
 		}
-		else if(cmd == "mve-output-dir")
+		else if(cmd == "mve-output-dir" || cmd == "mv-output-dir" || cmd == "move-output-dir")
 		{
 			//ensures correct number of parameters given
 			if(noParams != 2)
@@ -2136,7 +2070,7 @@ int main(int argc, const char* argv[])
 			start_err(std::cout) << "command has changed to mve-cont-dir" << std::endl;
 			return 1;
 		}
-		else if(cmd == "mve-cont-dir")
+		else if(cmd == "mve-cont-dir" || cmd == "mv-cont-dir" || cmd == "move-cont-dir")
 		{
 			//ensures correct number of parameters given
 			if(noParams != 2)
@@ -2218,27 +2152,27 @@ int main(int argc, const char* argv[])
 			int result;
 
 			if(noParams == 1)
-				result = project.status(std::cout, 1, 0, 0);
+				result = project.status(std::cout, 0, 0, 0);
 			else
 			{
 				std::string optStr = argv[2];
 
 				if(optStr == "-a") //add expl
-					result = project.status(std::cout, 1, 1, 0);
-				else if(optStr == "-ab")
-					result = project.status(std::cout, 1, 1, 1);
-				else if(optStr == "-as")
 					result = project.status(std::cout, 0, 1, 0);
-				else if(optStr == "-abs")
+				else if(optStr == "-ab")
 					result = project.status(std::cout, 0, 1, 1);
+				else if(optStr == "-ap")
+					result = project.status(std::cout, 1, 1, 0);
+				else if(optStr == "-abp")
+					result = project.status(std::cout, 1, 1, 1);
 				else if(optStr == "-b") //basic
-					result = project.status(std::cout, 1, 0, 1);
-				else if(optStr == "-bs")
 					result = project.status(std::cout, 0, 0, 1);
+				else if(optStr == "-bp")
+					result = project.status(std::cout, 1, 0, 1);
 				else if(optStr == "-n")
 					result = project.status(std::cout, 2, 0, 0);
-				else if(optStr == "-s") //silent
-					result = project.status(std::cout, 0, 0, 0);
+				else if(optStr == "-p") //progress
+					result = project.status(std::cout, 1, 0, 0);
 				else
 				{
 					start_err(std::cout) << "do not recognise status option " << quote(argv[2]) << std::endl;
@@ -2260,27 +2194,27 @@ int main(int argc, const char* argv[])
 			int result;
 
 			if(noParams == 1)
-				result = project.build_updated(std::cout, 1, 0, 0);
+				result = project.build_updated(std::cout, 0, 0, 0);
 			else
 			{
 				std::string optStr = argv[2];
 
 				if(optStr == "-a") //add expl
-					result = project.build_updated(std::cout, 1, 1, 0);
-				else if(optStr == "-ab")
-					result = project.build_updated(std::cout, 1, 1, 1);
-				else if(optStr == "-as")
 					result = project.build_updated(std::cout, 0, 1, 0);
-				else if(optStr == "-abs")
+				else if(optStr == "-ab")
 					result = project.build_updated(std::cout, 0, 1, 1);
+				else if(optStr == "-ap")
+					result = project.build_updated(std::cout, 1, 1, 0);
+				else if(optStr == "-abp")
+					result = project.build_updated(std::cout, 1, 1, 1);
 				else if(optStr == "-b") //basic
-					result = project.build_updated(std::cout, 1, 0, 1);
-				else if(optStr == "-bs")
 					result = project.build_updated(std::cout, 0, 0, 1);
+				else if(optStr == "-bp")
+					result = project.build_updated(std::cout, 1, 0, 1);
 				else if(optStr == "-n") //newines for progress
 					result = project.build_updated(std::cout, 2, 0, 0);
-				else if(optStr == "-s") //silent
-					result = project.build_updated(std::cout, 0, 0, 0);
+				else if(optStr == "-p") //progress
+					result = project.build_updated(std::cout, 1, 0, 0);
 				else
 				{
 					start_err(std::cout) << "do not recognise build-updated option " << quote(argv[2]) << std::endl;
@@ -2315,9 +2249,9 @@ int main(int argc, const char* argv[])
 			int result;
 
 			if(noOpt)
-				result = project.build_names(std::cout, 1, namesToBuild);
-			else if(optStr == "-s")
 				result = project.build_names(std::cout, 0, namesToBuild);
+			else if(optStr == "-p")
+				result = project.build_names(std::cout, 1, namesToBuild);
 			else
 				result = project.build_names(std::cout, 2, namesToBuild);
 
@@ -2335,13 +2269,13 @@ int main(int argc, const char* argv[])
 			int result;
 
 			if(noParams == 1)
-				result = project.build_all(std::cout, 1);
+				result = project.build_all(std::cout, 0);
 			else
 			{
 				std::string optStr = argv[2];
 
-				if(optStr == "-s")
-					result = project.build_all(std::cout, 0);
+				if(optStr == "-p")
+					result = project.build_all(std::cout, 1);
 				else if(optStr == "-n")
 					result = project.build_all(std::cout, 2);
 				else
@@ -2356,7 +2290,7 @@ int main(int argc, const char* argv[])
 
 			return result;
 		}
-		else if(cmd == "serve")
+		else if(cmd == "build-auto")
 		{
 			//ensures correct number of parameters given
 			if(noParams > 2)
@@ -2375,12 +2309,12 @@ int main(int argc, const char* argv[])
 
 			if(noParams == 2 && std::string(argv[2]) != "-s")
 			{
-				start_err(std::cout) << "do not recognise command serve " << argv[2] << std::endl;
+				start_err(std::cout) << "do not recognise command build-auto " << argv[2] << std::endl;
 				return 1;
 			}
 
 			Parser parser(&project.trackedAll, 
-			      &serve_mtx, 
+			      &auto_build_mtx, 
 			      project.contentDir, 
 			      project.outputDir, 
 			      project.contentExt, 
@@ -2391,23 +2325,43 @@ int main(int argc, const char* argv[])
 			      project.unixTextEditor, 
 			      project.winTextEditor);
 
-			//checks for pre-serve scripts
-			if(parser.run_script(std::cout, Path("", "pre-serve" + project.scriptExt), project.backupScripts, 1))
+			//checks for pre-build-auto scripts
+			if(parser.run_script(std::cout, Path("", "pre-build-auto" + project.scriptExt), project.backupScripts, 1))
 				return 1;
 
-			serving = 1;
+			auto_build = 1;
 
-			std::thread serve_thread(serve);
+			std::thread build_auto_thread(build_auto);
 			if(noParams == 1)
 			{
-				std::thread read_serve_commands_thread(read_serve_commands);
-				read_serve_commands_thread.join();
+				std::thread read_build_auto_commands_thread(read_build_auto_commands);
+				read_build_auto_commands_thread.join();
 			}
-			serve_thread.join();
+			build_auto_thread.join();
 
-			//checks for post-serve scripts
-			if(parser.run_script(std::cout, Path("", "post-serve" + project.scriptExt), project.backupScripts, 1))
+			//checks for post-build-auto scripts
+			if(parser.run_script(std::cout, Path("", "post-build-auto" + project.scriptExt), project.backupScripts, 1))
 				return 1;
+		}
+		else if(cmd == "browse")
+		{
+			//ensures correct number of parameters given
+			if(noParams != 2)
+				return parError(noParams, argv, "2");
+
+			if(project.browser == "" && project.open_global_config(1))
+				return 1;
+
+			std::string page_path = argv[2];
+
+			if(!file_exists(std::string(page_path)))
+				page_path = project.get_info(std::string(argv[2])).outputPath.str();
+
+			if(std::system((project.browser + " " + page_path).c_str()))
+			{
+				start_err(std::cout) << "failed to browse " << argv[2] << " using broswer " << c_blue << project.browser << c_white << std::endl;
+				return 1;
+			}
 		}
 		else
 		{

@@ -1,6 +1,6 @@
 /*
 ** C type management.
-** Copyright (C) 2005-2021 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2017 Mike Pall. See Copyright Notice in luajit.h
 */
 
 #ifndef _LJ_CTYPE_H
@@ -260,12 +260,6 @@ typedef struct CTState {
 
 #define CT_MEMALIGN	3	/* Alignment guaranteed by memory allocator. */
 
-#ifdef LUA_USE_ASSERT
-#define lj_assertCTS(c, ...)	(lj_assertG_(cts->g, (c), __VA_ARGS__))
-#else
-#define lj_assertCTS(c, ...)	((void)cts)
-#endif
-
 /* -- Predefined types ---------------------------------------------------- */
 
 /* Target-dependent types. */
@@ -398,8 +392,7 @@ static LJ_AINLINE CTState *ctype_cts(lua_State *L)
 /* Check C type ID for validity when assertions are enabled. */
 static LJ_AINLINE CTypeID ctype_check(CTState *cts, CTypeID id)
 {
-  UNUSED(cts);
-  lj_assertCTS(id > 0 && id < cts->top, "bad CTID %d", id);
+  lua_assert(id > 0 && id < cts->top); UNUSED(cts);
   return id;
 }
 
@@ -415,9 +408,8 @@ static LJ_AINLINE CType *ctype_get(CTState *cts, CTypeID id)
 /* Get child C type. */
 static LJ_AINLINE CType *ctype_child(CTState *cts, CType *ct)
 {
-  lj_assertCTS(!(ctype_isvoid(ct->info) || ctype_isstruct(ct->info) ||
-	       ctype_isbitfield(ct->info)),
-	       "ctype %08x has no children", ct->info);
+  lua_assert(!(ctype_isvoid(ct->info) || ctype_isstruct(ct->info) ||
+	     ctype_isbitfield(ct->info)));  /* These don't have children. */
   return ctype_get(cts, ctype_cid(ct->info));
 }
 

@@ -2,6 +2,23 @@
 Nift Release Notes
 ------------------
 
+Version 3.0.0 of Nift
+* now allow relative paths for `input`/`inject`
+* added duplicate of `!i` option called `!indent` for `input`/`inject`
+* can now have names ending in `/` or `\` for implicit index eg. `about/index` vs `about/`
+* experimentally allow names containing `.` (seems to work, lots of find_first_of('.') still though)
+* have allowed cp/copy, mv/move and rm/del with nift commands again
+* changed silent option to progress for build and status commands
+* made some lolcat-cc modifcations
+* reverted LuaJIT 2.1.0-beta3 to website version
+* added 'browse' nift command
+* modified default project constructed with 'nift init .html'
+
+* changed to using JSON for all config files (auto updates projects)
+* fixed compiler flags on LuaJIT for using LuaRocks
+
+============
+
 Version 2.4.12 of Nift
 * further improved line number tracing for errors
 * added get_pwd and pwd to embedded lua

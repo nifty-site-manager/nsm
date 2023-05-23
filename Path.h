@@ -40,9 +40,12 @@ struct Path
 	bool ensureDirExists() const;
 	bool ensureFileExists() const;
 
+	Path getDepsPath() const;
+	Path getDepsPathOld() const;
 	Path getInfoPath() const;
 	Path getHashPath() const;
 	Path getPaginationPath() const;
+	Path getPaginationPathOld() const;
 };
 
 //outputs path (quoted if it contains spaces)

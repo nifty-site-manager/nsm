@@ -83,6 +83,16 @@ std::string quote(const std::string &unquoted)
 		return "'" + unquoted + "'";
 }
 
+std::string double_quote(const std::string &unquoted) 
+{
+	if(unquoted == "")
+		return "\"\"";
+	else if(unquoted.size() > 1 && unquoted[0] == '"' && unquoted[unquoted.size()-1] == '"')
+		return unquoted;
+	else
+		return "\"" + unquoted + "\"";
+}
+
 //outputting a string with no quotes surrounded if it is quoted
 std::string unquote(const std::string &quoted)
 {

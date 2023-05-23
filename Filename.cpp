@@ -2,7 +2,7 @@
 
 Filename strippedExtension(const Filename &filename)
 {
-	size_t pos = filename.find_first_of('.');
+	size_t pos = filename.find_last_of('.');
 	if(pos == std::string::npos)
 		return filename;
 	else

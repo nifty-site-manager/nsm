@@ -1,7 +1,7 @@
 ------------------------------------------------------------------------------
 -- DynASM ARM64 module.
 --
--- Copyright (C) 2005-2021 Mike Pall. All rights reserved.
+-- Copyright (C) 2005-2017 Mike Pall. All rights reserved.
 -- See dynasm.lua for full copyright notice.
 ------------------------------------------------------------------------------
 
@@ -40,7 +40,6 @@ local action_names = {
   "STOP", "SECTION", "ESC", "REL_EXT",
   "ALIGN", "REL_LG", "LABEL_LG",
   "REL_PC", "LABEL_PC", "IMM", "IMM6", "IMM12", "IMM13W", "IMM13X", "IMML",
-  "VREG",
 }
 
 -- Maximum number of section buffer positions for dasm_put().
@@ -247,12 +246,9 @@ local map_cond = {
 
 local parse_reg_type
 
-local function parse_reg(expr, shift)
+local function parse_reg(expr)
   if not expr then werror("expected register name") end
   local tname, ovreg = match(expr, "^([%w_]+):(@?%l%d+)$")
-  if not tname then
-    tname, ovreg = match(expr, "^([%w_]+):(R[xwqdshb]%b())$")
-  end
   local tp = map_type[tname or expr]
   if tp then
     local reg = ovreg or tp.reg
@@ -270,28 +266,18 @@ local function parse_reg(expr, shift)
       elseif parse_reg_type ~= rt then
 	werror("register size mismatch")
       end
-      return shl(r, shift), tp
+      return r, tp
     end
-  end
-  local vrt, vreg = match(expr, "^R([xwqdshb])(%b())$")
-  if vreg then
-    if not parse_reg_type then
-      parse_reg_type = vrt
-    elseif parse_reg_type ~= vrt then
-      werror("register size mismatch")
-    end
-    if shift then waction("VREG", shift, vreg) end
-    return 0
   end
   werror("bad register name `"..expr.."'")
 end
 
 local function parse_reg_base(expr)
   if expr == "sp" then return 0x3e0 end
-  local base, tp = parse_reg(expr, 5)
+  local base, tp = parse_reg(expr)
   if parse_reg_type ~= "x" then werror("bad register type") end
   parse_reg_type = false
-  return base, tp
+  return shl(base, 5), tp
 end
 
 local parse_ctx = {}
@@ -417,7 +403,7 @@ local function parse_imm_load(imm, scale)
     end
     werror("out of range immediate `"..imm.."'")
   else
-    waction("IMML", scale, imm)
+    waction("IMML", 0, imm)
     return 0
   end
 end
@@ -476,7 +462,6 @@ end
 
 local function parse_load(params, nparams, n, op)
   if params[n+2] then werror("too many operands") end
-  local scale = shr(op, 30)
   local pn, p2 = params[n], params[n+1]
   local p1, wb = match(pn, "^%[%s*(.-)%s*%](!?)$")
   if not p1 then
@@ -485,13 +470,14 @@ local function parse_load(params, nparams, n, op)
       if reg and tailr ~= "" then
 	local base, tp = parse_reg_base(reg)
 	if tp then
-	  waction("IMML", scale, format(tp.ctypefmt, tailr))
+	  waction("IMML", 0, format(tp.ctypefmt, tailr))
 	  return op + base
 	end
       end
     end
     werror("expected address operand")
   end
+  local scale = shr(op, 30)
   if p2 then
     if wb == "!" then werror("bad use of '!'") end
     op = op + parse_reg_base(p1) + parse_imm(p2, 9, 12, 0, true) + 0x400
@@ -508,7 +494,7 @@ local function parse_load(params, nparams, n, op)
 	op = op + parse_imm_load(imm, scale)
       else
 	local p2b, p3b, p3s = match(p2a, "^,%s*([^,%s]*)%s*,?%s*(%S*)%s*(.*)$")
-	op = op + parse_reg(p2b, 16) + 0x00200800
+	op = op + shl(parse_reg(p2b), 16) + 0x00200800
 	if parse_reg_type ~= "x" and parse_reg_type ~= "w" then
 	  werror("bad index register type")
 	end
@@ -634,7 +620,7 @@ local function alias_bfx(p)
 end
 
 local function alias_bfiz(p)
-  parse_reg(p[1], 0)
+  parse_reg(p[1])
   if parse_reg_type == "w" then
     p[3] = "#-("..p[3]:sub(2)..")%32"
     p[4] = "#("..p[4]:sub(2)..")-1"
@@ -645,7 +631,7 @@ local function alias_bfiz(p)
 end
 
 local alias_lslimm = op_alias("ubfm_4", function(p)
-  parse_reg(p[1], 0)
+  parse_reg(p[1])
   local sh = p[3]:sub(2)
   if parse_reg_type == "w" then
     p[3] = "#-("..sh..")%32"
@@ -905,15 +891,15 @@ local function parse_template(params, template, nparams, pos)
   for p in gmatch(sub(template, 9), ".") do
     local q = params[n]
     if p == "D" then
-      op = op + parse_reg(q, 0); n = n + 1
+      op = op + parse_reg(q); n = n + 1
     elseif p == "N" then
-      op = op + parse_reg(q, 5); n = n + 1
+      op = op + shl(parse_reg(q), 5); n = n + 1
     elseif p == "M" then
-      op = op + parse_reg(q, 16); n = n + 1
+      op = op + shl(parse_reg(q), 16); n = n + 1
     elseif p == "A" then
-      op = op + parse_reg(q, 10); n = n + 1
+      op = op + shl(parse_reg(q), 10); n = n + 1
     elseif p == "m" then
-      op = op + parse_reg(params[n-1], 16)
+      op = op + shl(parse_reg(params[n-1]), 16)
 
     elseif p == "p" then
       if q == "sp" then params[n] = "@x31" end

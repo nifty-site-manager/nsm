@@ -12,6 +12,7 @@ bool read_quoted(std::istream &is, std::string &s);
 
 //outputting a string with quotes surrounded if it contains space(s)
 std::string quote(const std::string &unquoted);
+std::string double_quote(const std::string &unquoted);
 
 //outputting a string with no quotes surrounded if it is quoted
 std::string unquote(const std::string &quoted);

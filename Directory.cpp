@@ -47,6 +47,9 @@ std::deque<Directory> dirDeque(const Directory &directory)
 
 std::string pathBetween(const Directory &sourceDir, const Directory &targetDir)
 {
+	if(sourceDir == targetDir)
+		return "./";
+
 	std::deque<std::string> sourceDeque = dirDeque(sourceDir),
 	    targetDeque = dirDeque(targetDir);
 

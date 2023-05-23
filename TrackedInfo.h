@@ -18,6 +18,7 @@ struct TrackedInfo
 	Path outputPath,
 	    contentPath,
 	    templatePath;
+	std::string contentExt, outputExt, scriptExt;
 };
 
 //uses name to order/compare TrackedInfo
