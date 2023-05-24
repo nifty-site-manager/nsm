@@ -632,7 +632,7 @@ int ProjectInfo::open_config(const Path& configPath, const bool& global, const b
 			return 1;
 	}
 
-	obj = doc["config"].GetObject();
+	obj = doc["config"].GetObj();
 
 	if(!global)
 	{
