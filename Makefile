@@ -153,9 +153,11 @@ else
 		else ifeq ($(detected_OS),FreeBSD)  # FreeBSD
 			LINK+= ./LuaJIT/src/libluajit.a -ldl -lm
 			#LINK+= -ldl -lm -LLuaJIT/src -lluajit
-		else                                # *nix/Vercel
+		else ifeq ($(detected_OS),Darwin)  # OSX
 			LINK+= ./LuaJIT/src/libluajit.a -ldl -Wl
-			#LINK+= ./LuaJIT/src/libluajit.a -ldl -Wl,-E
+			#LINK+= -ldl -LLuaJIT/src -lluajit
+		else                                # *nix/Vercel
+			LINK+= ./LuaJIT/src/libluajit.a -ldl -Wl,-E
 			#LINK+= -ldl -LLuaJIT/src -lluajit
 		endif
 	endif
