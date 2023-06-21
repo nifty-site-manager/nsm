@@ -2,6 +2,13 @@
 Nift Release Notes
 ------------------
 
+Version 3.0.1 of Nift
+* fixed bug copying/moving pages with non-default content and/or output extension(s)
+* fixed bug with copying whitespace when parsing functionstein, especially for string definitions
+* fixed bug with semicolons in quoted string definitions
+* fixed bug with using seekp/tellp on Windows when converting config files to json
+* changed to adding operator function names with zero params to output rather than throwing errors
+
 Version 3.0.0 of Nift
 * now allow relative paths for `input`/`inject`
 * added duplicate of `!i` option called `!indent` for `input`/`inject`

@@ -1733,23 +1733,32 @@ int Parser::f_read_and_process_fast(const bool& addOutput,
 	++lineNo;
 	while(linePos < inStr.size())
 	{
-		skip_whitespace(0, inStr, lineNo, linePos, readPath, "f_read_and_process_fast", eos);
+		if(!addOutput)
+			skip_whitespace(0, inStr, lineNo, linePos, readPath, "f_read_and_process_fast", eos);
 
 		if(linePos >= inStr.size())
 			return 0;
 
-		if(inStr[linePos] == '{' ||
-		   inStr[linePos] == '}' ||
-		   inStr[linePos] == '(' ||
-		   inStr[linePos] == ')' ||
-		   inStr[linePos] == '[' ||
-		   inStr[linePos] == ']' )//||
+		if(inStr[linePos] == ' '  ||
+		   inStr[linePos] == '\t' ||
+		   inStr[linePos] == '\n' ||
+		   inStr[linePos] == '{'  ||
+		   inStr[linePos] == '}'  ||
+		   inStr[linePos] == '('  ||
+		   inStr[linePos] == ')'  ||
+		   inStr[linePos] == '['  ||
+		   inStr[linePos] == ']')//||
 		   //isdigit(inStr[linePos]))
 		{
 			if(addOutput)
 			{
 				outStr += inStr[linePos];
-				indentAmount += " ";
+				/*if(inStr[linePos] == '\n')
+					indentAmount = "";
+				else if(inStr[linePos] == '\t')
+					indentAmount += "\t";
+				else
+					indentAmount += " ";*/
 			}
 			++linePos;
 
@@ -2327,7 +2336,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			return 1;
 
 		if(parseOptions)
-			if(parse_replace('f', optionsStr, "options string", readPath, antiDepsOfReadPath, lineNo, funcName, sLineNo, eos))
+			if(parse_replace(lang, optionsStr, "options string", readPath, antiDepsOfReadPath, lineNo, funcName, sLineNo, eos))
 				return 1;
 
 		size_t pos=0;
@@ -2356,7 +2365,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
 	if(parseFnName && !doNotParse)
 	{
-		if(parse_replace('f', funcName, "function name", readPath, antiDepsOfReadPath, lineNo, funcName, sLineNo, eos))
+		if(parse_replace(lang, funcName, "function name", readPath, antiDepsOfReadPath, lineNo, funcName, sLineNo, eos))
 			return 1;
 	}
 
@@ -2397,7 +2406,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			}
 		}
 		
-		if(!hasIncrement && lang == 'f' && addOutput)
+		/*if(!hasIncrement && lang == 'f' && addOutput)
 		{
 			if(inStr[sLinePos] == '"')
 				funcName = "\"" + funcName + "\"";
@@ -2407,7 +2416,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(indent)
 				indentAmount += into_whitespace(funcName + optionsStr);
 			return 0;
-		}
+		}*/
 
 		zeroParams = 1;
 	}
@@ -2423,7 +2432,11 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName == "||" || funcName == "&&")
 	{
+		if(replaceVars && replace_vars(params, 0, readPath, sLineNo, funcName, eos))
+			return 1;
 
+		if(read_params(params, linePos, inStr, readPath, lineNo, funcName, eos))
+			return 1;
 	}
 	else if(funcName == ":=")
 	{
@@ -2431,7 +2444,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			return 1;
 
 		if(parseParams && !doNotParse)
-			if(parse_replace('f', paramsStr, "params string", readPath, antiDepsOfReadPath, lineNo, funcName, sLineNo, eos))
+			if(parse_replace(lang, paramsStr, "params string", readPath, antiDepsOfReadPath, lineNo, funcName, sLineNo, eos))
 				return 1;
 	}
 	else if(linePos < inStr.size() && (inStr[linePos] == '(' || inStr[linePos] == '['))
@@ -2449,7 +2462,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				return 1;
 
 			if(parseParams)
-				if(parse_replace('f', paramsStr, "params string", readPath, antiDepsOfReadPath, lineNo, funcName, sLineNo, eos))
+				if(parse_replace(lang, paramsStr, "params string", readPath, antiDepsOfReadPath, lineNo, funcName, sLineNo, eos))
 					return 1;
 
 			size_t pos=0;
@@ -5849,17 +5862,8 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName[0] == '!')
 	{
-		if(funcName == "!")
+		if(funcName == "!" && params.size() == 1)
 		{
-			if(params.size() != 1)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "!: expected 1 parameter, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-
 			if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "!", eos))
 				return 1;
 
@@ -5873,17 +5877,8 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == "!=")
+		else if(funcName == "!=" && params.size())
 		{
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "!=: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-
 			if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "!=", eos))
 				return 1;
 
@@ -5986,29 +5981,14 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName[0] == '|')
 	{
-		if(funcName == "||")
+		if(funcName == "||" && params.size())
 		{
 			bool return_value = 0;
-
-			if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "||", eos))
-				return 1;
-
-			if(read_params(params, linePos, inStr, readPath, lineNo, funcName, eos))
-				return 1;
 
 			if(doNotParse)
 				parseParams = 0;
 			else
 				parseParams = 1;
-
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "||: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
 
 			for(size_t p=0; p<params.size(); p++)
 			{
@@ -6034,29 +6014,14 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName[0] == '&')
 	{
-		if(funcName == "&&")
+		if(funcName == "&&" && params.size())
 		{
 			bool return_value = 1;
-
-			if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "&&", eos))
-				return 1;
-
-			if(read_params(params, linePos, inStr, readPath, lineNo, funcName, eos))
-				return 1;
 
 			if(doNotParse)
 				parseParams = 0;
 			else
 				parseParams = 1;
-
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "&&: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
 
 			for(size_t p=0; p<params.size(); p++)
 			{
@@ -6082,17 +6047,8 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName[0] == '=')
 	{
-		if(funcName == "==")
+		if(funcName == "==" && params.size())
 		{
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "==: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-
 			if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "==", eos))
 				return 1;
 
@@ -6177,17 +6133,8 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == "=")
+		else if(funcName == "=" && params.size())
 		{
-			if(params.size() < 1)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "=: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-
 			bool readBlock = 0, parseBlock = 0;
 			char bLang = lang;
 			int bLineNo = lineNo;
@@ -6254,17 +6201,8 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName[0] == '<')
 	{
-		if(funcName == "<")
+		if(funcName == "<" && params.size())
 		{
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "<: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-
 			if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "<", eos))
 				return 1;
 
@@ -6349,17 +6287,8 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == "<=")
+		else if(funcName == "<=" && params.size())
 		{
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "<=: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-
 			if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "<=", eos))
 				return 1;
 
@@ -6447,17 +6376,8 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName[0] == '>')
 	{
-		if(funcName == ">")
+		if(funcName == ">" && params.size())
 		{
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << ">: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-
 			if(replaceVars && replace_vars(params, 0, readPath, sLineNo, ">", eos))
 				return 1;
 
@@ -6542,17 +6462,8 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == ">=")
+		else if(funcName == ">=" && params.size())
 		{
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << ">=: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-
 			if(replaceVars && replace_vars(params, 0, readPath, sLineNo, ">=", eos))
 				return 1;
 
@@ -6640,17 +6551,8 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName[0] == '+')
 	{
-		if(funcName == "+")
+		if(funcName == "+" && params.size())
 		{
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "+: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-
 			if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "+", eos))
 				return 1;
 
@@ -6715,7 +6617,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == "+=")
+		else if(funcName == "+=" && params.size())
 		{
 			if(params.size() < 2)
 			{
@@ -6801,17 +6703,8 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == "++")
+		else if(funcName == "++" && params.size())
 		{
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "++: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-
 			VPos vpos;
 			for(size_t p=0; p<params.size(); p++)
 			{
@@ -6902,19 +6795,10 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == "+++")
+		else if(funcName == "+++" && params.size())
 		{
 			if(hasIncrement)
 				funcName = "++";
-
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
 
 			VPos vpos;
 			for(size_t p=0; p<params.size(); p++)
@@ -7009,17 +6893,8 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName[0] == '-')
 	{
-		if(funcName == "-")
+		if(funcName == "-" && params.size())
 		{
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "-: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-
 			if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "-", eos))
 				return 1;
 
@@ -7086,7 +6961,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == "-=")
+		else if(funcName == "-=" && params.size())
 		{
 			if(params.size() < 2)
 			{
@@ -7163,17 +7038,8 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == "--")
+		else if(funcName == "--" && params.size())
 		{
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "--: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-
 			VPos vpos;
 			for(size_t p=0; p<params.size(); p++)
 			{
@@ -7264,19 +7130,10 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == "---")
+		else if(funcName == "---" && params.size())
 		{
 			if(hasIncrement)
 				funcName = "--";
-
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << funcName << ": expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
 
 			VPos vpos;
 			for(size_t p=0; p<params.size(); p++)
@@ -7371,17 +7228,8 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName[0] == '*')
 	{
-		if(funcName == "*")
+		if(funcName == "*" && params.size())
 		{
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "*: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-
 			if(replaceVars && replace_vars(params, 0, readPath, sLineNo, "*", eos))
 				return 1;
 
@@ -7436,7 +7284,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == "*=")
+		else if(funcName == "*=" && params.size())
 		{
 			if(params.size() < 2)
 			{
@@ -7515,17 +7363,8 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName[0] == '/')
 	{
-		if(funcName == "/")
+		if(funcName == "/" && params.size())
 		{
-			if(params.size() == 0)
-			{
-				if(!consoleLocked)
-					os_mtx->lock();
-				start_err_ml(eos, readPath, sLineNo, lineNo) << "/: expected parameters, got " << params.size() << std::endl;
-				os_mtx->unlock();
-				return 1;
-			}
-
 			bool oldFP = vars.fixedPrecision;
 			vars.fixedPrecision = 1;
 
@@ -7588,7 +7427,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == "/=")
+		else if(funcName == "/=" && params.size())
 		{
 			if(params.size() < 2)
 			{
@@ -7675,7 +7514,7 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName[0] == '%')
 	{
-		if(funcName == "%")
+		if(funcName == "%" && params.size())
 		{
 			if(params.size() != 2)
 			{
@@ -7723,7 +7562,7 @@ int Parser::read_and_process_fn(const bool& indent,
 
 			return 0;
 		}
-		else if(funcName == "%=")
+		else if(funcName == "%=" && params.size())
 		{
 			if(params.size() != 2)
 			{
@@ -7785,7 +7624,7 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName[0] == '?')
 	{
-		if(funcName == "?")
+		if(funcName == "?" && params.size())
 		{
 			if(params.size() != 3)
 			{
@@ -7872,7 +7711,7 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName[0] == ':')
 	{
-		if(funcName == ":=")
+		if(funcName == ":=" && params.size())
 		{
 			std::string varType;
 			std::vector<std::pair<std::string, std::vector<std::string> > > inputVars;
@@ -10422,7 +10261,7 @@ int Parser::read_and_process_fn(const bool& indent,
 			if(read_block(block, linePos, inStr, readPath, lineNo, bLineNo, fnType + "(" + params[0] + ")", eos))
 				return 1;
 
-			if(parseBlock && parse_replace('n', block, fnType + " block", readPath, antiDepsOfReadPath, bLineNo, fnType, sLineNo, eos))
+			if(parseBlock && parse_replace(lang, block, fnType + " block", readPath, antiDepsOfReadPath, bLineNo, fnType, sLineNo, eos))
 				return 1;
 
 			if(add_fn(params[0], fnLang, block, fnType, layer, isConst, isPrivate, unscopedFn, addOut, inScopes, readPath, bLineNo, funcName, eos))
@@ -13824,7 +13663,7 @@ int Parser::read_and_process_fn(const bool& indent,
 				if(spos <= epos && addAtEnd)
 					output += separator;
 
-				if(parse_replace('n', output, "join output", readPath, antiDepsOfReadPath, lineNo, "join", sLineNo, eos))
+				if(parse_replace(lang, output, "join output", readPath, antiDepsOfReadPath, lineNo, "join", sLineNo, eos))
 					return 1;
 
 				outStr += output;
@@ -16063,6 +15902,8 @@ int Parser::read_sh_params(std::vector<std::string>& params,
 					++depth;
 				else if(inStr[linePos] == ')' || inStr[linePos] == ']' || inStr[linePos] == '}')
 					--depth;
+				else if(inStr[linePos] == '\'' || inStr[linePos] == '"')
+					depth = (depth+1)%2; 
 
 				if(inStr[linePos] == '\\' && linePos+1 < inStr.size())
 				{

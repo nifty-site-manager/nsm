@@ -14,7 +14,7 @@ int create_default_html_template(const Path& templatePath)
 	ofs << "<!doctype html>\n";
 	ofs << "<html lang=\"en\">\n";
 	ofs << "\t<head>\n";
-	ofs << "\t\t@input(\"" << templatePath.dir << "head.template\")\n";
+	ofs << "\t\t@input(\"" << templatePath.dir << "head.html\")\n";
 	ofs << "\t</head>\n\n";
 	ofs << "\t<body>\n";
 	ofs << "\t\t@content\n\n";
@@ -23,7 +23,7 @@ int create_default_html_template(const Path& templatePath)
 	ofs << "</html>";
 	ofs.close();
 
-	ofs.open(Path(templatePath.dir, "head.template").str());
+	ofs.open(Path(templatePath.dir, "head.html").str());
 	ofs << "<title>empty site - $[title]</title>\n\n";
 	ofs << "<meta name=\"description\" content=\"\">\n";
 	ofs << "<meta charset=\"utf-8\">" << "\n";
@@ -205,7 +205,7 @@ bool upgrade_config_dir()
 	std::ifstream ifs;
 	std::ofstream ofs;
 	std::string str;
-	bool b;
+	bool b, first;
 	int n;
 
 	std::string outputDir;
@@ -222,8 +222,15 @@ bool upgrade_config_dir()
 		ofs << "{\n";
 		ofs << "\t\"config\": {\n";
 
+		first = 1;
+
 		while(ifs >> str)
 		{
+			if(first)
+				first = 0;
+			else
+				ofs << ",\n";
+
 			str = convert_key(str);
 
 			if(str == "lolcat")
@@ -238,18 +245,18 @@ bool upgrade_config_dir()
 			if(str == "output-dir")
 			{
 				read_quoted(ifs, str);
-				ofs << double_quote(str) << ",\n";
+				ofs << double_quote(str);
 				outputDir = str;
 			}
 			else if(str == "incremental-mode")
 			{
 				read_quoted(ifs, str);
 				if(str == "hybrid" || str == std::to_string(INCR_HYB))
-					ofs << "\"hybrid\",\n";
+					ofs << "\"hybrid\"";
 				if(str == "hash" || str == std::to_string(INCR_HASH))
-					ofs << "\"hash\",\n";
+					ofs << "\"hash\"";
 				else
-					ofs << "\"modified\",\n";
+					ofs << "\"modified\"";
 			}
 			else if(str == "content-dir" ||
 			   str == "content-ext"      ||
@@ -276,7 +283,7 @@ bool upgrade_config_dir()
 			   str == "output-branch")
 			{
 				read_quoted(ifs, str);
-				ofs << double_quote(str) << ",\n";
+				ofs << double_quote(str);
 			}
 			else if(str == "backup-scripts" ||
 
@@ -284,20 +291,17 @@ bool upgrade_config_dir()
 			{
 				ifs >> b;
 				if(b)
-					ofs << "true,\n";
+					ofs << "true";
 				else
-					ofs << "false,\n";
+					ofs << "false";
 			}
 			else if(str == "build-threads" ||
 			        str == "paginate-threads")
 			{
 				ifs >> n;
-				ofs << n << ",\n";
+				ofs << n;
 			}
 		}
-
-		size_t pos = ofs.tellp();
-		ofs.seekp(pos-2);
 
 		ofs << "\n\t}\n";
 		ofs << "}";
@@ -315,7 +319,6 @@ bool upgrade_config_dir()
 	{
 		std::string name;
 		std::vector<std::string> names;
-		size_t pos;
 
 		ifs.open(".nift/tracking.list");
 		ofs.open(".nift/tracked.json");
@@ -323,24 +326,31 @@ bool upgrade_config_dir()
 		ofs << "{\n";
 		ofs << "\t\"tracked\": [\n";
 
+		first = 1;
+
 		while(read_quoted(ifs, str))
 		{
-			ofs << "\t\t{\n";
+			if(first)
+				first = 0;
+			else
+				ofs << ",\n";
+
+			ofs << "\t\t{";
 
 			name = str;
 			names.push_back(name);
-			ofs << "\t\t\t\"name\": " << double_quote(str) << ",\n";
+			ofs << "\n\t\t\t\"name\": " << double_quote(str);
 
 			read_quoted(ifs, str);
-			ofs << "\t\t\t\"title\": " << double_quote(str) << ",\n";
+			ofs << ",\n\t\t\t\"title\": " << double_quote(str);
 
 			read_quoted(ifs, str);
-			ofs << "\t\t\t\"template\": " << double_quote(str) << ",\n";
+			ofs << ",\n\t\t\t\"template\": " << double_quote(str);
 
 			if(file_exists(".nift/" + outputDir + name + ".contExt")) {
 				std::ifstream cifs(".nift/" + outputDir + name + ".contExt");
 				cifs >> str;
-				ofs << "\t\t\t\"content-ext\": " << double_quote(str) << ",\n";
+				ofs << ",\n\t\t\t\"content-ext\": " << double_quote(str);
 
 				remove_file(".nift/" + outputDir + name + ".contExt");
 			}
@@ -348,7 +358,7 @@ bool upgrade_config_dir()
 			if(file_exists(".nift/" + outputDir + name + ".outputExt")) {
 				std::ifstream cifs(".nift/" + outputDir + name + ".outputExt");
 				cifs >> str;
-				ofs << "\t\t\t\"output-ext\": " << double_quote(str) << ",\n";
+				ofs << ",\n\t\t\t\"output-ext\": " << double_quote(str);
 
 				remove_file(".nift/" + outputDir + name + ".outputExt");
 			}
@@ -356,21 +366,15 @@ bool upgrade_config_dir()
 			if(file_exists(".nift/" + outputDir + name + ".scriptExt")) {
 				std::ifstream cifs(".nift/" + outputDir + name + ".scriptExt");
 				cifs >> str;
-				ofs << "\t\t\t\"script-ext\": " << double_quote(str) << ",\n";
+				ofs << ",\n\t\t\t\"script-ext\": " << double_quote(str);
 
 				remove_file(".nift/" + outputDir + name + ".scriptExt");
 			}
 
-			pos = ofs.tellp();
-			ofs.seekp(pos-2);
-
-			ofs << "\n\t\t},\n";
+			ofs << "\n\t\t}";
 		}
 
-		pos = ofs.tellp();
-		ofs.seekp(pos-2);
-
-		ofs << "\t]\n";
+		ofs << "\n\t]\n";
 		ofs << "}";
 
 		ifs.close();
@@ -404,11 +408,15 @@ bool upgrade_config_dir()
 				getline(ifs, str);
 
 				ofs << "\t\"dependencies\": [\n";
-				while(read_quoted(ifs, str))
-					ofs << "\t\t" << double_quote(str) << ",\n";
+				first = 1;
+				while(read_quoted(ifs, str)) {
+					if(first)
+						first = 0;
+					else
+						ofs << ",\n";
 
-				pos = ofs.tellp();
-				ofs.seekp(pos-2);
+					ofs << "\t\t" << double_quote(str);
+				}
 
 				ofs << "\n\t]\n";
 				ofs << "}";
@@ -420,7 +428,7 @@ bool upgrade_config_dir()
 			}
 		}
 
-		std::cout << "upgraded tracked files list" << std::endl;
+		std::cout << "upgraded tracked files list and info files" << std::endl;
 	}
 
 	//dep files
@@ -440,11 +448,16 @@ bool upgrade_config_dir()
 			ofs << "{\n";
 			ofs << "\t\"dependencies\": [\n";
 
-			while(read_quoted(ifs, str))
-				ofs << "\t\t" << double_quote(str) << ",\n";
+			first = 1;
 
-			size_t pos = ofs.tellp();
-			ofs.seekp(pos-2);
+			while(read_quoted(ifs, str)) {
+				if(first)
+					first = 0;
+				else
+					ofs << ",\n";
+
+				ofs << "\t\t" << double_quote(str);
+			}
 
 			ofs << "\n\t]\n";
 			ofs << "}";
@@ -508,8 +521,15 @@ bool upgrade_config_dir()
 				ofs << "{\n";
 				ofs << "\t\"exts\": [\n";
 
+				first = 1;
+
 				while(read_quoted(ifs, str)) 
 				{
+					if(first)
+						first = 0;
+					else
+						ofs << ",\n";
+
 					ofs << "\t\t{\n";
 
 					ofs << "\t\t\t\"content-ext\": " << double_quote(str) << ",\n";
@@ -518,13 +538,7 @@ bool upgrade_config_dir()
 					read_quoted(ifs, str);
 					ofs << "\t\t\t\"output-ext\": " << double_quote(str) << "\n";
 
-					ofs << "\t\t},\n";
-				}
-
-				if(str != "")
-				{
-					size_t pos = ofs.tellp();
-					ofs.seekp(pos-2);
+					ofs << "\t\t}";
 				}
 
 				ofs << "\n\t]\n";
@@ -549,15 +563,16 @@ bool upgrade_config_dir()
 				ofs << "{\n";
 				ofs << "\t\"tracked\": [\n";
 
+				first = 1;
+
 				while(read_quoted(ifs, str))
 				{
-					ofs << "\t\t" << double_quote(str) << ",\n";
-				}
-
-				if(str != "")
-				{
-					size_t pos = ofs.tellp();
-					ofs.seekp(pos-2);
+					if(first)
+						first = 0;
+					else
+						ofs << ",\n";
+					
+					ofs << "\t\t" << double_quote(str);
 				}
 
 				ofs << "\t]\n";
@@ -2621,8 +2636,19 @@ int ProjectInfo::mv(const Name& oldName, const Name& newName)
 	TrackedInfo newInfo;
 	newInfo.name = newName;
 
-	newInfo.contentPath.set_file_path_from(contentDir + newName + cContExt);
-	newInfo.outputPath.set_file_path_from(outputDir + newName + cOutputExt);
+	if(oldInfo.contentExt == "")
+		newInfo.contentPath.set_file_path_from(contentDir + newName + cContExt);
+	else {
+		newInfo.contentExt = oldInfo.contentExt;
+		newInfo.contentPath.set_file_path_from(contentDir + newName + oldInfo.contentExt);
+	}
+
+	if(oldInfo.outputExt == "")
+		newInfo.outputPath.set_file_path_from(outputDir + newName + cOutputExt);
+	else {
+		newInfo.outputExt = oldInfo.outputExt;
+		newInfo.outputPath.set_file_path_from(outputDir + newName + oldInfo.outputExt);
+	}
 
 	if(newInfo.contentPath.file == cContExt)
 		newInfo.contentPath.file = "index" + cContExt;
@@ -2654,45 +2680,6 @@ int ProjectInfo::mv(const Name& oldName, const Name& newName)
 		return 1;
 	}
 	remove_path(oldInfo.contentPath);
-
-	//moves extension files if they exist
-	Path newExtPath = newInfo.outputPath.getInfoPath();
-	oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_last_of('.')) + ".contExt";
-	if(file_exists(oldExtPath.str()))
-	{
-		newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_last_of('.')) + ".contExt";
-		newExtPath.ensureDirExists();
-		chmod(oldExtPath.str().c_str(), 0666);
-		if(rename(oldExtPath.str().c_str(), newExtPath.str().c_str()))
-		{
-			start_err(std::cout) << "mv: failed to move " << oldExtPath << " to " << newExtPath << std::endl;
-			return 1;
-		}
-	}
-	oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_last_of('.')) + ".outputExt";
-	if(file_exists(oldExtPath.str()))
-	{
-		newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_last_of('.')) + ".outputExt";
-		newExtPath.ensureDirExists();
-		chmod(oldExtPath.str().c_str(), 0666);
-		if(rename(oldExtPath.str().c_str(), newExtPath.str().c_str()))
-		{
-			start_err(std::cout) << "mv: failed to move " << oldExtPath << " to " << newExtPath << std::endl;
-			return 1;
-		}
-	}
-	oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_last_of('.')) + ".scriptExt";
-	if(file_exists(oldExtPath.str()))
-	{
-		newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_last_of('.')) + ".scriptExt";
-		newExtPath.ensureDirExists();
-		chmod(oldExtPath.str().c_str(), 0666);
-		if(rename(oldExtPath.str().c_str(), newExtPath.str().c_str()))
-		{
-			start_err(std::cout) << "mv: failed to move " << oldExtPath << " to " << newExtPath << std::endl;
-			return 1;
-		}
-	}
 
 	//removes info file and containing dirs if now empty
 	if(file_exists(oldInfo.outputPath.getInfoPath().str()))
@@ -2758,8 +2745,20 @@ int ProjectInfo::cp(const Name& trackedName, const Name& newName)
 
 	TrackedInfo newInfo;
 	newInfo.name = newName;
-	newInfo.contentPath.set_file_path_from(contentDir + newName + cContExt);
-	newInfo.outputPath.set_file_path_from(outputDir + newName + cOutputExt);
+
+	if(trackedInfo.contentExt == "")
+		newInfo.contentPath.set_file_path_from(contentDir + newName + cContExt);
+	else {
+		cContExt = newInfo.contentExt = trackedInfo.contentExt;
+		newInfo.contentPath.set_file_path_from(contentDir + newName + trackedInfo.contentExt);
+	}
+
+	if(trackedInfo.outputExt == "")
+		newInfo.outputPath.set_file_path_from(outputDir + newName + cOutputExt);
+	else {
+		cOutputExt = newInfo.outputExt = trackedInfo.outputExt;
+		newInfo.outputPath.set_file_path_from(outputDir + newName + trackedInfo.outputExt);
+	}
 
 	if(newInfo.contentPath.file == cContExt)
 		newInfo.contentPath.file = "index" + cContExt;
@@ -2790,45 +2789,6 @@ int ProjectInfo::cp(const Name& trackedName, const Name& newName)
 	{
 		start_err(std::cout) << "cp: failed to copy " << trackedInfo.contentPath << " to " << newInfo.contentPath << std::endl;
 		return 1;
-	}
-
-	//copies extension files if they exist
-	Path newExtPath = newInfo.outputPath.getInfoPath();
-	oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_last_of('.')) + ".contExt";
-	if(file_exists(oldExtPath.str()))
-	{
-		newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_last_of('.')) + ".contExt";
-		newExtPath.ensureDirExists();
-		if(cpFile(oldExtPath.str(), newExtPath.str(), -1, emptyPath, std::cout, 0, &os_mtx))
-		{
-			start_err(std::cout) << "cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
-			return 1;
-		}
-		chmod(newExtPath.str().c_str(), 0444);
-	}
-	oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_last_of('.')) + ".outputExt";
-	if(file_exists(oldExtPath.str()))
-	{
-		newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_last_of('.')) + ".outputExt";
-		newExtPath.ensureDirExists();
-		if(cpFile(oldExtPath.str(), newExtPath.str(), -1, emptyPath, std::cout, 0, &os_mtx))
-		{
-			start_err(std::cout) << "cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
-			return 1;
-		}
-		chmod(newExtPath.str().c_str(), 0444);
-	}
-	oldExtPath.file = oldExtPath.file.substr(0, oldExtPath.file.find_last_of('.')) + ".scriptExt";
-	if(file_exists(oldExtPath.str()))
-	{
-		newExtPath.file = newExtPath.file.substr(0, newExtPath.file.find_last_of('.')) + ".scriptExt";
-		newExtPath.ensureDirExists();
-		if(cpFile(oldExtPath.str(), newExtPath.str(), -1, emptyPath, std::cout, 0, &os_mtx))
-		{
-			start_err(std::cout) << "cp: failed to copy " << oldExtPath << " to " << newExtPath << std::endl;
-			return 1;
-		}
-		chmod(newExtPath.str().c_str(), 0444);
 	}
 
 	//adds newInfo to trackedAll

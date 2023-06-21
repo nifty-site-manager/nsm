@@ -377,8 +377,8 @@ int main(int argc, const char* argv[])
 			if(project.open(1) > 0)
 				return 1;
 
-			Name name = "index";
-			Title title = get_title(name);
+			Name name = "/";
+			Title title("index");
 			project.track(name, title, templatePath);
 
 			name = "assets/css/style";
