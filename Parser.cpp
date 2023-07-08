@@ -3257,31 +3257,38 @@ int Parser::read_and_process_fn(const bool& indent,
 				{
 					if(!get_bool(result, conditions[b]))
 					{
-						if(conditions[b] != "" && expr.compile(conditions[b]))
-							result = expr.evaluate();
-						else
-						{
-							parsedCondition = conditions[b];
-
-							if(parse_replace('f', parsedCondition, "if/else-if condition", readPath, antiDepsOfReadPath, conditionLineNo, "if(" + params[0] + ")", sLineNo, eos))
-								return 1;
-
-							if(replace_var(parsedCondition, readPath, conditionLineNo, "if/else-if", eos))
-								return 1;
-
-							if(!get_bool(result, parsedCondition))
+						VPos vpos;
+						if(vars.find(conditions[b], vpos)) {
+							vars.get_bool_from_var(vpos, result);
+						}
+						else {
+							if(conditions[b] != "" && expr.compile(conditions[b])) {
+								result = expr.evaluate();
+							}
+							else
 							{
-								if(parsedCondition != "" && expr.compile(parsedCondition))
-									result = expr.evaluate();
-								else
-								{
-									if(!consoleLocked)
-										os_mtx->lock();
-									start_err(eos, readPath, conditionLineNo) << "if/else-if: cannot convert " << quote(parsedCondition) << " to bool" << std::endl;
-									start_err(eos, readPath, conditionLineNo) << "if/else-if: possible errors from ExprTk:" << std::endl;
-									print_exprtk_parser_errs(eos, expr.parser, expr.expr_str, readPath, sLineNo);
-									os_mtx->unlock();
+								parsedCondition = conditions[b];
+
+								if(parse_replace('f', parsedCondition, "if/else-if condition", readPath, antiDepsOfReadPath, conditionLineNo, "if(" + params[0] + ")", sLineNo, eos))
 									return 1;
+
+								if(replace_var(parsedCondition, readPath, conditionLineNo, "if/else-if", eos))
+									return 1;
+
+								if(!get_bool(result, parsedCondition))
+								{
+									if(parsedCondition != "" && expr.compile(parsedCondition))
+										result = expr.evaluate();
+									else
+									{
+										if(!consoleLocked)
+											os_mtx->lock();
+										start_err(eos, readPath, conditionLineNo) << "if/else-if: cannot convert " << quote(parsedCondition) << " to bool" << std::endl;
+										start_err(eos, readPath, conditionLineNo) << "if/else-if: possible errors from ExprTk:" << std::endl;
+										print_exprtk_parser_errs(eos, expr.parser, expr.expr_str, readPath, sLineNo);
+										os_mtx->unlock();
+										return 1;
+									}
 								}
 							}
 						}
@@ -7711,7 +7718,7 @@ int Parser::read_and_process_fn(const bool& indent,
 	}
 	else if(funcName[0] == ':')
 	{
-		if(funcName == ":=" && params.size())
+		if(funcName == ":=" && paramsStr != "")
 		{
 			std::string varType;
 			std::vector<std::pair<std::string, std::vector<std::string> > > inputVars;
@@ -7846,6 +7853,20 @@ int Parser::read_and_process_fn(const bool& indent,
 								start_err_ml(eos, readPath, sLineNo, lineNo) << ":=: bool definition for " << quote(inputVars[v].first) << " should have 1 input variable, got " << inputVars[v].second.size() << std::endl;
 								os_mtx->unlock();
 								return 1;
+							}
+							else if(inputVars[v].second[0] == "1" || inputVars[v].second[0] == "true")
+							{
+								vars.layers[layer].doubles[inputVars[v].first] = 1;
+
+								if(addToExpr)
+									symbol_table.add_variable(inputVars[v].first, vars.layers[layer].doubles[inputVars[v].first]);
+							}
+							else if(inputVars[v].second[0] == "0" || inputVars[v].second[0] == "false")
+							{
+								vars.layers[layer].doubles[inputVars[v].first] = 0;
+
+								if(addToExpr)
+									symbol_table.add_variable(inputVars[v].first, vars.layers[layer].doubles[inputVars[v].first]);
 							}
 							else if(isInt(inputVars[v].second[0]))
 							{
@@ -8002,6 +8023,10 @@ int Parser::read_and_process_fn(const bool& indent,
 								os_mtx->unlock();
 								return 1;
 							}
+							else if(inputVars[v].second[0] == "1" || inputVars[v].second[0] == "true")
+								vars.layers[layer].bools[inputVars[v].first] = 1;
+							else if(inputVars[v].second[0] == "0" || inputVars[v].second[0] == "false")
+								vars.layers[layer].bools[inputVars[v].first] = 1;
 							else if(isInt(inputVars[v].second[0]))
 								vars.layers[layer].bools[inputVars[v].first] = (bool)std::atoi(inputVars[v].second[0].c_str());
 							else if(isDouble(inputVars[v].second[0]))
@@ -14817,6 +14842,13 @@ int Parser::get_bool(bool& bVal, const std::string& str)
 
 		return 1;
 	}
+
+	/*VPos vpos;
+	if(vars.find(str, vpos)) {
+		vars.get_bool_from_var(vpos, bVal);
+
+		return 1;
+	}*/
 
 	return 0;
 }

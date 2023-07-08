@@ -2,6 +2,10 @@
 Nift Release Notes
 ------------------
 
+Version 3.0.2 of Nift
+* fixed bug with variable definitions
+* fixed bug with variable if conditions (trying to compile exprtk expression segmentation faults)
+
 Version 3.0.1 of Nift
 * fixed bug copying/moving pages with non-default content and/or output extension(s)
 * fixed bug with copying whitespace when parsing functionstein, especially for string definitions
