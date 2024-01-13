@@ -27,7 +27,7 @@ ifeq ($(CXX),clang)
 endif
 
 ifeq ($(detected_OS),Darwin)        # Mac OSX
-	CXXFLAGS+= -pagezero_size 10000 -image_base 10000000 -Qunused-arguments
+	CXXFLAGS+= -Qunused-arguments
 else ifeq ($(detected_OS),Windows)  # Windows
 	#use these flags for a smaller binary
 	CXXFLAGS+= -s -Wa,-mbig-obj -Wno-cast-function-type -Wno-error=cast-function-type
@@ -123,6 +123,9 @@ ifeq ($(BUNDLED),0)
 		else                                # *nix
 			CXXFLAGS+= -D__LUAJIT_VERSION_2_0__
 			LINK+= -ldl -L/usr/local/lib -lluajit-5.1 
+		endif
+		ifeq ($(detected_OS),Darwin)        # Mac OSX
+			CXXFLAGS+= -pagezero_size 10000 -image_base 10000000
 		endif
 	else
 		ifeq ($(detected_OS),FreeBSD)  # FreeBSD
