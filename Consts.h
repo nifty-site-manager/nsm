@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <iostream>
 
-const std::string NSM_VERSION = "3.0.2";
+const std::string NSM_VERSION = "3.0.3";
 
 const int HASH_RS      = -2011;
 const int HASH_JS      = -2012;

@@ -1407,8 +1407,13 @@ int Parser::build(const TrackedInfo& ToBuild,
 		infoStream << "\t\"dependencies\": [\n"; 
 		for(auto depFile=depFiles.begin(); depFile != depFiles.end(); depFile++)
 			infoStream << "\t\t\"" << depFile->str() << "\",\n";
+		infoStream.flush();
 		size_t pos = infoStream.tellp();
-		infoStream.seekp(pos-2);
+		#if defined _WIN32 || defined _WIN64
+			infoStream.seekp(pos-3);
+		#else  //*nix
+			infoStream.seekp(pos-2);
+		#endif
 		infoStream << "\n\t]\n";
 		infoStream << "}";
 		infoStream.close();
@@ -16305,8 +16310,8 @@ int Parser::read_paramsStr(std::string& paramsStr,
 				   inStr[linePos] == '$' || 
 				   //inStr.substr(linePos, 2) == "++" ||
 				   //inStr.substr(linePos, 2) == "--" ||
-				   (inStr[linePos] == '+' &&  linePos+1 < inStr.size() && inStr[linePos+1] == '+') || 
-				   (inStr[linePos] == '-' &&  linePos+1 < inStr.size() && inStr[linePos+1] == '-') || 
+				   //(inStr[linePos] == '+' &&  linePos+1 < inStr.size() && inStr[linePos+1] == '+') || 
+				   //(inStr[linePos] == '-' &&  linePos+1 < inStr.size() && inStr[linePos+1] == '-') || 
 				   inStr[linePos] == '(' || 
 				   inStr[linePos] == '{' || 
 				   inStr[linePos] == '`')
@@ -16380,8 +16385,8 @@ int Parser::read_paramsStr(std::string& paramsStr,
 		   inStr[linePos] == '$' || 
 		   //inStr.substr(linePos, 2) == "++" ||
 		   //inStr.substr(linePos, 2) == "--" ||
-		   (inStr[linePos] == '+' &&  linePos+1 < inStr.size() && inStr[linePos+1] == '+') || 
-		   (inStr[linePos] == '-' &&  linePos+1 < inStr.size() && inStr[linePos+1] == '-') || 
+		   //(inStr[linePos] == '+' &&  linePos+1 < inStr.size() && inStr[linePos+1] == '+') || 
+		   //(inStr[linePos] == '-' &&  linePos+1 < inStr.size() && inStr[linePos+1] == '-') || 
 		   inStr[linePos] == '(' || 
 		   inStr[linePos] == '{' || 
 		   inStr[linePos] == '`')

@@ -1041,14 +1041,25 @@ int ProjectInfo::save_tracking()
 		if(tInfo->scriptExt != "") 
 			ofs << "\t\t\t\"script-ext\": \"" << tInfo->scriptExt << "\",\n";
 
+		ofs.flush();
 		pos = ofs.tellp();
-		ofs.seekp(pos-2);
+
+		#if defined _WIN32 || defined _WIN64
+			ofs.seekp(pos-3);
+		#else  //*nix
+			ofs.seekp(pos-2);
+		#endif
 
 		ofs << "\n\t\t},\n";
 	}
 
+	ofs.flush();
 	pos = ofs.tellp();
-	ofs.seekp(pos-2);
+	#if defined _WIN32 || defined _WIN64
+		ofs.seekp(pos-3);
+	#else  //*nix
+		ofs.seekp(pos-2);
+	#endif
 
 	ofs << "\n\t]\n";
 	ofs << "}";

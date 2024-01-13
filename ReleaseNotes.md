@@ -2,6 +2,10 @@
 Nift Release Notes
 ------------------
 
+Version 3.0.3 of Nift
+* fixed bug with json config on Windows
+* fixed bug in Parser::read_paramsStr
+
 Version 3.0.2 of Nift
 * fixed bug with variable definitions
 * fixed bug with variable if conditions (trying to compile exprtk expression segmentation faults)
